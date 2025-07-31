@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 export default function Home() {
   const [transactions, setTransactions] = useState([])
+  const [categories, setCategories] = useState([])
   const [type, setType] = useState('expense')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -20,23 +21,31 @@ export default function Home() {
         expense += Number(t.amount)
       }
     })
-    return {
-      income,
-      expense,
-      balance: income - expense
-    }
+    return { income, expense, balance: income - expense }
   }
 
   const fetchTransactions = async () => {
     const { data, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('*, categories(name)')
       .order('date', { ascending: false })
-    if (error) {
-      console.error("Failed to fetch transactions:", error)
-    } else {
+    if (!error) {
       setTransactions(data || [])
       setSummary(calculateSummary(data || []))
+    } else {
+      console.error("Fetch transactions error:", error)
+    }
+  }
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name')
+    if (!error) {
+      setCategories(data || [])
+    } else {
+      console.error("Fetch categories error:", error)
     }
   }
 
@@ -46,7 +55,7 @@ export default function Home() {
       { type, amount: Number(amount), category, note, date: new Date() }
     ])
     if (error) {
-      console.error("Failed to insert transaction:", error)
+      console.error("Insert error:", error)
       return alert('Gagal menambah transaksi')
     }
     setAmount('')
@@ -56,6 +65,7 @@ export default function Home() {
   }
 
   useEffect(() => {
+    fetchCategories()
     fetchTransactions()
     const interval = setInterval(fetchTransactions, 5000)
     return () => clearInterval(interval)
@@ -76,9 +86,15 @@ export default function Home() {
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="expense">Pengeluaran</option>
           <option value="income">Pemasukan</option>
+          <option value="transfer">Transfer</option>
         </select>
         <input type="number" placeholder="Jumlah" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <input type="text" placeholder="Kategori" value={category} onChange={(e) => setCategory(e.target.value)} />
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">Pilih Kategori</option>
+          {categories.filter(c => c.type === type).map(c => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+        </select>
         <input type="text" placeholder="Catatan" value={note} onChange={(e) => setNote(e.target.value)} />
         <button onClick={addTransaction}>Tambah</button>
       </div>
@@ -88,7 +104,7 @@ export default function Home() {
         {transactions.length > 0 ? (
           transactions.map(t => (
             <li key={t.id}>
-              [{t.type}] Rp{t.amount} - {t.category} ({t.note})
+              [{t.type}] Rp{t.amount} - {t.categories?.name || t.category} ({t.note})
             </li>
           ))
         ) : (
