@@ -156,41 +156,40 @@ export default function Home() {
         )}
       </div>
 
-      {/* Daftar transaksi */}
-      <h2>Riwayat Transaksi</h2>
-      {/* Show transaction table only if there are filtered transactions, otherwise show a message */}
+{/* Daftar transaksi */}
+<h2 className="text-xl font-bold mt-6 mb-2">Riwayat Transaksi</h2>
 {filteredTransactions.length > 0 ? (
-  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-    <thead>
-      <tr style={{ backgroundColor: "#f2f2f2" }}>
-        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Tanggal</th>
-        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Jenis</th>
-        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Kategori</th>
-        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Jumlah</th>
-        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Catatan</th>
-      </tr>
-    </thead>
-    <tbody>
-      {filteredTransactions.map(t => (
-        <tr key={t.id}>
-          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.date}</td>
-          <td style={{ border: "1px solid #ddd", padding: "8px", textTransform: "capitalize" }}>{t.type}</td>
-          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.categories?.name || t.category}</td>
-          <td style={{
-            border: "1px solid #ddd",
-            padding: "8px",
-            color: t.type === "income" ? "green" : t.type === "expense" ? "red" : "black",
-            fontWeight: "bold"
-          }}>
-            Rp{Number(t.amount).toLocaleString()}
-          </td>
-          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.note}</td>
+  <div className="overflow-x-auto">
+    <table className="min-w-full border border-gray-200 shadow-md rounded-lg">
+      <thead className="bg-gray-100">
+        <tr>
+          <th className="border px-4 py-2 text-left">Tanggal</th>
+          <th className="border px-4 py-2 text-left">Jenis</th>
+          <th className="border px-4 py-2 text-left">Kategori</th>
+          <th className="border px-4 py-2 text-right">Jumlah</th>
+          <th className="border px-4 py-2 text-left">Catatan</th>
         </tr>
-      ))}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {filteredTransactions.map(t => (
+          <tr key={t.id} className="hover:bg-gray-50">
+            <td className="border px-4 py-2">{t.date}</td>
+            <td className="border px-4 py-2 capitalize">{t.type}</td>
+            <td className="border px-4 py-2">{t.categories?.name || t.category}</td>
+            <td className={`border px-4 py-2 text-right font-semibold ${
+              t.type === "income" ? "text-green-600" :
+              t.type === "expense" ? "text-red-600" : "text-gray-700"
+            }`}>
+              Rp{Number(t.amount).toLocaleString()}
+            </td>
+            <td className="border px-4 py-2">{t.note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 ) : (
-  <p>Tidak ada transaksi yang sesuai filter</p>
+  <p className="text-gray-500 italic">Tidak ada transaksi yang sesuai filter</p>
 )}
 
     </div>
