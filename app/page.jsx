@@ -158,17 +158,41 @@ export default function Home() {
 
       {/* Daftar transaksi */}
       <h2>Riwayat Transaksi</h2>
-      <ul>
-        {filteredTransactions.length > 0 ? (
-          filteredTransactions.map(t => (
-            <li key={t.id}>
-              [{t.type}] Rp{t.amount} - {t.categories?.name || t.category} ({t.note}) pada {t.date}
-            </li>
-          ))
-        ) : (
-          <li>Tidak ada transaksi yang sesuai filter</li>
-        )}
-      </ul>
+      <h2>Riwayat Transaksi</h2>
+{filteredTransactions.length > 0 ? (
+  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <thead>
+      <tr style={{ backgroundColor: "#f2f2f2" }}>
+        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Tanggal</th>
+        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Jenis</th>
+        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Kategori</th>
+        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Jumlah</th>
+        <th style={{ border: "1px solid #ddd", padding: "8px" }}>Catatan</th>
+      </tr>
+    </thead>
+    <tbody>
+      {filteredTransactions.map(t => (
+        <tr key={t.id}>
+          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.date}</td>
+          <td style={{ border: "1px solid #ddd", padding: "8px", textTransform: "capitalize" }}>{t.type}</td>
+          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.categories?.name || t.category}</td>
+          <td style={{
+            border: "1px solid #ddd",
+            padding: "8px",
+            color: t.type === "income" ? "green" : t.type === "expense" ? "red" : "black",
+            fontWeight: "bold"
+          }}>
+            Rp{Number(t.amount).toLocaleString()}
+          </td>
+          <td style={{ border: "1px solid #ddd", padding: "8px" }}>{t.note}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+) : (
+  <p>Tidak ada transaksi yang sesuai filter</p>
+)}
+
     </div>
   )
 }
