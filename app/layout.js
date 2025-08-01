@@ -1,3 +1,5 @@
+import './globals.css'
+
 export const metadata = {
   title: 'Finance Tracker',
   description: 'A simple finance tracker app',
