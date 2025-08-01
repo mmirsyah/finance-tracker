@@ -4,19 +4,19 @@ import { supabase } from '../lib/supabase'
 
 export default function Home() {
   // ======== STATE ========
-  const [transactions, setTransactions] = useState([])   
-  const [categories, setCategories] = useState([])       
-  const [type, setType] = useState('expense')            
-  const [amount, setAmount] = useState('')               
-  const [category, setCategory] = useState('')           
-  const [note, setNote] = useState('')                   
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]) 
+  const [transactions, setTransactions] = useState([])
+  const [categories, setCategories] = useState([])
+  const [type, setType] = useState('expense')
+  const [amount, setAmount] = useState('')
+  const [category, setCategory] = useState('')
+  const [note, setNote] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 })
 
   // ======== STATE FILTER ========
-  const [filterField, setFilterField] = useState('') // kolom filter
-  const [filterValue, setFilterValue] = useState('') // nilai filter
-  const [filteredTransactions, setFilteredTransactions] = useState([]) // hasil filter
+  const [filterField, setFilterField] = useState('')
+  const [filterValue, setFilterValue] = useState('')
+  const [filteredTransactions, setFilteredTransactions] = useState([])
 
   // ======== HITUNG RINGKASAN ========
   const calculateSummary = (data) => {
@@ -32,7 +32,7 @@ export default function Home() {
     return { income, expense, balance: income - expense }
   }
 
-  // ======== AMBIL TRANSAKSI + RE-APPLY FILTER ========
+  // ======== AMBIL TRANSAKSI ========
   const fetchTransactions = async () => {
     const { data, error } = await supabase
       .from('transactions')
@@ -40,24 +40,6 @@ export default function Home() {
       .order('date', { ascending: false })
     if (!error) {
       setTransactions(data || [])
-
-      // Re-apply filter otomatis kalau ada filter aktif
-      if (filterField && filterValue) {
-        const filtered = data.filter(t => {
-          if (filterField === 'categories.name') {
-            return t.categories?.name?.toLowerCase().includes(filterValue.toLowerCase())
-          } else if (filterField === 'amount') {
-            return Number(t.amount) === Number(filterValue)
-          } else {
-            return t[filterField]?.toString().toLowerCase().includes(filterValue.toLowerCase())
-          }
-        })
-        setFilteredTransactions(filtered)
-        setSummary(calculateSummary(filtered))
-      } else {
-        setFilteredTransactions(data || [])
-        setSummary(calculateSummary(data || []))
-      }
     } else {
       console.error("Fetch transactions error:", error)
     }
@@ -93,8 +75,22 @@ export default function Home() {
     await fetchTransactions()
   }
 
-  // ======== FILTER MANUAL (SAAT KLIK) ========
-  const applyFilter = () => {
+  // ======== CLEAR FILTER ========
+  const clearFilter = () => {
+    setFilterField('')
+    setFilterValue('')
+  }
+
+  // ======== AUTO-REFRESH & INIT ========
+  useEffect(() => {
+    fetchCategories()
+    fetchTransactions()
+    const interval = setInterval(fetchTransactions, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ======== FILTER LOGIC (DIPISAH) ========
+  useEffect(() => {
     if (!filterField || !filterValue) {
       setFilteredTransactions(transactions)
       setSummary(calculateSummary(transactions))
@@ -111,23 +107,7 @@ export default function Home() {
     })
     setFilteredTransactions(filtered)
     setSummary(calculateSummary(filtered))
-  }
-
-  // ======== CLEAR FILTER ========
-  const clearFilter = () => {
-    setFilterField('')
-    setFilterValue('')
-    setFilteredTransactions(transactions)
-    setSummary(calculateSummary(transactions))
-  }
-
-  // ======== USE EFFECT (AUTO REFRESH) ========
-  useEffect(() => {
-    fetchCategories()
-    fetchTransactions()
-    const interval = setInterval(fetchTransactions, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  }, [transactions, filterField, filterValue])
 
   // ======== RENDER ========
   return (
@@ -194,8 +174,13 @@ export default function Home() {
           value={filterValue} 
           onChange={(e) => setFilterValue(e.target.value)} 
         />
-        <button onClick={applyFilter}>Terapkan Filter</button>
+        <button onClick={() => {}}>Terapkan (Otomatis sekarang)</button>
         <button onClick={clearFilter} style={{ marginLeft: 10 }}>Clear Filter</button>
+        {filterField && filterValue && (
+          <p style={{ marginTop: 10, fontStyle: 'italic', color: 'green' }}>
+            Filter aktif: {filterField} = "{filterValue}"
+          </p>
+        )}
       </div>
 
       {/* ===== DAFTAR TRANSAKSI ===== */}
