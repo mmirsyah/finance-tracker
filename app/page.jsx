@@ -88,7 +88,7 @@ export default function Home() {
 
   const clearFilter = () => {
     setFilterField(''); setFilterValue('')
-    applyFilter(transactions, '', '')
+    //applyFilter(transactions, '', '')
   }
 
   // INIT + AUTO REFRESH
