@@ -56,7 +56,7 @@ export default function Home() {
       .order('date', { ascending: false })
     if (!error) {
       setTransactions(data || [])
-      applyFilter(data || []) // langsung apply filter setelah refresh
+      //applyFilter(data || []) // langsung apply filter setelah refresh
     } else {
       console.error("Fetch transactions error:", error)
     }
@@ -102,7 +102,7 @@ export default function Home() {
   // Kalau filter diubah manual, langsung apply ke data sekarang
   useEffect(() => {
     applyFilter(transactions)
-  }, [filterField, filterValue])
+  }, [transactions, filterField, filterValue])
 
   // RENDER
   return (
