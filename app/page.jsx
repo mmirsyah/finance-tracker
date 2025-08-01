@@ -158,7 +158,7 @@ export default function Home() {
 
       {/* Daftar transaksi */}
       <h2>Riwayat Transaksi</h2>
-      <h2>Riwayat Transaksi</h2>
+      {/* Show transaction table only if there are filtered transactions, otherwise show a message */}
 {filteredTransactions.length > 0 ? (
   <table style={{ width: "100%", borderCollapse: "collapse" }}>
     <thead>
