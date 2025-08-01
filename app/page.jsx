@@ -14,7 +14,7 @@ export default function Home() {
   const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 })
 
   // ======== STATE FILTER ========
-  const [filterField, setFilterField] = useState('') // kolom yang dipilih untuk filter
+  const [filterField, setFilterField] = useState('') // kolom filter
   const [filterValue, setFilterValue] = useState('') // nilai filter
   const [filteredTransactions, setFilteredTransactions] = useState([]) // hasil filter
 
@@ -32,37 +32,36 @@ export default function Home() {
     return { income, expense, balance: income - expense }
   }
 
-  // ======== AMBIL TRANSAKSI ========
+  // ======== AMBIL TRANSAKSI + RE-APPLY FILTER ========
   const fetchTransactions = async () => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*, categories(name)')
-    .order('date', { ascending: false })
-  if (!error) {
-    setTransactions(data || [])
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*, categories(name)')
+      .order('date', { ascending: false })
+    if (!error) {
+      setTransactions(data || [])
 
-    // Re-apply filter otomatis kalau filter aktif
-    if (filterField && filterValue) {
-      const filtered = data.filter(t => {
-        if (filterField === 'categories.name') {
-          return t.categories?.name?.toLowerCase().includes(filterValue.toLowerCase())
-        } else if (filterField === 'amount') {
-          return Number(t.amount) === Number(filterValue)
-        } else {
-          return t[filterField]?.toString().toLowerCase().includes(filterValue.toLowerCase())
-        }
-      })
-      setFilteredTransactions(filtered)
-      setSummary(calculateSummary(filtered))
+      // Re-apply filter otomatis kalau ada filter aktif
+      if (filterField && filterValue) {
+        const filtered = data.filter(t => {
+          if (filterField === 'categories.name') {
+            return t.categories?.name?.toLowerCase().includes(filterValue.toLowerCase())
+          } else if (filterField === 'amount') {
+            return Number(t.amount) === Number(filterValue)
+          } else {
+            return t[filterField]?.toString().toLowerCase().includes(filterValue.toLowerCase())
+          }
+        })
+        setFilteredTransactions(filtered)
+        setSummary(calculateSummary(filtered))
+      } else {
+        setFilteredTransactions(data || [])
+        setSummary(calculateSummary(data || []))
+      }
     } else {
-      // Kalau gak ada filter, tampilkan semua
-      setFilteredTransactions(data || [])
-      setSummary(calculateSummary(data || []))
+      console.error("Fetch transactions error:", error)
     }
-  } else {
-    console.error("Fetch transactions error:", error)
   }
-}
 
   // ======== AMBIL KATEGORI ========
   const fetchCategories = async () => {
@@ -77,7 +76,7 @@ export default function Home() {
     }
   }
 
-  // ======== TAMBAH TRANSAKSI BARU ========
+  // ======== TAMBAH TRANSAKSI ========
   const addTransaction = async () => {
     if (!amount || !category || !date) return alert('Lengkapi data!')
     const { error } = await supabase.from('transactions').insert([
@@ -94,10 +93,11 @@ export default function Home() {
     await fetchTransactions()
   }
 
-  // ======== FILTERING ========
+  // ======== FILTER MANUAL (SAAT KLIK) ========
   const applyFilter = () => {
     if (!filterField || !filterValue) {
-      setFilteredTransactions(transactions) // kalau kosong tampil semua
+      setFilteredTransactions(transactions)
+      setSummary(calculateSummary(transactions))
       return
     }
     const filtered = transactions.filter(t => {
@@ -113,7 +113,15 @@ export default function Home() {
     setSummary(calculateSummary(filtered))
   }
 
-  // ======== USE EFFECT ========
+  // ======== CLEAR FILTER ========
+  const clearFilter = () => {
+    setFilterField('')
+    setFilterValue('')
+    setFilteredTransactions(transactions)
+    setSummary(calculateSummary(transactions))
+  }
+
+  // ======== USE EFFECT (AUTO REFRESH) ========
   useEffect(() => {
     fetchCategories()
     fetchTransactions()
@@ -187,6 +195,7 @@ export default function Home() {
           onChange={(e) => setFilterValue(e.target.value)} 
         />
         <button onClick={applyFilter}>Terapkan Filter</button>
+        <button onClick={clearFilter} style={{ marginLeft: 10 }}>Clear Filter</button>
       </div>
 
       {/* ===== DAFTAR TRANSAKSI ===== */}
