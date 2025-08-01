@@ -3,17 +3,22 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Home() {
-  // ======== STATE (Data yang disimpan di memori saat aplikasi berjalan) ========
-  const [transactions, setTransactions] = useState([])   // daftar transaksi
-  const [categories, setCategories] = useState([])       // daftar kategori
-  const [type, setType] = useState('expense')            // jenis transaksi (default: expense)
-  const [amount, setAmount] = useState('')               // jumlah uang
-  const [category, setCategory] = useState('')           // kategori (id kategori)
-  const [note, setNote] = useState('')                   // catatan
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]) // tanggal transaksi (default: hari ini)
-  const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 }) // ringkasan keuangan
+  // ======== STATE ========
+  const [transactions, setTransactions] = useState([])   
+  const [categories, setCategories] = useState([])       
+  const [type, setType] = useState('expense')            
+  const [amount, setAmount] = useState('')               
+  const [category, setCategory] = useState('')           
+  const [note, setNote] = useState('')                   
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]) 
+  const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 })
 
-  // ======== HITUNG RINGKASAN (total income, expense, balance) ========
+  // ======== STATE FILTER ========
+  const [filterField, setFilterField] = useState('') // kolom yang dipilih untuk filter
+  const [filterValue, setFilterValue] = useState('') // nilai filter
+  const [filteredTransactions, setFilteredTransactions] = useState([]) // hasil filter
+
+  // ======== HITUNG RINGKASAN ========
   const calculateSummary = (data) => {
     let income = 0
     let expense = 0
@@ -27,21 +32,22 @@ export default function Home() {
     return { income, expense, balance: income - expense }
   }
 
-  // ======== AMBIL TRANSAKSI DARI SUPABASE ========
+  // ======== AMBIL TRANSAKSI ========
   const fetchTransactions = async () => {
     const { data, error } = await supabase
       .from('transactions')
-      .select('*, categories(name)') // ambil transaksi + nama kategori (relasi foreign key)
-      .order('date', { ascending: false }) // urutkan dari terbaru
+      .select('*, categories(name)')
+      .order('date', { ascending: false })
     if (!error) {
       setTransactions(data || [])
+      setFilteredTransactions(data || []) // default tampil semua
       setSummary(calculateSummary(data || []))
     } else {
       console.error("Fetch transactions error:", error)
     }
   }
 
-  // ======== AMBIL KATEGORI DARI SUPABASE ========
+  // ======== AMBIL KATEGORI ========
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categories')
@@ -64,29 +70,46 @@ export default function Home() {
       console.error("Insert error:", error)
       return alert('Gagal menambah transaksi')
     }
-    // Reset input setelah berhasil
     setAmount('')
     setCategory('')
     setNote('')
-    setDate(new Date().toISOString().split('T')[0]) // kembalikan ke tanggal hari ini
+    setDate(new Date().toISOString().split('T')[0])
     await fetchTransactions()
   }
 
-  // ======== USE EFFECT (jalan saat halaman pertama kali dibuka) ========
+  // ======== FILTERING ========
+  const applyFilter = () => {
+    if (!filterField || !filterValue) {
+      setFilteredTransactions(transactions) // kalau kosong tampil semua
+      return
+    }
+    const filtered = transactions.filter(t => {
+      if (filterField === 'categories.name') {
+        return t.categories?.name?.toLowerCase().includes(filterValue.toLowerCase())
+      } else if (filterField === 'amount') {
+        return Number(t.amount) === Number(filterValue)
+      } else {
+        return t[filterField]?.toString().toLowerCase().includes(filterValue.toLowerCase())
+      }
+    })
+    setFilteredTransactions(filtered)
+    setSummary(calculateSummary(filtered))
+  }
+
+  // ======== USE EFFECT ========
   useEffect(() => {
     fetchCategories()
     fetchTransactions()
-    // auto-refresh setiap 5 detik
     const interval = setInterval(fetchTransactions, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  // ======== RENDER (TAMPILAN) ========
+  // ======== RENDER ========
   return (
     <div style={{ padding: 20 }}>
       <h1>Catatan Keuangan</h1>
 
-      {/* ===== RINGKASAN KEUANGAN ===== */}
+      {/* ===== RINGKASAN ===== */}
       <div style={{ marginBottom: 20 }}>
         <h3>Ringkasan</h3>
         <p><b>Pemasukan:</b> Rp{summary.income.toLocaleString()}</p>
@@ -96,22 +119,17 @@ export default function Home() {
 
       {/* ===== FORM INPUT TRANSAKSI ===== */}
       <div>
-        {/* Pilih tipe transaksi */}
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="expense">Pengeluaran</option>
           <option value="income">Pemasukan</option>
           <option value="transfer">Transfer</option>
         </select>
-
-        {/* Input jumlah uang */}
         <input 
           type="number" 
           placeholder="Jumlah" 
           value={amount} 
           onChange={(e) => setAmount(e.target.value)} 
         />
-
-        {/* Dropdown kategori */}
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">Pilih Kategori</option>
           {categories
@@ -120,37 +138,51 @@ export default function Home() {
               <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-
-        {/* Input tanggal (baru ditambahkan) */}
         <input 
           type="date" 
           value={date} 
           onChange={(e) => setDate(e.target.value)} 
         />
-
-        {/* Input catatan */}
         <input 
           type="text" 
           placeholder="Catatan" 
           value={note} 
           onChange={(e) => setNote(e.target.value)} 
         />
-
-        {/* Tombol tambah transaksi */}
         <button onClick={addTransaction}>Tambah</button>
+      </div>
+
+      {/* ===== FILTER TRANSAKSI ===== */}
+      <div style={{ marginTop: 20, marginBottom: 20 }}>
+        <h3>Filter Transaksi</h3>
+        <select value={filterField} onChange={(e) => setFilterField(e.target.value)}>
+          <option value="">Pilih Kolom</option>
+          <option value="type">Jenis</option>
+          <option value="categories.name">Kategori</option>
+          <option value="date">Tanggal</option>
+          <option value="note">Catatan</option>
+          <option value="amount">Jumlah</option>
+        </select>
+        <input 
+          type={filterField === 'date' ? 'date' : 'text'} 
+          placeholder="Nilai filter" 
+          value={filterValue} 
+          onChange={(e) => setFilterValue(e.target.value)} 
+        />
+        <button onClick={applyFilter}>Terapkan Filter</button>
       </div>
 
       {/* ===== DAFTAR TRANSAKSI ===== */}
       <h2>Riwayat Transaksi</h2>
       <ul>
-        {transactions.length > 0 ? (
-          transactions.map(t => (
+        {filteredTransactions.length > 0 ? (
+          filteredTransactions.map(t => (
             <li key={t.id}>
               [{t.type}] Rp{t.amount} - {t.categories?.name || t.category} ({t.note}) pada {t.date}
             </li>
           ))
         ) : (
-          <li>Belum ada transaksi</li>
+          <li>Tidak ada transaksi yang sesuai filter</li>
         )}
       </ul>
     </div>
