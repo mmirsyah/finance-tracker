@@ -34,18 +34,35 @@ export default function Home() {
 
   // ======== AMBIL TRANSAKSI ========
   const fetchTransactions = async () => {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*, categories(name)')
-      .order('date', { ascending: false })
-    if (!error) {
-      setTransactions(data || [])
-      setFilteredTransactions(data || []) // default tampil semua
-      setSummary(calculateSummary(data || []))
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*, categories(name)')
+    .order('date', { ascending: false })
+  if (!error) {
+    setTransactions(data || [])
+
+    // Re-apply filter otomatis kalau filter aktif
+    if (filterField && filterValue) {
+      const filtered = data.filter(t => {
+        if (filterField === 'categories.name') {
+          return t.categories?.name?.toLowerCase().includes(filterValue.toLowerCase())
+        } else if (filterField === 'amount') {
+          return Number(t.amount) === Number(filterValue)
+        } else {
+          return t[filterField]?.toString().toLowerCase().includes(filterValue.toLowerCase())
+        }
+      })
+      setFilteredTransactions(filtered)
+      setSummary(calculateSummary(filtered))
     } else {
-      console.error("Fetch transactions error:", error)
+      // Kalau gak ada filter, tampilkan semua
+      setFilteredTransactions(data || [])
+      setSummary(calculateSummary(data || []))
     }
+  } else {
+    console.error("Fetch transactions error:", error)
   }
+}
 
   // ======== AMBIL KATEGORI ========
   const fetchCategories = async () => {
