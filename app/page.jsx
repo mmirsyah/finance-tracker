@@ -52,7 +52,7 @@ export default function Home() {
   const addTransaction = async () => {
     if (!amount || !category) return alert('Lengkapi data!')
     const { error } = await supabase.from('transactions').insert([
-      { type, amount: Number(amount), category, note, date: new Date() }
+      { type, amount: Number(amount), category: Number(category), note, date: new Date() }
     ])
     if (error) {
       console.error("Insert error:", error)
@@ -91,8 +91,8 @@ export default function Home() {
         <input type="number" placeholder="Jumlah" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">Pilih Kategori</option>
-          {categories.filter(c => c.type === type).map(c => (
-            <option key={c.id} value={c.name}>{c.name}</option>
+          {categories.filter(c => c.type?.toLowerCase() === type).map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
         <input type="text" placeholder="Catatan" value={note} onChange={(e) => setNote(e.target.value)} />
