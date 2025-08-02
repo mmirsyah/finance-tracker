@@ -1,50 +1,76 @@
-import { Transaction } from '@/types'
+"use client"
+import { Transaction } from "@/types"
 
-interface Props {
+interface TransactionTableProps {
   transactions: Transaction[]
-  startEdit: (t: Transaction) => void
+  startEdit: (transaction: Transaction) => void
 }
 
-export default function TransactionTable({ transactions, startEdit }: Props) {
+export default function TransactionTable({ transactions, startEdit }: TransactionTableProps) {
+  const getRowClass = (type: string) => {
+    switch (type) {
+      case "expense": return "bg-red-50"
+      case "income": return "bg-green-50"
+      case "transfer": return "bg-gray-50"
+      default: return ""
+    }
+  }
+
+  const getAmountTextClass = (type: string) => {
+    switch (type) {
+      case "expense": return "text-red-700"
+      case "income": return "text-green-700"
+      case "transfer": return "text-gray-700"
+      default: return "text-gray-800"
+    }
+  }
+
   return (
-    <>
-      <h2 className="text-xl font-bold mt-6 mb-3 text-gray-800">📑 Riwayat Transaksi</h2>
-      {transactions.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200 shadow-md rounded-lg">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-4 py-2 text-left">Tanggal</th>
-                <th className="border px-4 py-2 text-left">Jenis</th>
-                <th className="border px-4 py-2 text-left">Kategori</th>
-                <th className="border px-4 py-2 text-right">Jumlah</th>
-                <th className="border px-4 py-2 text-left">Catatan</th>
-                <th className="border px-4 py-2 text-center">Aksi</th>
+    <div className="mt-6 overflow-x-auto">
+      <h2 className="text-xl font-semibold mb-4 text-gray-800">Riwayat Transaksi</h2>
+      <table className="w-full border border-gray-300 rounded-lg overflow-hidden">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Tanggal</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Jenis</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Kategori</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Akun</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Jumlah</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Catatan</th>
+            <th className="px-4 py-2 text-center text-gray-700 font-semibold">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.length > 0 ? (
+            transactions.map((t) => (
+              <tr key={t.id} className={`${getRowClass(t.type)} border-t border-gray-300`}>
+                <td className="px-4 py-2 text-center">{t.date}</td>
+                <td className="px-4 py-2 text-center capitalize">{t.type}</td>
+                <td className="px-4 py-2 text-center">{t.categories?.name || "-"}</td>
+                <td className="px-4 py-2 text-center">{t.accounts?.name || "-"}</td>
+                <td className={`px-4 py-2 text-center font-semibold ${getAmountTextClass(t.type)}`}>
+                  Rp {t.amount.toLocaleString("id-ID")}
+                </td>
+                <td className="px-4 py-2 text-center">{t.note || "-"}</td>
+                <td className="px-4 py-2 text-center">
+                  <button
+                    onClick={() => startEdit(t)}
+                    className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
+                  >
+                    Edit
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {transactions.map(t => (
-                <tr key={t.id} className={`hover:bg-gray-50 ${t.type === "income" ? "bg-green-50" : t.type === "expense" ? "bg-red-50" : "bg-gray-50"}`}>
-                  <td className="border px-4 py-2">{t.date}</td>
-                  <td className="border px-4 py-2 capitalize">{t.type}</td>
-                  <td className="border px-4 py-2">{t.categories?.name || t.category}</td>
-                  <td className={`border px-4 py-2 text-right font-semibold ${t.type === "income" ? "text-green-700" : t.type === "expense" ? "text-red-700" : "text-gray-700"}`}>
-                    Rp{Number(t.amount).toLocaleString()}
-                  </td>
-                  <td className="border px-4 py-2">{t.note}</td>
-                  <td className="border px-4 py-2 text-center">
-                    <button onClick={() => startEdit(t)} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition">
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-gray-500 italic">Belum ada transaksi</p>
-      )}
-    </>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                Belum ada transaksi
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   )
 }

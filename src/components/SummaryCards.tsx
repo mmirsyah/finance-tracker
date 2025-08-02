@@ -20,5 +20,6 @@ export default function SummaryCards({ income, expense, balance }: Props) {
         <p className="text-2xl font-semibold text-blue-800">Rp{balance.toLocaleString()}</p>
       </div>
     </div>
+    
   )
 }
