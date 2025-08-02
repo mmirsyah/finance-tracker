@@ -9,9 +9,11 @@ export interface Transaction {
   type: 'income' | 'expense' | 'transfer'
   amount: number
   category: string
+  account_id?: string
   note?: string
   date: string
   categories?: { name: string }
+  accounts?: {name: string}
 }
 
 export type Account = {
