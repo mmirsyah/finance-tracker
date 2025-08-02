@@ -1,50 +1,47 @@
-import { Transaction } from '@/types'
+"use client"
+import React from 'react'
 
-interface Props {
-  transactions: Transaction[]
-  startEdit: (t: Transaction) => void
-}
-
-export default function TransactionTable({ transactions, startEdit }: Props) {
+export default function TransactionTable({ transactions, startEdit }: any) {
   return (
-    <>
-      <h2 className="text-xl font-bold mt-6 mb-3 text-gray-800">📑 Riwayat Transaksi</h2>
-      {transactions.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200 shadow-md rounded-lg">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-4 py-2 text-left">Tanggal</th>
-                <th className="border px-4 py-2 text-left">Jenis</th>
-                <th className="border px-4 py-2 text-left">Kategori</th>
-                <th className="border px-4 py-2 text-right">Jumlah</th>
-                <th className="border px-4 py-2 text-left">Catatan</th>
-                <th className="border px-4 py-2 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map(t => (
-                <tr key={t.id} className={`hover:bg-gray-50 ${t.type === "income" ? "bg-green-50" : t.type === "expense" ? "bg-red-50" : "bg-gray-50"}`}>
-                  <td className="border px-4 py-2">{t.date}</td>
-                  <td className="border px-4 py-2 capitalize">{t.type}</td>
-                  <td className="border px-4 py-2">{t.categories?.name || t.category}</td>
-                  <td className={`border px-4 py-2 text-right font-semibold ${t.type === "income" ? "text-green-700" : t.type === "expense" ? "text-red-700" : "text-gray-700"}`}>
-                    Rp{Number(t.amount).toLocaleString()}
-                  </td>
-                  <td className="border px-4 py-2">{t.note}</td>
-                  <td className="border px-4 py-2 text-center">
-                    <button onClick={() => startEdit(t)} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition">
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-gray-500 italic">Belum ada transaksi</p>
-      )}
-    </>
+    <div className="bg-white p-4 rounded-lg shadow overflow-x-auto">
+      <h2 className="text-lg font-semibold mb-4">Riwayat Transaksi</h2>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-100 text-center">
+            <th className="p-2 border">Tanggal</th>
+            <th className="p-2 border">Jenis</th>
+            <th className="p-2 border">Kategori</th>
+            <th className="p-2 border">Akun</th>
+            <th className="p-2 border">Jumlah</th>
+            <th className="p-2 border">Catatan</th>
+            <th className="p-2 border">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.map((t: any) => (
+            <tr 
+              key={t.id} 
+              className={`text-center ${t.type === 'expense' ? 'bg-red-50' : t.type === 'income' ? 'bg-green-50' : 'bg-gray-50'}`}
+            >
+              <td className="p-2 border">{t.date}</td>
+              <td className="p-2 border capitalize">{t.type}</td>
+              <td className="p-2 border">{t.categories?.name || '-'}</td>
+              <td className="p-2 border">{t.accounts?.name || '-'}</td>
+              <td className={`p-2 border font-bold ${t.type === 'expense' ? 'text-red-500' : t.type === 'income' ? 'text-green-500' : 'text-gray-500'}`}>
+                Rp {Number(t.amount).toLocaleString()}
+              </td>
+              <td className="p-2 border">{t.note || '-'}</td>
+              <td className="p-2 border">
+                <button 
+                  onClick={() => startEdit(t)} 
+                  className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
+                  Edit
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

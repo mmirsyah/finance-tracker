@@ -13,3 +13,9 @@ export interface Transaction {
   date: string
   categories?: { name: string }
 }
+
+export type Account = {
+  id: string
+  name: string
+  type: string // contoh: 'cash', 'bank', 'e-wallet'
+}
