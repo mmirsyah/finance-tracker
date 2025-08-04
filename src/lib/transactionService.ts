@@ -1,85 +1,47 @@
 // src/lib/transactionService.ts
-
 import { SupabaseClient } from '@supabase/supabase-js';
 
-// Tipe untuk payload saat menyimpan data
 type TransactionPayload = {
   type: string;
   amount: number;
-  category: string;
+  category: number | null;
   account_id: string;
+  to_account_id: string | null;
   note: string | null;
   date: string;
   user_id: string;
+  household_id: string;
 };
 
-/**
- * Mengambil semua kategori milik pengguna.
- */
-export async function fetchCategories(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name');
-  if (error) {
-    console.error('Error fetching categories:', error);
-    return [];
-  }
+export async function fetchCategories(supabase: SupabaseClient, userId: string) {
+  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
+  if (!profile) return [];
+  const { data, error } = await supabase.from('categories').select('*').eq('household_id', profile.household_id).order('name');
+  if (error) { console.error('Error fetching categories:', error); return []; }
   return data || [];
 }
 
-/**
- * Mengambil semua akun milik pengguna.
- */
-export async function fetchAccounts(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from('accounts')
-    .select('*')
-    .order('name');
-  if (error) {
-    console.error('Error fetching accounts:', error);
-    return [];
-  }
+export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
+  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
+  if (!profile) return [];
+  const { data, error } = await supabase.from('accounts').select('*').eq('household_id', profile.household_id).order('name');
+  if (error) { console.error('Error fetching accounts:', error); return []; }
   return data || [];
 }
 
-/**
- * Menyimpan atau memperbarui transaksi.
- */
-export async function saveTransaction(
-  supabase: SupabaseClient,
-  payload: TransactionPayload,
-  editId: string | null
-) {
+export async function saveTransaction(supabase: SupabaseClient, payload: TransactionPayload, editId: string | null) {
+  let query;
   if (editId) {
-    // Mode Update
-    const { error } = await supabase
-      .from('transactions')
-      .update(payload)
-      .eq('id', editId);
-    if (error) {
-      // Log error detail untuk Update
-      console.error("====================================");
-      console.error("RAW SUPABASE UPDATE ERROR:");
-      console.error(JSON.stringify(error, null, 2));
-      console.error("====================================");
-      alert(`Gagal memperbarui transaksi: ${error.message}`);
-      return false;
-    }
+    const { id, ...dataToSave } = payload as any; // Hapus id dari payload update
+    query = supabase.from('transactions').update(dataToSave).eq('id', editId);
   } else {
-    // Mode Insert
-    const { error } = await supabase
-      .from('transactions')
-      .insert([payload]);
-    if (error) {
-      // Log error detail untuk Insert
-      console.error("====================================");
-      console.error("RAW SUPABASE INSERT ERROR:");
-      console.error(JSON.stringify(error, null, 2));
-      console.error("====================================");
-      alert(`Gagal menyimpan transaksi: ${error.message}`);
-      return false;
-    }
+    query = supabase.from('transactions').insert([payload]);
   }
-  return true; // Sukses
+  const { error } = await query;
+  if (error) {
+    console.error("RAW SAVE TRANSACTION ERROR:", JSON.stringify(error, null, 2));
+    alert(`Failed to save transaction: ${error.message}`);
+    return false;
+  }
+  return true;
 }
