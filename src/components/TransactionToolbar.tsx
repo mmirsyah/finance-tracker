@@ -1,0 +1,51 @@
+// src/components/TransactionToolbar.tsx
+
+"use client";
+
+import { Plus, ListFilter } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
+import { DateRangePicker } from './DateRangePicker';
+import { FilterPopover } from './FilterPopover';
+import { Category, Account } from '@/types';
+
+// ... (interface props tetap sama)
+interface TransactionToolbarProps {
+  onAddTransaction: () => void;
+  dateRange: DateRange | undefined;
+  setDateRange: (date: DateRange | undefined) => void;
+  filterType: string; setFilterType: (value: string) => void;
+  filterCategory: string; setFilterCategory: (value: string) => void;
+  filterAccount: string; setFilterAccount: (value: string) => void;
+  categories: Category[]; accounts: Account[]; onResetFilters: () => void;
+}
+
+export default function TransactionToolbar({ 
+  onAddTransaction, dateRange, setDateRange, filterType, setFilterType,
+  filterCategory, setFilterCategory, filterAccount, setFilterAccount,
+  categories, accounts, onResetFilters,
+}: TransactionToolbarProps) {
+  return (
+    // Kita bungkus dengan div sticky
+    <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-4 sm:p-6 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6 border-b border-gray-200">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+          Transactions
+        </h1>
+        <div className="flex items-center gap-2">
+          <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <FilterPopover 
+            filterType={filterType} setFilterType={setFilterType}
+            filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            filterAccount={filterAccount} setFilterAccount={setFilterAccount}
+            categories={categories} accounts={accounts}
+            onResetFilters={onResetFilters}
+          />
+          <button onClick={onAddTransaction} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow">
+            <Plus size={20} />
+            <span className="hidden sm:inline">Add transaction</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
