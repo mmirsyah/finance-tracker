@@ -1,31 +1,23 @@
 // src/app/dashboard/page.tsx
-
 "use client";
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import { Card, Metric, Text, Flex, Title, BarChart, DonutChart, BarList } from '@tremor/react';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import type { Account } from '@/types';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import spinner
+import LoadingSpinner from '@/components/LoadingSpinner';
 
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return 'Rp 0';
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-};
+const formatCurrency = (value: number | null | undefined) => { if (value === null || value === undefined) return 'Rp 0'; return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // State baru untuk menangani error
-  
+  const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<any>(null);
-  const [cashFlowData, setCashFlowData] = useState([]);
-  const [spendingData, setSpendingData] = useState([]);
+  const [cashFlowData, setCashFlowData] = useState<any[]>([]);
+  const [spendingData, setSpendingData] = useState<any[]>([]);
   const [accountBalances, setAccountBalances] = useState<Account[]>([]);
 
   useEffect(() => {
@@ -33,62 +25,44 @@ export default function DashboardPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          setUser(session.user);
-
           const now = new Date();
           const startDate = format(startOfMonth(now), 'yyyy-MM-dd');
           const endDate = format(endOfMonth(now), 'yyyy-MM-dd');
 
-          const [
-            summaryResult, 
-            cashFlowResult, 
-            spendingResult, 
-            accountsResult
-          ] = await Promise.all([
+          const [ summaryResult, cashFlowResult, spendingResult, accountsResult ] = await Promise.all([
             supabase.rpc('get_transaction_summary', { p_user_id: session.user.id, p_start_date: startDate, p_end_date: endDate }),
             supabase.rpc('get_monthly_cash_flow', { p_user_id: session.user.id }),
             supabase.rpc('get_spending_by_category', { p_user_id: session.user.id, p_start_date: startDate, p_end_date: endDate }),
             supabase.rpc('get_accounts_with_balance', { p_user_id: session.user.id })
           ]);
           
-          // Cek error untuk setiap hasil
-          if (summaryResult.error) console.error("Summary RPC Error:", summaryResult.error);
-          else if (summaryResult.data) setSummary(summaryResult.data[0]);
+          if (summaryResult.error) throw new Error(`Summary Error: ${summaryResult.error.message}`);
+          if (cashFlowResult.error) throw new Error(`Cash Flow Error: ${cashFlowResult.error.message}`);
+          if (spendingResult.error) throw new Error(`Spending Error: ${spendingResult.error.message}`);
+          if (accountsResult.error) throw new Error(`Accounts Error: ${accountsResult.error.message}`);
 
-          if (cashFlowResult.error) console.error("Cash Flow RPC Error:", cashFlowResult.error);
-          else setCashFlowData(cashFlowResult.data as any);
-
-          if (spendingResult.error) console.error("Spending RPC Error:", spendingResult.error);
-          else setSpendingData(spendingResult.data as any);
-
-          if (accountsResult.error) console.error("Accounts RPC Error:", accountsResult.error);
-          else setAccountBalances(accountsResult.data as any);
+          setSummary(summaryResult.data?.[0]);
+          setCashFlowData(cashFlowResult.data);
+          setSpendingData(spendingResult.data);
+          setAccountBalances(accountsResult.data);
 
         } else {
           router.push('/login');
         }
-      } catch (err) {
-        console.error("A critical error occurred during dashboard data fetching:", err);
-        setError("Sorry, something went wrong while loading the dashboard.");
+      } catch (err: any) {
+        console.error("Critical dashboard fetch error:", err);
+        setError(`Failed to load dashboard: ${err.message}`);
       } finally {
-        // 'finally' akan selalu berjalan, baik ada error maupun tidak
         setLoading(false);
       }
     };
-
     initializeDashboard();
   }, [router]);
 
-  if (loading) {
-    return <LoadingSpinner text="Loading your dashboard..." />;
-  }
-
-  if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
-  }
+  if (loading) { return <LoadingSpinner text="Loading your dashboard..." />; }
+  if (error) { return <div className="p-6 text-center text-red-500">{error}</div>; }
 
   const netCashFlow = (summary?.total_income || 0) - (summary?.total_spending || 0);
-
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h1>
@@ -99,9 +73,9 @@ export default function DashboardPage() {
         <Card><Flex justifyContent="start" className="space-x-4"><div className={`p-3 rounded-full ${netCashFlow >= 0 ? 'bg-blue-100' : 'bg-orange-100'}`}><Minus className={`w-6 h-6 ${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`} /></div><div><Text>Net Cash Flow</Text><Metric className={`${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{formatCurrency(netCashFlow)}</Metric></div></Flex></Card>
       </div>
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3"><Card className="h-full"><Title>Cash Flow Over Last 6 Months</Title><BarChart className="mt-6 h-72" data={cashFlowData} index="month_start" categories={['total_income', 'total_expense']} colors={['green', 'red']} valueFormatter={formatCurrency} yAxisWidth={60} noDataText="Not enough data to display chart." /></Card></div>
-          <div className="lg:col-span-2"><Card className="h-full"><Title>Spending by Category (This Month)</Title><DonutChart className="mt-6 h-72" data={spendingData} category="amount" index="name" valueFormatter={formatCurrency} colors={["blue", "cyan", "indigo", "violet", "fuchsia"]} noDataText="No spending data for this month." /></Card></div>
-          <div className="lg:col-span-5"><Card><Title>Account Balances</Title><BarList data={accountBalances.map(acc => ({ name: acc.name, value: acc.balance || 0 }))} className="mt-4" valueFormatter={formatCurrency} /></Card></div>
+        <div className="lg:col-span-3"><Card className="h-full"><Title>Cash Flow Over Last 6 Months</Title><BarChart className="mt-6 h-72" data={cashFlowData} index="month_start" categories={['total_income', 'total_expense']} colors={['green', 'red']} valueFormatter={formatCurrency} yAxisWidth={60} noDataText="Not enough data to display chart." /></Card></div>
+        <div className="lg:col-span-2"><Card className="h-full"><Title>Spending by Category (This Month)</Title><DonutChart className="mt-6 h-72" data={spendingData} category="amount" index="name" valueFormatter={formatCurrency} colors={["blue", "cyan", "indigo", "violet", "fuchsia"]} noDataText="No spending data for this month." /></Card></div>
+        <div className="lg:col-span-5"><Card><Title>Account Balances</Title><BarList data={accountBalances.map(acc => ({ name: acc.name, value: acc.balance || 0 }))} className="mt-4" valueFormatter={formatCurrency} /></Card></div>
       </div>
     </div>
   );

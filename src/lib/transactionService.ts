@@ -1,30 +1,26 @@
 // src/lib/transactionService.ts
 import { SupabaseClient } from '@supabase/supabase-js';
+import { Transaction } from '@/types';
 
-type TransactionPayload = {
-  type: string;
-  amount: number;
-  category: number | null;
-  account_id: string;
-  to_account_id: string | null;
-  note: string | null;
-  date: string;
-  user_id: string;
-  household_id: string;
-};
+type TransactionPayload = Omit<Transaction, 'id' | 'categories' | 'accounts' | 'to_account' | 'sequence_number'>;
+
+async function getHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
+  return profile?.household_id || null;
+}
 
 export async function fetchCategories(supabase: SupabaseClient, userId: string) {
-  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
-  if (!profile) return [];
-  const { data, error } = await supabase.from('categories').select('*').eq('household_id', profile.household_id).order('name');
+  const householdId = await getHouseholdId(supabase, userId);
+  if (!householdId) return [];
+  const { data, error } = await supabase.from('categories').select('*').eq('household_id', householdId).order('name');
   if (error) { console.error('Error fetching categories:', error); return []; }
   return data || [];
 }
 
 export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
-  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
-  if (!profile) return [];
-  const { data, error } = await supabase.from('accounts').select('*').eq('household_id', profile.household_id).order('name');
+  const householdId = await getHouseholdId(supabase, userId);
+  if (!householdId) return [];
+  const { data, error } = await supabase.from('accounts').select('*').eq('household_id', householdId).order('name');
   if (error) { console.error('Error fetching accounts:', error); return []; }
   return data || [];
 }
@@ -32,8 +28,7 @@ export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
 export async function saveTransaction(supabase: SupabaseClient, payload: TransactionPayload, editId: string | null) {
   let query;
   if (editId) {
-    const { id, ...dataToSave } = payload as any; // Hapus id dari payload update
-    query = supabase.from('transactions').update(dataToSave).eq('id', editId);
+    query = supabase.from('transactions').update(payload).eq('id', editId);
   } else {
     query = supabase.from('transactions').insert([payload]);
   }

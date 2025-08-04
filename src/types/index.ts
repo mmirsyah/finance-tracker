@@ -26,7 +26,7 @@ export interface Transaction {
   category: number | null;
   account_id: string;
   to_account_id: string | null;
-  note?: string;
+  note: string | null;
   date: string;
   user_id: string;
   household_id: string;
@@ -36,7 +36,7 @@ export interface Transaction {
   to_account?: { name: string };
 }
 
-// === PERBAIKAN ADA DI DALAM BLOK INI ===
+// === DEFINISI YANG HILANG DITAMBAHKAN KEMBALI DI SINI ===
 export type TransactionSummary = {
   total_transactions: number;
   largest_transaction: number;
@@ -44,10 +44,9 @@ export type TransactionSummary = {
   average_transaction: number;
   total_income: number;
   total_spending: number;
-  first_transaction_date: string; // <-- Diperbaiki dari 'first_transaction'
-  last_transaction_date: string;  // <-- Diperbaiki dari 'last_transaction'
+  first_transaction_date: string;
+  last_transaction_date: string;
 };
-// =======================================
 
 export type TransactionGroup = {
   date: string;

@@ -1,7 +1,6 @@
 // src/components/TransactionModal.tsx
-
 "use client";
-import { Category, Account } from "@/types";
+import { Category, Account, Transaction } from "@/types";
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { CategoryCombobox } from "./CategoryCombobox";
@@ -9,8 +8,7 @@ import { Loader2 } from "lucide-react";
 
 interface TransactionModalProps {
   isOpen: boolean; onClose: () => void; onSave: () => void; editId: string | null;
-  isSaving: boolean;
-  type: string; setType: (type: string) => void;
+  isSaving: boolean; type: Transaction['type']; setType: (type: Transaction['type']) => void;
   amount: string; setAmount: (amount: string) => void;
   category: string; setCategory: (category: string) => void;
   accountId: string; setAccountId: (accountId: string) => void;
@@ -20,9 +18,7 @@ interface TransactionModalProps {
   categories: Category[]; accounts: Account[];
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-};
+const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
 
 export default function TransactionModal({
   isOpen, onClose, onSave, editId, isSaving, type, setType, amount, setAmount,
@@ -50,15 +46,10 @@ export default function TransactionModal({
     }
   }, [accountId, isOpen]);
 
-  const relevantCategories = useMemo(() => 
-    categories.filter(c => c.type === type), 
-  [categories, type]);
-  // === AKHIR DARI BLOK HOOKS ===
+  const relevantCategories = useMemo(() => categories.filter(c => c.type === type), [categories, type]);
 
   // Sekarang, setelah semua hook dijalankan, baru kita boleh keluar lebih awal.
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) { return null; }
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(); };
   const handleModalContentClick = (e: React.MouseEvent) => { e.stopPropagation(); };
@@ -77,7 +68,7 @@ export default function TransactionModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select value={type} onChange={(e) => { setType(e.target.value); setCategory(''); setAccountId(''); setToAccountId(''); }} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+              <select value={type} onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); setAccountId(''); setToAccountId(''); }} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm">
                 <option value="expense">Expense</option> <option value="income">Income</option> <option value="transfer">Transfer</option>
               </select>
             </div>
@@ -105,10 +96,7 @@ export default function TransactionModal({
               </>
             ) : (
               <>
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/>
-                </div>
+                <div className="md:col-span-1"><label className="block text-sm font-medium text-gray-700 mb-1">Category</label><CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/></div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
                   <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
@@ -119,14 +107,8 @@ export default function TransactionModal({
                 </div>
               </>
             )}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Optional" />
-            </div>
+            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required /></div>
+            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Note</label><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Optional" /></div>
           </div>
           <div className="mt-8 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition" disabled={isSaving}>Cancel</button>
@@ -138,4 +120,4 @@ export default function TransactionModal({
       </div>
     </div>
   );
-};
+}

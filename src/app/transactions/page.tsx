@@ -1,4 +1,5 @@
 // src/app/transactions/page.tsx
+
 "use client";
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -33,7 +34,8 @@ export default function TransactionsPage() {
     else { if (date?.from) { setFilterEndDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterEndDate(''); } }
   }, [date]);
 
-  const [formType, setFormType] = useState('expense');
+  // === PERBAIKAN DI SINI: Beri tipe yang spesifik pada useState ===
+  const [formType, setFormType] = useState<Transaction['type']>('expense');
   const [formAmount, setFormAmount] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formAccountId, setFormAccountId] = useState('');
@@ -94,13 +96,8 @@ export default function TransactionsPage() {
       account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null,
     };
     
-    const { error } = await supabase.from('transactions').upsert(payload);
-    
-    if (error) {
-        alert(`Failed to save transaction: ${error.message}`);
-    } else {
-        setIsModalOpen(false);
-    }
+    const success = await transactionService.saveTransaction(supabase, payload, editId);
+    if (success) { setIsModalOpen(false); }
     setIsSaving(false);
   };
 
@@ -109,13 +106,20 @@ export default function TransactionsPage() {
   
   if (isLoading) { return <div className="p-6">Loading...</div>; }
   if (!user) { return null; }
+
   return (
     <div className="p-4 sm:p-6 w-full h-full">
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 order-2 lg:order-1">
-          <TransactionToolbar onAddTransaction={handleOpenModalForCreate} dateRange={date} setDateRange={setDate}
-            filterType={filterType} setFilterType={setFilterType} filterCategory={filterCategory} setFilterCategory={setFilterCategory}
-            filterAccount={filterAccount} setFilterAccount={setFilterAccount} categories={categories} accounts={accounts} onResetFilters={onResetFilters}/>
+          <TransactionToolbar 
+            onAddTransaction={handleOpenModalForCreate} 
+            dateRange={date} setDateRange={setDate}
+            filterType={filterType} setFilterType={setFilterType}
+            filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            filterAccount={filterAccount} setFilterAccount={setFilterAccount}
+            categories={categories} accounts={accounts}
+            onResetFilters={onResetFilters}
+          />
           <TransactionList key={user.id} userId={user.id} startEdit={handleOpenModalForEdit} filters={filters}/>
         </div>
         <div className="order-1 lg:order-2"><TransactionSummary userId={user.id} /></div>
