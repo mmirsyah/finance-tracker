@@ -33,7 +33,16 @@ export default function TransactionSummary({ userId }: SummaryProps) {
   useEffect(() => {
     if (userId) {
       fetchSummary();
-      const channel = supabase.channel(`transaction_summary_update_for_${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, () => { fetchSummary(); }).subscribe();
+      const channel = supabase
+        .channel(`transaction_summary_update_for_${userId}`)
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
+          // <-- PERBAIKAN: 'payload' yang tidak terpakai sudah dihapus dari sini
+          () => { 
+            fetchSummary(); 
+          }
+        )
+        .subscribe();
        return () => { supabase.removeChannel(channel); };
     }
   }, [userId, fetchSummary]);
