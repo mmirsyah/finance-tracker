@@ -34,7 +34,6 @@ export default function TransactionsPage() {
     else { if (date?.from) { setFilterEndDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterEndDate(''); } }
   }, [date]);
 
-  // === PERBAIKAN DI SINI: Beri tipe yang spesifik pada useState ===
   const [formType, setFormType] = useState<Transaction['type']>('expense');
   const [formAmount, setFormAmount] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -106,7 +105,6 @@ export default function TransactionsPage() {
   
   if (isLoading) { return <div className="p-6">Loading...</div>; }
   if (!user) { return null; }
-
   return (
     <div className="p-4 sm:p-6 w-full h-full">
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">

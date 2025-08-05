@@ -16,6 +16,7 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -25,11 +26,15 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
     if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
     if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
     if (filters.filterEndDate) query = query.lte('date', filters.filterEndDate);
-    const { data, error: fetchError } = await query;
+    
+    // === PERBAIKAN UTAMA DI SINI ===
+    const { data, error: fetchError } = await query.returns<Transaction[]>();
+    
     if (fetchError) { setError(`Failed to load data: ${fetchError.message}`); } 
-    else { setGroupedTransactions(groupTransactionsByDate(data)); }
+    else { setGroupedTransactions(groupTransactionsByDate(data || [])); }
     setLoading(false);
   }, [userId, filters]);
+
   const handleDelete = async (transactionId: string) => { if (confirm('Are you sure you want to delete this transaction?')) { const { error } = await supabase.from('transactions').delete().eq('id', transactionId); if (error) { alert('Failed to delete transaction.'); } else { fetchTransactions(); setActiveMenu(null); } } };
   useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } }; const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { setActiveMenu(null); } }; if (activeMenu) { document.addEventListener('mousedown', handleClickOutside); document.addEventListener('keydown', handleKeyDown); } return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKeyDown); }; }, [activeMenu]);
   useEffect(() => { fetchTransactions(); const channel = supabase.channel(`realtime-transactions-${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, () => fetchTransactions()).subscribe(); return () => { supabase.removeChannel(channel); }; }, [fetchTransactions, userId]);

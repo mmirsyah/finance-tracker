@@ -30,32 +30,22 @@ interface CategoryComboboxProps {
 export function CategoryCombobox({ allCategories, value, onChange }: CategoryComboboxProps) {
   const [open, setOpen] = React.useState(false);
 
-  // --- LOGIKA BARU UNTUK MENYARING & MENGELOMPOKKAN KATEGORI ---
+  // --- LOGIKA BARU UNTUK MENGELOMPOKKAN KATEGORI (TERMASUK INDUK) ---
   const categoryOptions = React.useMemo(() => {
-    // 1. Cari tahu dulu ID semua kategori yang merupakan induk
-    const parentIds = new Set(allCategories.map(c => c.parent_id).filter(Boolean));
-
-    // 2. Buat daftar kategori yang bisa dipilih (bukan induk)
-    const selectableCategories = allCategories.filter(c => !parentIds.has(c.id));
-    
-    // 3. Kelompokkan berdasarkan induknya
     const grouped: { [key: string]: Category[] } = {};
-    selectableCategories.forEach(cat => {
-      if (cat.parent_id) {
-        const parent = allCategories.find(p => p.id === cat.parent_id);
-        if (parent) {
-          if (!grouped[parent.name]) {
-            grouped[parent.name] = [];
-          }
-          grouped[parent.name].push(cat);
-        }
-      } else {
-        // Untuk kategori level atas yang tidak punya anak
-        if (!grouped['Top Level']) {
-          grouped['Top Level'] = [];
-        }
-        grouped['Top Level'].push(cat);
+    const parents = allCategories.filter(c => !c.parent_id);
+    const children = allCategories.filter(c => c.parent_id);
+
+    parents.forEach(parent => {
+      // Tambahkan kategori induk itu sendiri sebagai pilihan pertama di grupnya
+      if (!grouped[parent.name]) {
+        grouped[parent.name] = [];
       }
+      grouped[parent.name].push(parent);
+
+      // Tambahkan anak-anaknya
+      const parentChildren = children.filter(c => c.parent_id === parent.id);
+      grouped[parent.name].push(...parentChildren);
     });
 
     return grouped;
@@ -70,7 +60,7 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-full justify-between font-normal"
         >
           <span className="truncate">{selectedCategoryName}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -81,9 +71,9 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
           <CommandInput placeholder="Search category..." />
           <CommandEmpty>No category found.</CommandEmpty>
           <CommandList>
-            {Object.entries(categoryOptions).map(([groupName, categories]) => (
-              <CommandGroup key={groupName} heading={groupName === 'Top Level' ? undefined : groupName}>
-                {categories.map((category) => (
+            {Object.entries(categoryOptions).map(([groupName, categoriesInGroup]) => (
+              <CommandGroup key={groupName} heading={groupName}>
+                {categoriesInGroup.map((category) => (
                   <CommandItem
                     key={category.id}
                     value={category.name} // Search by name
@@ -91,6 +81,7 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
                       onChange(category.id.toString());
                       setOpen(false);
                     }}
+                    className={!category.parent_id ? "font-semibold" : "pl-6"}
                   >
                     <Check
                       className={cn(

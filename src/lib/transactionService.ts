@@ -2,7 +2,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Transaction } from '@/types';
 
-type TransactionPayload = Omit<Transaction, 'id' | 'categories' | 'accounts' | 'to_account' | 'sequence_number'>;
+// Gunakan tipe turunan yang lebih spesifik, hilangkan 'any'
+type TransactionPayload = Omit<Transaction, 'id' | 'categories' | 'accounts' | 'to_account' | 'sequence_number' | 'household_id'> & { household_id: string };
 
 async function getHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();

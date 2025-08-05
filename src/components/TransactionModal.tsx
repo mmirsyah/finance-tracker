@@ -1,5 +1,7 @@
 // src/components/TransactionModal.tsx
+
 "use client";
+
 import { Category, Account, Transaction } from "@/types";
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +28,6 @@ export default function TransactionModal({
   note, setNote, date, setDate, categories, accounts,
 }: TransactionModalProps) {
 
-  // === SEMUA HOOKS DIKUMPULKAN DI ATAS, SEBELUM KONDISI APAPUN ===
   const [selectedAccountBalance, setSelectedAccountBalance] = useState<number | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
 
@@ -48,7 +49,6 @@ export default function TransactionModal({
 
   const relevantCategories = useMemo(() => categories.filter(c => c.type === type), [categories, type]);
 
-  // Sekarang, setelah semua hook dijalankan, baru kita boleh keluar lebih awal.
   if (!isOpen) { return null; }
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(); };
@@ -74,7 +74,15 @@ export default function TransactionModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="0" required />
+              <input 
+                type="number" 
+                min="0" // <-- PERBAIKAN: Mencegah input negatif
+                value={amount} 
+                onChange={(e) => setAmount(e.target.value)} 
+                className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" 
+                placeholder="0" 
+                required 
+              />
             </div>
             {type === 'transfer' ? (
               <>
