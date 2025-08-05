@@ -4,15 +4,17 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import CategoryDetailView from './CategoryDetailView';
-import { Transaction, /*Category*/ } from '@/types';
+import { Transaction, Category } from '@/types';
+import { SupabaseClient } from '@supabase/supabase-js'; // <-- Import tipe data SupabaseClient
 
-// Definisikan tipe untuk params Promise, sesuai referensi Anda
+// Definisikan tipe untuk params Promise
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
 // Fungsi untuk mengambil data di server
-async function fetchData(supabase: any, categoryId: number, userId: string) {
+// PERBAIKAN: Berikan tipe yang benar untuk 'supabase'
+async function fetchData(supabase: SupabaseClient, categoryId: number, userId: string) {
   const { data: category, error: categoryError } = await supabase
     .from('categories').select('*').eq('id', categoryId).single();
   
@@ -40,15 +42,12 @@ async function fetchData(supabase: any, categoryId: number, userId: string) {
   return { category, transactions: transactions as Transaction[] };
 }
 
-// Halaman "Manajer" sekarang async dan menggunakan pola Promise
+// Halaman "Manajer" (Server Component)
 export default async function CategoryDetailPage({ params }: PageProps) {
-  const { id } = await params; // Membuka "janji" params
+  const { id } = await params;
   const categoryId = Number(id);
 
-  // === PERBAIKAN UTAMA ADA DI SINI ===
-  const cookieStore = await cookies(); // Tambahkan 'await' untuk menunggu cookies
-  // ===================================
-
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
