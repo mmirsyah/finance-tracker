@@ -5,20 +5,29 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Category, Transaction } from '@/types';
-import { User } from '@supabase/supabase-js';
+// 'User' tidak lagi dibutuhkan di sini, jadi kita hapus
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Edit } from 'lucide-react';
-import { BarChart, Card, Title, Text } from '@tremor/react';
+// Hanya import komponen Tremor yang benar-benar kita gunakan
+import { BarChart, Card } from '@tremor/react';
+// Hanya import fungsi date-fns yang benar-benar kita gunakan
 import { format, getYear, getQuarter, startOfMonth } from 'date-fns';
 
-const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+};
 
 type TimeView = 'monthly' | 'quarterly' | 'yearly';
 
-export default function CategoryDetailPage({ params }: { params: { id: string } }) {
+// Mendefinisikan tipe props yang benar untuk halaman dinamis
+interface CategoryDetailPageProps {
+  params: { id: string };
+}
+
+export default function CategoryDetailPage({ params }: CategoryDetailPageProps) {
     const categoryId = Number(params.id);
     const router = useRouter();
-
+    
     const [category, setCategory] = useState<Category | null>(null);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -48,7 +57,7 @@ export default function CategoryDetailPage({ params }: { params: { id: string } 
         const { data: transactionsData, error: transactionsError } = await supabase
             .from('transactions').select('*, accounts:account_id (name), to_account:to_account_id (name)')
             .in('category', allCategoryIds).eq('user_id', userId).order('date', { ascending: false });
-
+        
         if (transactionsError) { console.error("Error fetching transactions:", transactionsError); } 
         else { setAllTransactions(transactionsData as Transaction[]); }
     }, [categoryId]);
@@ -58,7 +67,7 @@ export default function CategoryDetailPage({ params }: { params: { id: string } 
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                
+
                 await fetchData(session.user.id);
             } else {
                 router.push('/login');
