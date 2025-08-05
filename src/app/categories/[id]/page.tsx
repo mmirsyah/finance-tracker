@@ -5,13 +5,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Category, Transaction } from '@/types';
-// 'User' tidak lagi dibutuhkan di sini, jadi kita hapus
+
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Edit } from 'lucide-react';
-// Hanya import komponen Tremor yang benar-benar kita gunakan
-import { BarChart, Card } from '@tremor/react';
-// Hanya import fungsi date-fns yang benar-benar kita gunakan
-import { format, getYear, getQuarter, startOfMonth } from 'date-fns';
+import { BarChart, Card } from '@tremor/react'; // Hapus Title dan Text yang tidak terpakai
+import { format, getYear, getQuarter, startOfMonth } from 'date-fns'; // Hapus fungsi date-fns yang tidak terpakai
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
@@ -19,15 +17,12 @@ const formatCurrency = (value: number) => {
 
 type TimeView = 'monthly' | 'quarterly' | 'yearly';
 
-// Mendefinisikan tipe props yang benar untuk halaman dinamis
-interface CategoryDetailPageProps {
-  params: { id: string };
-}
-
-export default function CategoryDetailPage({ params }: CategoryDetailPageProps) {
+// Kita tidak lagi butuh interface custom di sini, kita akan definisikan langsung di fungsi
+export default function CategoryDetailPage({ params }: { params: { id: string } }) {
     const categoryId = Number(params.id);
     const router = useRouter();
     
+    // Hapus state 'user' yang tidak terpakai
     const [category, setCategory] = useState<Category | null>(null);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
