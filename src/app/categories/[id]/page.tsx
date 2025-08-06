@@ -16,20 +16,25 @@ const formatCurrency = (value: number) => {
 
 type TimeView = 'monthly' | 'quarterly' | 'yearly';
 
-export default function CategoryDetailPage({ params }: { params: { id: string } }) {
+// Mendefinisikan tipe props yang benar untuk halaman dinamis
+interface CategoryDetailPageProps {
+  params: { id: string };
+}
+
+export default function CategoryDetailPage({ params }: CategoryDetailPageProps) {
     const categoryId = Number(params.id);
     const router = useRouter();
+    
     const [category, setCategory] = useState<Category | null>(null);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [timeView, setTimeView] = useState<TimeView>('yearly');
-    
+    const [selectedYears, setSelectedYears] = useState<string[]>([]);
+
     const availableYears = useMemo(() => 
         [...new Set(allTransactions.map(t => getYear(new Date(t.date)).toString()))]
         .sort((a, b) => b.localeCompare(a)), 
     [allTransactions]);
-
-    const [selectedYears, setSelectedYears] = useState<string[]>([]);
 
     useEffect(() => {
         if (availableYears.length > 0 && selectedYears.length === 0) {
