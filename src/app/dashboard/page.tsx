@@ -10,8 +10,8 @@ import { Card, Metric, Text, Flex, Title, BarChart, DonutChart, BarList } from '
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import type { Account, TransactionSummary } from '@/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { DateRangePicker } from '@/components/DateRangePicker'; // Import Date Picker
-import { DateRange } from 'react-day-picker'; // Import tipe DateRange
+import { DateRangePicker } from '@/components/DateRangePicker';
+import { DateRange } from 'react-day-picker';
 
 type CashFlowItem = { month_start: string; total_income: number; total_expense: number; };
 type SpendingItem = { name: string; amount: number; };
@@ -22,28 +22,23 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // --- STATE BARU UNTUK FILTER TANGGAL ---
-  // Defaultnya adalah bulan ini
   const [date, setDate] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
 
-  // State untuk semua data di dashboard
   const [summary, setSummary] = useState<TransactionSummary | null>(null);
   const [cashFlowData, setCashFlowData] = useState<CashFlowItem[]>([]);
   const [spendingData, setSpendingData] = useState<SpendingItem[]>([]);
   const [accountBalances, setAccountBalances] = useState<Account[]>([]);
 
-  // --- useEffect SEKARANG BERGANTUNG PADA 'date' ---
   useEffect(() => {
     const initializeDashboard = async () => {
-      setLoading(true); // Set loading setiap kali tanggal berubah
+      setLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const now = new Date();
-          // Gunakan tanggal dari state, dengan fallback ke bulan ini jika tidak ada
           const startDate = date?.from ? format(date.from, 'yyyy-MM-dd') : format(startOfMonth(now), 'yyyy-MM-dd');
           const endDate = date?.to ? format(date.to, 'yyyy-MM-dd') : format(endOfMonth(now), 'yyyy-MM-dd');
 
@@ -59,10 +54,10 @@ export default function DashboardPage() {
           if (spendingResult.error) throw new Error(`Spending Error: ${spendingResult.error.message}`);
           if (accountsResult.error) throw new Error(`Accounts Error: ${accountsResult.error.message}`);
 
-          setSummary(summaryResult.data?.[0] || null);
-          setCashFlowData(cashFlowResult.data || []);
-          setSpendingData(spendingResult.data || []);
-          setAccountBalances(accountsResult.data || []);
+          if (Array.isArray(summaryResult.data)) setSummary(summaryResult.data[0]);
+          if (Array.isArray(cashFlowResult.data)) setCashFlowData(cashFlowResult.data);
+          if (Array.isArray(spendingResult.data)) setSpendingData(spendingResult.data);
+          if (Array.isArray(accountsResult.data)) setAccountBalances(accountsResult.data);
 
         } else {
           router.push('/login');
@@ -76,7 +71,7 @@ export default function DashboardPage() {
       }
     };
     initializeDashboard();
-  }, [router, date]); // <-- Tambahkan 'date' ke dependency array
+  }, [router, date]);
 
   if (loading) return <LoadingSpinner text="Loading your dashboard..." />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
@@ -96,14 +91,8 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-          <Text>{renderDateRangeText()}</Text>
-        </div>
-        <div>
-          {/* --- UI DATE PICKER DITAMBAHKAN DI SINI --- */}
-          <DateRangePicker date={date} setDate={setDate} />
-        </div>
+        <div><h1 className="text-3xl font-bold text-gray-800">Dashboard</h1><Text>{renderDateRangeText()}</Text></div>
+        <div><DateRangePicker date={date} setDate={setDate} /></div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
