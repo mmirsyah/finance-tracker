@@ -16,9 +16,15 @@ const formatCurrency = (value: number) => {
 
 type TimeView = 'monthly' | 'quarterly' | 'yearly';
 
-export default function CategoryDetailPage({ params }: { params: { id: string } }) {
+// Mendefinisikan tipe props yang benar untuk halaman dinamis
+interface CategoryDetailPageProps {
+  params: { id: string };
+}
+
+export default function CategoryDetailPage({ params }: CategoryDetailPageProps) {
     const categoryId = Number(params.id);
     const router = useRouter();
+    
     const [category, setCategory] = useState<Category | null>(null);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
