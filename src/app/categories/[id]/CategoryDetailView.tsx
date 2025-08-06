@@ -85,7 +85,7 @@ export default function CategoryDetailView({ initialCategory, initialTransaction
                     <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th></tr></thead>
                     <tbody className="bg-white divide-y divide-gray-200">{processedData.displayedTransactions.map((t) => (<tr key={t.id}><td className="px-6 py-4 text-sm text-gray-600">{new Date(t.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td><td className="px-6 py-4 text-sm text-gray-800 font-medium">{t.accounts?.name || t.to_account?.name || 'N/A'}</td><td className="px-6 py-4 text-sm text-gray-500">{t.note || '-'}</td><td className={`px-6 py-4 text-sm font-semibold text-right ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</td></tr>))}</tbody>
                 </table>
-                {processedData.displayedTransactions.length === 0 && (<p className="p-6 text-center text-gray-500">No transactions found for the selected year(s).</p>)}
+                {processedData.displayedTransactions.length === 0 && (<p className="p-6 text-center text-gray-500">No transactions found for this period.</p>)}
             </div>
         </div>
     );
