@@ -1,4 +1,5 @@
 // src/components/TransactionList.tsx
+
 "use client";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -20,14 +21,27 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
-    let query = supabase.from('transactions').select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`).eq('user_id', userId).order('date', { ascending: false });
+
+    // Dapatkan household_id terlebih dahulu
+    const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
+    if (!profile) {
+      setError("Could not find user profile.");
+      setLoading(false);
+      return;
+    }
+
+    let query = supabase
+      .from('transactions')
+      .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
+      .eq('household_id', profile.household_id) // <-- PERBAIKAN: Filter berdasarkan household_id
+      .order('date', { ascending: false });
+
     if (filters.filterType) query = query.eq('type', filters.filterType);
     if (filters.filterCategory) query = query.eq('category', Number(filters.filterCategory));
     if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
     if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
     if (filters.filterEndDate) query = query.lte('date', filters.filterEndDate);
     
-    // === PERBAIKAN UTAMA DI SINI ===
     const { data, error: fetchError } = await query.returns<Transaction[]>();
     
     if (fetchError) { setError(`Failed to load data: ${fetchError.message}`); } 
@@ -37,7 +51,11 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
 
   const handleDelete = async (transactionId: string) => { if (confirm('Are you sure you want to delete this transaction?')) { const { error } = await supabase.from('transactions').delete().eq('id', transactionId); if (error) { alert('Failed to delete transaction.'); } else { fetchTransactions(); setActiveMenu(null); } } };
   useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } }; const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { setActiveMenu(null); } }; if (activeMenu) { document.addEventListener('mousedown', handleClickOutside); document.addEventListener('keydown', handleKeyDown); } return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKeyDown); }; }, [activeMenu]);
-  useEffect(() => { fetchTransactions(); const channel = supabase.channel(`realtime-transactions-${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, () => fetchTransactions()).subscribe(); return () => { supabase.removeChannel(channel); }; }, [fetchTransactions, userId]);
+  useEffect(() => {
+    fetchTransactions();
+    const channel = supabase.channel(`realtime-transactions-${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchTransactions()).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchTransactions, userId]);
   
   if (loading) return <div className="text-center p-6 bg-white rounded-lg shadow">Loading transactions...</div>;
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
