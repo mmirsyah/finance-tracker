@@ -1,5 +1,7 @@
 // tailwind.config.js
 
+const colors = require('tailwindcss/colors')
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -22,6 +24,7 @@ module.exports = {
     },
     extend: {
       colors: {
+        // WARNA UNTUK SHADCN/UI
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -55,7 +58,7 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // tremor colors
+        // WARNA UNTUK TREMOR
         tremor: {
           brand: { faint: "#eff6ff", muted: "#bfdbfe", subtle: "#60a5fa", DEFAULT: "#3b82f6", emphasis: "#1d4ed8", inverted: "#ffffff" },
           background: { muted: "#f9fafb", subtle: "#f3f4f6", DEFAULT: "#ffffff", emphasis: "#374151" },
@@ -63,6 +66,17 @@ module.exports = {
           ring: { DEFAULT: "#e5e7eb" },
           content: { subtle: "#9ca3af", DEFAULT: "#6b7280", emphasis: "#374151", strong: "#111827", inverted: "#ffffff" },
         },
+        // === TAMBAHAN PALET WARNA DASAR UNTUK TREMOR ===
+        rose: colors.rose,
+        yellow: colors.yellow,
+        orange: colors.orange,
+        green: colors.green,
+        blue: colors.blue,
+        sky: colors.sky,
+        violet: colors.violet,
+        indigo: colors.indigo,
+        cyan: colors.cyan,
+        fuchsia: colors.fuchsia,
       },
       boxShadow: {
         "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
