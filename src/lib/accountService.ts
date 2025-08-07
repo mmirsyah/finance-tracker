@@ -15,7 +15,9 @@ export const saveAccount = async (
   household_id: string
 ) => {
   // --- PERBAIKAN DI SINI ---
-  // Variabel 'balance' diubah menjadi '_balance' untuk menandakan tidak digunakan.
+  // Menonaktifkan aturan ESLint untuk baris ini karena _balance sengaja tidak digunakan.
+  // Tujuannya adalah untuk memisahkan properti 'balance' dari data yang akan disimpan.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, balance: _balance, ...dataToSave } = account;
   // --- PERBAIKAN SELESAI ---
 

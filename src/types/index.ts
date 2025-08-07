@@ -4,8 +4,9 @@
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 // --- PERBAIKAN DI SINI ---
-// Menambahkan batasan `extends { [key: string]: any; }` pada T
-// untuk memenuhi persyaratan dari tipe Supabase.
+// Menonaktifkan aturan ESLint untuk baris ini karena tipe dari Supabase
+// memang memerlukan constraint `any`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SupabaseRealtimePayload<T extends { [key: string]: any; }> = RealtimePostgresChangesPayload<T>;
 // --- PERBAIKAN SELESAI ---
 
