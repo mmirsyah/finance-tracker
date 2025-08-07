@@ -4,7 +4,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import CategoryDetailView from './CategoryDetailView';
-import { Transaction, Category } from '@/types';
+import { Transaction, /*Category --> tidak digunakan */ } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 // Definisikan tipe untuk params Promise, sesuai referensi Anda

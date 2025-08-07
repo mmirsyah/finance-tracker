@@ -1,7 +1,7 @@
 // src/app/categories/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, /*useEffect --> tidak digunakan */ useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Category } from '@/types';
 import { Plus, Edit, Trash2 } from 'lucide-react';

@@ -1,10 +1,10 @@
 // src/app/accounts/AccountsView.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, /*useCallback --> Tidak digunakan*/ } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Account } from '@/types';
-import { User } from '@supabase/supabase-js';
+//import { User } from '@supabase/supabase-js'; --> Tidak digunakan
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
