@@ -7,7 +7,7 @@ import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { CategoryCombobox } from "./CategoryCombobox";
 import { Loader2 } from "lucide-react";
-import toast from 'react-hot-toast'; // <-- 1. Import toast
+import toast from 'react-hot-toast';
 
 interface TransactionModalProps {
   isOpen: boolean; onClose: () => void; onSave: () => void; editId: string | null;
@@ -54,7 +54,7 @@ export default function TransactionModal({
 
   const handleValidationAndSave = (e: React.FormEvent) => { 
     e.preventDefault(); 
-    // <-- 2. Ganti semua alert dengan toast
+    
     if (type === 'transfer') {
       if (!accountId || !toAccountId) { 
         toast.error('Please select both From and To accounts.');
@@ -88,8 +88,15 @@ export default function TransactionModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select value={type} onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); setAccountId(''); setToAccountId(''); }} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm">
-                <option value="expense">Expense</option> <option value="income">Income</option> <option value="transfer">Transfer</option>
+              {/* --- PERBAIKAN DI SINI --- */}
+              <select 
+                value={type} 
+                onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); setAccountId(''); setToAccountId(''); }} 
+                className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800"
+              >
+                <option value="expense">Expense</option> 
+                <option value="income">Income</option> 
+                <option value="transfer">Transfer</option>
               </select>
             </div>
             <div>
@@ -108,7 +115,12 @@ export default function TransactionModal({
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Account</label>
-                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                  <select 
+                    value={accountId} 
+                    onChange={(e) => setAccountId(e.target.value)} 
+                    className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" 
+                    required
+                  >
                     <option value="" disabled>Select an account</option>
                     {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                   </select>
@@ -116,7 +128,12 @@ export default function TransactionModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
-                  <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                  <select 
+                    value={toAccountId} 
+                    onChange={(e) => setToAccountId(e.target.value)} 
+                    className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" 
+                    required
+                  >
                     <option value="" disabled>Select an account</option>
                     {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                   </select>
@@ -124,10 +141,18 @@ export default function TransactionModal({
               </>
             ) : (
               <>
-                <div className="md:col-span-1"><label className="block text-sm font-medium text-gray-700 mb-1">Category</label><CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/></div>
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                  <select 
+                    value={accountId} 
+                    onChange={(e) => setAccountId(e.target.value)} 
+                    className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" 
+                    required
+                  >
                     <option value="" disabled>Select an account</option>
                     {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                   </select>
@@ -135,8 +160,27 @@ export default function TransactionModal({
                 </div>
               </>
             )}
-            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required /></div>
-            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Note</label><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Optional" /></div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input 
+                type="date" 
+                value={date} 
+                onChange={(e) => setDate(e.target.value)} 
+                className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" 
+                required 
+              />
+            </div>
+            {/* --- PERBAIKAN SELESAI --- */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+              <textarea 
+                value={note} 
+                onChange={(e) => setNote(e.target.value)} 
+                rows={3} 
+                className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" 
+                placeholder="Optional" 
+              />
+            </div>
           </div>
           <div className="mt-8 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition" disabled={isSaving}>Cancel</button>
