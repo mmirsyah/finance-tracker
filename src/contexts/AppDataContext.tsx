@@ -1,26 +1,25 @@
 // src/contexts/AppDataContext.tsx
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'; // <-- PERBAIKAN DI SINI
 import { supabase } from '@/lib/supabase';
 import { Account, Category } from '@/types';
 import { User } from '@supabase/supabase-js';
 
-// 1. Definisikan tipe data yang akan disimpan di dalam context
+
 interface AppDataContextType {
   accounts: Account[];
   categories: Category[];
   isLoading: boolean;
   user: User | null;
   householdId: string | null;
-  refetchData: () => void; // Fungsi untuk memuat ulang data jika diperlukan
+  refetchData: () => void;
 }
 
-// 2. Buat Context dengan nilai default
+
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
-// 3. Buat Provider Component
-// Komponen ini akan membungkus aplikasi kita, mengambil data, dan menyediakannya
+
 export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -29,15 +28,14 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [householdId, setHouseholdId] = useState<string | null>(null);
 
   const fetchData = async (currentUser: User, currentHouseholdId: string) => {
-    setIsLoading(true);
+    // Jangan set isLoading di sini agar tidak ada kedipan saat refetch
     try {
-      // --- PERBAIKAN DIMULAI DI SINI ---
-      // Kita panggil RPC 'get_accounts_with_balance' untuk mendapatkan saldo yang sudah dihitung
+
       const [accountsRes, categoriesRes] = await Promise.all([
         supabase.rpc('get_accounts_with_balance', { p_user_id: currentUser.id }),
         supabase.from('categories').select('*').eq('household_id', currentHouseholdId).order('name')
       ]);
-      // --- PERBAIKAN SELESAI ---
+
 
       if (accountsRes.error) throw accountsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
@@ -46,14 +44,23 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
       setCategories(categoriesRes.data || []);
     } catch (error) {
       console.error("Error fetching app data:", error);
-      // Anda bisa menambahkan state untuk error di sini jika perlu
+
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Pastikan loading selesai
     }
   };
 
+  const refetchData = useCallback(() => {
+    if (user && householdId) {
+      console.log('Refetching data due to realtime update...');
+      fetchData(user, householdId);
+    }
+  }, [user, householdId]);
+
+
   useEffect(() => {
     const initialize = async () => {
+      setIsLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -67,21 +74,67 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
           setHouseholdId(profile.household_id);
           await fetchData(session.user, profile.household_id);
         } else {
-          setIsLoading(false); // Selesai loading jika tidak ada profil/household
+          setIsLoading(false);
         }
       } else {
-        setIsLoading(false); // Selesai loading jika tidak ada sesi
+        setIsLoading(false);
       }
     };
 
     initialize();
   }, []);
 
-  const refetchData = () => {
-    if (user && householdId) {
-      fetchData(user, householdId);
-    }
-  };
+  // --- PENAMBAHAN REALTIME LISTENER DIMULAI DI SINI ---
+  useEffect(() => {
+    if (!householdId) return;
+
+    // Listener untuk perubahan pada tabel transactions
+    const transactionsChannel = supabase
+      .channel('public:transactions')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transactions', filter: `household_id=eq.${householdId}` },
+        (payload) => {
+          console.log('Change received from transactions table!', payload);
+          refetchData();
+        }
+      )
+      .subscribe();
+
+    // Listener untuk perubahan pada tabel accounts (misal: nama atau saldo awal berubah)
+    const accountsChannel = supabase
+      .channel('public:accounts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'accounts', filter: `household_id=eq.${householdId}` },
+        (payload) => {
+          console.log('Change received from accounts table!', payload);
+          refetchData();
+        }
+      )
+      .subscribe();
+      
+    // Listener untuk perubahan pada tabel categories
+    const categoriesChannel = supabase
+      .channel('public:categories')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories', filter: `household_id=eq.${householdId}` },
+        (payload) => {
+          console.log('Change received from categories table!', payload);
+          refetchData();
+        }
+      )
+      .subscribe();
+
+    // Fungsi cleanup untuk berhenti mendengarkan saat komponen tidak lagi digunakan
+    return () => {
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(accountsChannel);
+      supabase.removeChannel(categoriesChannel);
+    };
+  }, [householdId, refetchData]);
+  // --- PENAMBAHAN REALTIME LISTENER SELESAI ---
 
   const value = { accounts, categories, isLoading, user, householdId, refetchData };
 
@@ -92,7 +145,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// 4. Buat Custom Hook untuk mempermudah penggunaan context
+
 export const useAppData = (): AppDataContextType => {
   const context = useContext(AppDataContext);
   if (context === undefined) {
