@@ -1,4 +1,4 @@
-// src/app/transactions/page.tsx
+// src/app/(app)/transactions/page.tsx
 
 "use client";
 
@@ -46,7 +46,8 @@ export default function TransactionsPage() {
   const [formAccountId, setFormAccountId] = useState('');
   const [formToAccountId, setFormToAccountId] = useState('');
   const [formNote, setFormNote] = useState('');
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  // --- PERUBAHAN 1 DI SINI ---
+  const [formDate, setFormDate] = useState(''); // Defaultnya string kosong
   const [editId, setEditId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -59,17 +60,18 @@ export default function TransactionsPage() {
     }
   }, [isAppDataLoading, user, router]);
 
-  // --- PERBAIKAN DIMULAI DI SINI ---
-  // 1. Buat fungsi terpusat untuk memicu pembaruan
+
   const handleTransactionChange = () => {
     setTransactionVersion(v => v + 1);
-    setIsListLoading(true); // Tampilkan skeleton saat data dimuat ulang
+    setIsListLoading(true);
   };
-  // --- PERBAIKAN SELESAI ---
+  
 
   const resetForm = () => {
     setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormNote('');
-    setFormDate(new Date().toISOString().split('T')[0]); setEditId(null); setFormToAccountId('');
+    // --- PERUBAHAN 2 DI SINI ---
+    setFormDate(''); // Reset menjadi string kosong
+    setEditId(null); setFormToAccountId('');
   };
   const onResetFilters = () => {
     setFilterType(''); setFilterCategory(''); setFilterAccount(''); setDate(undefined);
@@ -102,7 +104,7 @@ export default function TransactionsPage() {
     const success = await transactionService.saveTransaction(supabase, payload, editId);
     if (success) { 
       setIsModalOpen(false);
-      handleTransactionChange(); // Panggil fungsi pembaruan
+      handleTransactionChange();
     }
     setIsSaving(false);
   };
@@ -135,7 +137,7 @@ export default function TransactionsPage() {
               startEdit={handleOpenModalForEdit} 
               filters={filters}
               onDataLoaded={() => setIsListLoading(false)}
-              onTransactionChange={handleTransactionChange} // <-- 2. Berikan fungsi sebagai prop
+              onTransactionChange={handleTransactionChange}
             />
           </div>
         </div>
