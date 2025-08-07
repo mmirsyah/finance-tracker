@@ -4,7 +4,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "@/styles/globals.css";
 import AppLayout from "@/components/layout/AppLayout";
-import NextTopLoader from 'nextjs-toploader'; // <-- Import komponen
+import NextTopLoader from 'nextjs-toploader';
+import { Toaster } from 'react-hot-toast'; // <-- 1. Import Toaster
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,9 +22,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-gray-50`}>
-        {/* === TAMBAHKAN LOADER DI SINI === */}
+        {/* === LOADER === */}
         <NextTopLoader
-          color="#2563EB" // Warna biru, bisa Anda sesuaikan
+          color="#2563EB"
           initialPosition={0.08}
           crawlSpeed={200}
           height={3}
@@ -31,6 +32,11 @@ export default function RootLayout({
           showSpinner={false}
           easing="ease"
           speed={200}
+        />
+        {/* === 2. TAMBAHKAN TOASTER DI SINI === */}
+        <Toaster 
+          position="top-center"
+          reverseOrder={false}
         />
         <AppLayout>
           {children}

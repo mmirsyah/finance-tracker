@@ -8,11 +8,12 @@ import { Account } from '@/types';
 import { User } from '@supabase/supabase-js';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast'; // <-- 1. Import toast
 
-// Komponen-komponen Modal dan helper bisa tetap di sini
+// Komponen Modal dan helper bisa tetap di sini
 const formatCurrency = (value: number | null | undefined) => { if (value === null || value === undefined) return 'Rp 0'; return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
-const AccountModal = ({ isOpen, onClose, onSave, account }: { isOpen: boolean; onClose: () => void; onSave: (name: string, initialBalance: number) => void; account: Partial<Account> | null; }) => { const [name, setName] = useState(''); const [initialBalance, setInitialBalance] = useState('0'); useEffect(() => { if (account) { setName(account.name || ''); setInitialBalance(String(account.initial_balance || 0)); } else { setName(''); setInitialBalance('0'); } }, [account, isOpen]); if (!isOpen) return null; const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name) return alert('Account name is required.'); onSave(name, Number(initialBalance)); }; return ( <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"> <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md"> <h2 className="text-xl font-bold mb-4">{account?.id ? 'Edit Account' : 'Add New Account'}</h2> <form onSubmit={handleSubmit}> <div className="space-y-4"> <div><label htmlFor="name-acc" className="block text-sm font-medium text-gray-700">Name</label><input type="text" id="name-acc" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required placeholder="e.g., Bank BCA, Gopay, Dompet" /></div> <div><label htmlFor="initial_balance" className="block text-sm font-medium text-gray-700">Initial Balance</label><input type="number" id="initial_balance" value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} min="0" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required /></div> </div> <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Account</button></div> </form> </div> </div> ); };
-const ReassignAccountModal = ({ isOpen, onClose, onReassign, accountToDelete, allAccounts }: { isOpen: boolean; onClose: () => void; onReassign: (oldAccId: string, newAccId: string) => void; accountToDelete: Account | null; allAccounts: Account[]; }) => { const [newAccountId, setNewAccountId] = useState<string>(''); if (!isOpen || !accountToDelete) return null; const validTargetAccounts = allAccounts.filter(acc => acc.id !== accountToDelete.id); const handleReassign = () => { if (!newAccountId) return alert('Please select a new account to reassign transactions to.'); onReassign(accountToDelete.id, newAccountId); }; return ( <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"> <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md"> <div className="flex items-center gap-3 mb-4"><AlertTriangle className="w-10 h-10 text-yellow-500" /><h2 className="text-xl font-bold">Reassign Transactions</h2></div><p className="text-sm text-gray-600 mb-4">The account &quot;<strong>{accountToDelete.name}</strong>&quot; has transactions linked to it. To delete it, you must first reassign these transactions to another account.</p><div className="space-y-2"><label htmlFor="reassign_account" className="block text-sm font-medium text-gray-700">Reassign to:</label><select id="reassign_account" value={newAccountId} onChange={(e) => setNewAccountId(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" ><option value="" disabled>Select a new account...</option>{validTargetAccounts.map(acc => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}</select></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button><button type="button" onClick={handleReassign} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Reassign & Delete</button></div></div></div> ); };
+const AccountModal = ({ isOpen, onClose, onSave, account }: { isOpen: boolean; onClose: () => void; onSave: (name: string, initialBalance: number) => void; account: Partial<Account> | null; }) => { const [name, setName] = useState(''); const [initialBalance, setInitialBalance] = useState('0'); useEffect(() => { if (account) { setName(account.name || ''); setInitialBalance(String(account.initial_balance || 0)); } else { setName(''); setInitialBalance('0'); } }, [account, isOpen]); if (!isOpen) return null; const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name) return toast.error('Account name is required.'); onSave(name, Number(initialBalance)); }; return ( <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"> <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md"> <h2 className="text-xl font-bold mb-4">{account?.id ? 'Edit Account' : 'Add New Account'}</h2> <form onSubmit={handleSubmit}> <div className="space-y-4"> <div><label htmlFor="name-acc" className="block text-sm font-medium text-gray-700">Name</label><input type="text" id="name-acc" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required placeholder="e.g., Bank BCA, Gopay, Dompet" /></div> <div><label htmlFor="initial_balance" className="block text-sm font-medium text-gray-700">Initial Balance</label><input type="number" id="initial_balance" value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} min="0" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required /></div> </div> <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Account</button></div> </form> </div> </div> ); };
+const ReassignAccountModal = ({ isOpen, onClose, onReassign, accountToDelete, allAccounts }: { isOpen: boolean; onClose: () => void; onReassign: (oldAccId: string, newAccId: string) => void; accountToDelete: Account | null; allAccounts: Account[]; }) => { const [newAccountId, setNewAccountId] = useState<string>(''); if (!isOpen || !accountToDelete) return null; const validTargetAccounts = allAccounts.filter(acc => acc.id !== accountToDelete.id); const handleReassign = () => { if (!newAccountId) return toast.error('Please select a new account to reassign transactions to.'); onReassign(accountToDelete.id, newAccountId); }; return ( <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"> <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md"> <div className="flex items-center gap-3 mb-4"><AlertTriangle className="w-10 h-10 text-yellow-500" /><h2 className="text-xl font-bold">Reassign Transactions</h2></div><p className="text-sm text-gray-600 mb-4">The account &quot;<strong>{accountToDelete.name}</strong>&quot; has transactions linked to it. To delete it, you must first reassign these transactions to another account.</p><div className="space-y-2"><label htmlFor="reassign_account" className="block text-sm font-medium text-gray-700">Reassign to:</label><select id="reassign_account" value={newAccountId} onChange={(e) => setNewAccountId(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" ><option value="" disabled>Select a new account...</option>{validTargetAccounts.map(acc => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}</select></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button><button type="button" onClick={handleReassign} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Reassign & Delete</button></div></div></div> ); };
 
 export default function AccountsView() {
   const router = useRouter();
@@ -50,46 +51,78 @@ export default function AccountsView() {
   }, [router, fetchAccountsWithBalance, searchParams]);
   
   const handleSaveAccount = async (name: string, initialBalance: number) => {
-    if (!user) return alert('User not found.');
+    // <-- 2. Ganti semua alert dengan toast
+    if (!user) return toast.error('User not found.');
     const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', user.id).single();
-    if (!profile) return alert('Could not find user profile. Failed to save.');
-    const payload = { name, user_id: user.id, initial_balance: initialBalance, household_id: profile.household_id };
-    let error;
-    if (editingAccount?.id) {
-      ({ error } = await supabase.from('accounts').update(payload).eq('id', editingAccount.id));
-    } else {
-      ({ error } = await supabase.from('accounts').insert([payload]));
-    }
-    if (error) { alert(`Failed to save account: ${error.message}`); }
-    else { await fetchAccountsWithBalance(user.id); }
+    if (!profile) return toast.error('Could not find user profile. Failed to save.');
+    
+    const savingPromise = new Promise(async (resolve, reject) => {
+      const payload = { name, user_id: user.id, initial_balance: initialBalance, household_id: profile.household_id };
+      let error;
+      if (editingAccount?.id) {
+        ({ error } = await supabase.from('accounts').update(payload).eq('id', editingAccount.id));
+      } else {
+        ({ error } = await supabase.from('accounts').insert([payload]));
+      }
+      
+      if (error) {
+        reject(error);
+      } else {
+        await fetchAccountsWithBalance(user.id);
+        resolve('Success');
+      }
+    });
+
+    toast.promise(savingPromise, {
+      loading: 'Saving account...',
+      success: 'Account saved successfully!',
+      error: (err) => `Failed to save account: ${err.message}`,
+    });
+
     setIsModalOpen(false); setEditingAccount(null);
   };
 
   const handleDeleteAccount = async (account: Account) => {
     if (!user) return;
     const { count, error: checkError } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).or(`account_id.eq.${account.id},to_account_id.eq.${account.id}`);
-    if (checkError) return alert(`Error checking transactions: ${checkError.message}`);
+    if (checkError) return toast.error(`Error checking transactions: ${checkError.message}`);
     if ((count || 0) > 0) {
       setAccountToDelete(account);
       setIsReassignModalOpen(true);
     } else {
       if (confirm(`Are you sure you want to delete the account "${account.name}"?`)) {
         const { error } = await supabase.from('accounts').delete().eq('id', account.id);
-        if (error) { alert('Failed to delete account.'); }
-        else { await fetchAccountsWithBalance(user.id); }
+        if (error) { toast.error('Failed to delete account.'); }
+        else { 
+          toast.success('Account deleted successfully!');
+          await fetchAccountsWithBalance(user.id); 
+        }
       }
     }
   };
 
   const handleReassignAndDelete = async (oldAccId: string, newAccId: string) => {
     if (!user) return;
-    const { error: updateFromError } = await supabase.from('transactions').update({ account_id: newAccId }).eq('account_id', oldAccId);
-    if (updateFromError) return alert(`Failed to reassign 'from' transactions: ${updateFromError.message}`);
-    const { error: updateToError } = await supabase.from('transactions').update({ to_account_id: newAccId }).eq('to_account_id', oldAccId);
-    if (updateToError) return alert(`Failed to reassign 'to' transactions: ${updateToError.message}`);
-    const { error: deleteError } = await supabase.from('accounts').delete().eq('id', oldAccId);
-    if (deleteError) { alert(`Transactions reassigned, but failed to delete old account: ${deleteError.message}`); }
-    else { await fetchAccountsWithBalance(user.id); }
+    const reassignPromise = new Promise(async (resolve, reject) => {
+      const { error: updateFromError } = await supabase.from('transactions').update({ account_id: newAccId }).eq('account_id', oldAccId);
+      if (updateFromError) return reject(new Error(`Failed to reassign 'from' transactions: ${updateFromError.message}`));
+      
+      const { error: updateToError } = await supabase.from('transactions').update({ to_account_id: newAccId }).eq('to_account_id', oldAccId);
+      if (updateToError) return reject(new Error(`Failed to reassign 'to' transactions: ${updateToError.message}`));
+      
+      const { error: deleteError } = await supabase.from('accounts').delete().eq('id', oldAccId);
+      if (deleteError) return reject(new Error(`Transactions reassigned, but failed to delete old account: ${deleteError.message}`));
+
+      await fetchAccountsWithBalance(user.id);
+      resolve('Success');
+    });
+
+    toast.promise(reassignPromise, {
+      loading: 'Reassigning and deleting...',
+      success: 'Account deleted successfully!',
+      error: (err) => err.message,
+    });
+    
     setIsReassignModalOpen(false); setAccountToDelete(null);
   };
 

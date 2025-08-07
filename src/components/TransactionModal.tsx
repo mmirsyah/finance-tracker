@@ -7,6 +7,7 @@ import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { CategoryCombobox } from "./CategoryCombobox";
 import { Loader2 } from "lucide-react";
+import toast from 'react-hot-toast'; // <-- 1. Import toast
 
 interface TransactionModalProps {
   isOpen: boolean; onClose: () => void; onSave: () => void; editId: string | null;
@@ -51,7 +52,26 @@ export default function TransactionModal({
 
   if (!isOpen) { return null; }
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(); };
+  const handleValidationAndSave = (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    // <-- 2. Ganti semua alert dengan toast
+    if (type === 'transfer') {
+      if (!accountId || !toAccountId) { 
+        toast.error('Please select both From and To accounts.');
+        return; 
+      }
+      if (accountId === toAccountId) { 
+        toast.error('From and To accounts cannot be the same.'); 
+        return; 
+      }
+    } else {
+      if (!amount || !category || !accountId || !date) { 
+        toast.error('Please fill in all required fields.'); 
+        return; 
+      }
+    }
+    onSave(); 
+  };
   const handleModalContentClick = (e: React.MouseEvent) => { e.stopPropagation(); };
   
   const BalanceDisplay = () => {
@@ -64,7 +84,7 @@ export default function TransactionModal({
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4" onClick={onClose}>
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg" onClick={handleModalContentClick}>
         <h2 className="text-2xl font-bold mb-6 text-gray-800">{editId ? 'Edit Transaction' : 'Add New Transaction'}</h2>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleValidationAndSave}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
@@ -76,7 +96,7 @@ export default function TransactionModal({
               <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
               <input 
                 type="number" 
-                min="0" // <-- PERBAIKAN: Mencegah input negatif
+                min="0"
                 value={amount} 
                 onChange={(e) => setAmount(e.target.value)} 
                 className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" 
