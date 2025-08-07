@@ -1,7 +1,7 @@
 // src/app/categories/page.tsx
 "use client";
 
-import { useState, /*useEffect --> tidak digunakan */ useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Category } from '@/types';
 import { Plus, Edit, Trash2 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import * as categoryService from '@/lib/categoryService';
 import CategoryModal from '@/components/modals/CategoryModal';
 import ReassignCategoryModal from '@/components/modals/ReassignCategoryModal';
+import TableSkeleton from '@/components/skeletons/TableSkeleton'; // <-- Import Skeleton
 
 const CategoryRow = ({ category, level, onEdit, onDelete }: { category: Category & { children?: Category[] }; level: number; onEdit: (cat: Category) => void; onDelete: (cat: Category) => void; }) => (
   <>
@@ -119,8 +120,6 @@ export default function CategoriesPage() {
   const handleAddNew = () => { setEditingCategory(null); setIsModalOpen(true); };
   const handleEdit = (category: Category) => { setEditingCategory(category); setIsModalOpen(true); };
   
-  if (isAppDataLoading) return <div className="p-6">Loading...</div>;
-  
   return (
     <div className="p-6">
       <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
@@ -129,22 +128,27 @@ export default function CategoriesPage() {
           <Plus size={20} /> Add New
         </button>
       </div>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {categoryTree.map((cat) => (
-              <CategoryRow key={cat.id} category={cat} level={0} onEdit={handleEdit} onDelete={handleDeleteCategory} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* --- PERUBAHAN DI SINI: Tampilkan Skeleton saat loading --- */}
+      {isAppDataLoading ? (
+        <TableSkeleton />
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {categoryTree.map((cat) => (
+                <CategoryRow key={cat.id} category={cat} level={0} onEdit={handleEdit} onDelete={handleDeleteCategory} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <CategoryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCategory} category={editingCategory} parentCategories={allCategories.filter((c) => !c.parent_id)} />
       <ReassignCategoryModal isOpen={isReassignModalOpen} onClose={() => setIsReassignModalOpen(false)} onReassign={handleReassignAndDelele} categoryToDelete={categoryToDelete} allCategories={allCategories} />
     </div>

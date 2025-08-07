@@ -1,17 +1,20 @@
 // src/components/TransactionList.tsx
-
 "use client";
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Transaction, TransactionGroup, SupabaseRealtimePayload } from '@/types';
+import { Transaction, TransactionGroup } from '@/types';
 import Link from 'next/link';
 import { MoreVertical, Edit, Trash2, ArrowRight } from 'lucide-react';
-import { useAppData } from '@/contexts/AppDataContext'; // Import context
+import { useAppData } from '@/contexts/AppDataContext';
+import toast from 'react-hot-toast';
 
 interface TransactionListProps { 
   userId: string; 
   startEdit: (transaction: Transaction) => void; 
-  filters: { filterType: string; filterCategory: string; filterAccount: string; filterStartDate: string; filterEndDate: string; }; 
+  filters: { filterType: string; filterCategory: string; filterAccount: string; filterStartDate: string; filterEndDate: string; };
+  onDataLoaded: () => void;
+  onTransactionChange: () => void; // <-- 1. Terima prop baru
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -33,34 +36,21 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); 
 };
 
-export default function TransactionList({ userId, startEdit, filters }: TransactionListProps) {
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // State untuk semua transaksi
-  const [loading, setLoading] = useState(true);
+export default function TransactionList({ userId, startEdit, filters, onDataLoaded, onTransactionChange }: TransactionListProps) {
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { householdId } = useAppData(); // Ambil householdId dari context
-
-  // Fungsi untuk mengambil detail transaksi (termasuk nama kategori/akun)
-  const fetchTransactionDetails = async (transactionId: string): Promise<Transaction | null> => {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
-      .eq('id', transactionId)
-      .single();
-    if (error) {
-      console.error('Error fetching transaction details:', error);
-      return null;
-    }
-    return data;
-  };
+  const { householdId } = useAppData();
 
   const fetchTransactions = useCallback(async () => {
-    if (!householdId) return;
-    setLoading(true);
+    if (!householdId) {
+      onDataLoaded();
+      return;
+    };
+
     setError(null);
 
-    
     let query = supabase
       .from('transactions')
       .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
@@ -77,66 +67,47 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
     
     if (fetchError) { setError(`Failed to load data: ${fetchError.message}`); } 
     else { setAllTransactions(data || []); }
-    setLoading(false);
-  }, [householdId, filters]);
-
+    onDataLoaded();
+  }, [householdId, filters, onDataLoaded]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // --- LOGIKA REALTIME YANG DIOPTIMALKAN ---
+
   useEffect(() => {
-    const handleRealtimeChange = (payload: SupabaseRealtimePayload<Transaction>) => {
-      console.log('Realtime change received:', payload);
-
-      // INSERT: Tambahkan transaksi baru ke state
-      if (payload.eventType === 'INSERT') {
-        fetchTransactionDetails(payload.new.id).then(newTransaction => {
-          if (newTransaction) {
-            setAllTransactions(currentTransactions => [newTransaction, ...currentTransactions]);
-          }
-        });
-      }
-
-      // UPDATE: Cari dan ganti transaksi yang ada di state
-      if (payload.eventType === 'UPDATE') {
-        fetchTransactionDetails(payload.new.id).then(updatedTransaction => {
-          if (updatedTransaction) {
-            setAllTransactions(currentTransactions =>
-              currentTransactions.map(t => t.id === updatedTransaction.id ? updatedTransaction : t)
-            );
-          }
-        });
-      }
-
-      // DELETE: Hapus transaksi dari state
-      if (payload.eventType === 'DELETE') {
-        setAllTransactions(currentTransactions =>
-          currentTransactions.filter(t => t.id !== payload.old.id)
-        );
-      }
-    };
-
+    
     const channel = supabase.channel(`realtime-transactions-${userId}`)
       .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
-          handleRealtimeChange
+          () => {
+            console.log('Realtime change detected, triggering refetch.');
+            onTransactionChange(); // Gunakan fungsi dari parent untuk realtime update juga
+          }
       )
       .subscribe();
       
     return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+  }, [userId, onTransactionChange]);
   
   const handleDelete = async (transactionId: string) => { 
     if (confirm('Are you sure you want to delete this transaction?')) { 
-      const { error } = await supabase.from('transactions').delete().eq('id', transactionId); 
-      if (error) { 
-        // Notifikasi sudah ditangani oleh toast di komponen induk
-      } else { 
-        // State akan diperbarui secara realtime, tidak perlu fetch manual
-        setActiveMenu(null); 
-      } 
+      const promise = async () => {
+        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+        if (error) throw error;
+        // --- PERBAIKAN DI SINI ---
+        // 2. Panggil fungsi dari parent untuk memicu pembaruan secara paksa
+        onTransactionChange();
+        // --- PERBAIKAN SELESAI ---
+      };
+
+      toast.promise(promise(), {
+        loading: 'Deleting transaction...',
+        success: 'Transaction deleted!',
+        error: (err) => `Error: ${err.message}`,
+      });
+      
+      setActiveMenu(null); 
     } 
   };
   
@@ -155,7 +126,7 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
   
   const groupedTransactions = groupTransactionsByDate(allTransactions);
 
-  if (loading) return <div className="text-center p-6 bg-white rounded-lg shadow">Loading transactions...</div>;
+
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
   if (groupedTransactions.length === 0) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found for the selected filters.</div>;
   

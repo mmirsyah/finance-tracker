@@ -13,13 +13,16 @@ import { Transaction } from '@/types';
 import { useRouter } from 'next/navigation';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
-import { useAppData } from '@/contexts/AppDataContext'; // <-- 1. Import custom hook
-import LoadingSpinner from '@/components/LoadingSpinner'; // <-- Import spinner
+import { useAppData } from '@/contexts/AppDataContext';
+import TransactionListSkeleton from '@/components/skeletons/TransactionListSkeleton';
 
 export default function TransactionsPage() {
   const router = useRouter();
-  // 2. Ambil data, loading state, dan user dari context
+
   const { accounts, categories, isLoading: isAppDataLoading, user, householdId } = useAppData();
+
+  const [transactionVersion, setTransactionVersion] = useState(0); 
+  const [isListLoading, setIsListLoading] = useState(true);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -36,7 +39,7 @@ export default function TransactionsPage() {
     else { if (date?.from) { setFilterEndDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterEndDate(''); } }
   }, [date]);
 
-  // State untuk form tetap di sini karena spesifik untuk halaman ini
+
   const [formType, setFormType] = useState<Transaction['type']>('expense');
   const [formAmount, setFormAmount] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -47,15 +50,22 @@ export default function TransactionsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 3. Hapus useEffect dan useCallback untuk fetching data
-  // Data sekarang datang dari AppDataContext
+
 
   useEffect(() => {
-    // Redirect jika loading selesai dan tidak ada user
+
     if (!isAppDataLoading && !user) {
       router.push('/login');
     }
   }, [isAppDataLoading, user, router]);
+
+  // --- PERBAIKAN DIMULAI DI SINI ---
+  // 1. Buat fungsi terpusat untuk memicu pembaruan
+  const handleTransactionChange = () => {
+    setTransactionVersion(v => v + 1);
+    setIsListLoading(true); // Tampilkan skeleton saat data dimuat ulang
+  };
+  // --- PERBAIKAN SELESAI ---
 
   const resetForm = () => {
     setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormNote('');
@@ -71,15 +81,16 @@ export default function TransactionsPage() {
     setFormAccountId(t.account_id || ''); setFormToAccountId(t.to_account_id || '');
     setFormNote(t.note || ''); setFormDate(t.date); setIsModalOpen(true);
   };
+
   const handleSaveTransaction = async () => {
     setIsSaving(true);
     if (!user || !householdId) { 
-      // Cek user dan householdId dari context
+
       alert('Sesi pengguna tidak ditemukan.'); 
       setIsSaving(false); 
       return; 
     }
-    // ... (sisa logika validasi tetap sama)
+    
     
     const payload = {
       type: formType, amount: Number(formAmount), note: formNote || null, date: formDate,
@@ -89,16 +100,18 @@ export default function TransactionsPage() {
     };
     
     const success = await transactionService.saveTransaction(supabase, payload, editId);
-    if (success) { setIsModalOpen(false); }
+    if (success) { 
+      setIsModalOpen(false);
+      handleTransactionChange(); // Panggil fungsi pembaruan
+    }
     setIsSaving(false);
   };
 
   const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, }), 
     [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate]);
   
-  // 4. Tampilkan spinner selama data context masih loading
-  if (isAppDataLoading) { return <LoadingSpinner text="Loading your financial data..." />; }
-  if (!user) { return null; } // atau halaman "unauthorized"
+  if (isAppDataLoading) { return <div className="p-6"><TransactionListSkeleton /></div>; }
+  if (!user) { return null; }
 
   return (
     <div className="p-4 sm:p-6 w-full h-full">
@@ -110,21 +123,40 @@ export default function TransactionsPage() {
             filterType={filterType} setFilterType={setFilterType}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
             filterAccount={filterAccount} setFilterAccount={setFilterAccount}
-            categories={categories} // <-- Data dari context
-            accounts={accounts}     // <-- Data dari context
+            categories={categories}
+            accounts={accounts}
             onResetFilters={onResetFilters}
           />
-          <TransactionList key={user.id} userId={user.id} startEdit={handleOpenModalForEdit} filters={filters}/>
+          {isListLoading && <TransactionListSkeleton />}
+          <div style={{ display: isListLoading ? 'none' : 'block' }}>
+            <TransactionList 
+              key={transactionVersion} 
+              userId={user.id} 
+              startEdit={handleOpenModalForEdit} 
+              filters={filters}
+              onDataLoaded={() => setIsListLoading(false)}
+              onTransactionChange={handleTransactionChange} // <-- 2. Berikan fungsi sebagai prop
+            />
+          </div>
         </div>
         <div className="order-1 lg:order-2"><TransactionSummary userId={user.id} /></div>
       </div>
-      <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} editId={editId}
-        isSaving={isSaving} type={formType} setType={setFormType} amount={formAmount} setAmount={setFormAmount} category={formCategory}
-        setCategory={setFormCategory} accountId={formAccountId} setAccountId={setFormAccountId} 
-        toAccountId={formToAccountId} setToAccountId={setFormToAccountId} note={formNote}
-        setNote={setFormNote} date={formDate} setDate={setFormDate} 
-        categories={categories} // <-- Data dari context
-        accounts={accounts}     // <-- Data dari context
+      <TransactionModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveTransaction} 
+        editId={editId}
+        isSaving={isSaving} 
+        type={formType} setType={setFormType} 
+        amount={formAmount} setAmount={setFormAmount} 
+        category={formCategory} setCategory={setFormCategory} 
+        accountId={formAccountId} setAccountId={setFormAccountId} 
+        toAccountId={formToAccountId} setToAccountId={setFormToAccountId} 
+        note={formNote} setNote={setFormNote} 
+        date={formDate} 
+        setDate={setFormDate} 
+        categories={categories}
+        accounts={accounts}
       />
     </div>
   )

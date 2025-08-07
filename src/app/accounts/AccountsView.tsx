@@ -1,10 +1,9 @@
 // src/app/accounts/AccountsView.tsx
 "use client";
 
-import { useState, useEffect, /*useCallback --> Tidak digunakan*/ } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Account } from '@/types';
-//import { User } from '@supabase/supabase-js'; --> Tidak digunakan
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -12,6 +11,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import * as accountService from '@/lib/accountService';
 import AccountModal from '@/components/modals/AccountModal';
 import ReassignAccountModal from '@/components/modals/ReassignAccountModal';
+import TableSkeleton from '@/components/skeletons/TableSkeleton'; // <-- Import Skeleton
 
 const formatCurrency = (value: number | null | undefined) => {
   if (value === null || value === undefined) return 'Rp 0';
@@ -22,7 +22,6 @@ export default function AccountsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Gunakan data dari context
   const { accounts, isLoading: isAppDataLoading, user, householdId, refetchData } = useAppData();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,7 +43,7 @@ export default function AccountsView() {
 
     const promise = accountService.saveAccount(accountData, user.id, householdId)
       .then(() => {
-        refetchData(); // Panggil refetch dari context
+        refetchData();
       });
 
     toast.promise(promise, {
@@ -96,8 +95,6 @@ export default function AccountsView() {
 
   const handleAddNew = () => { setEditingAccount(null); setIsModalOpen(true); };
   const handleEdit = (account: Account) => { setEditingAccount(account); setIsModalOpen(true); };
-
-  if (isAppDataLoading) { return <div className="p-6">Loading Accounts...</div>; }
   
   return (
     <div className="p-6">
@@ -107,7 +104,10 @@ export default function AccountsView() {
           <Plus size={20} /> Add New
         </button>
       </div>
-      {accounts.length === 0 && !isAppDataLoading ? (
+      {/* --- PERUBAHAN DI SINI: Tampilkan Skeleton saat loading --- */}
+      {isAppDataLoading ? (
+        <TableSkeleton />
+      ) : accounts.length === 0 ? (
         <div className="text-center p-6 bg-white rounded-lg shadow">
           <h3 className="text-lg font-semibold">No Accounts Found</h3>
           <p className="text-gray-500 mt-2">Click &quot;Add New&quot; to create your first financial account.</p>
