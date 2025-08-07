@@ -31,10 +31,13 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const fetchData = async (currentUser: User, currentHouseholdId: string) => {
     setIsLoading(true);
     try {
+      // --- PERBAIKAN DIMULAI DI SINI ---
+      // Kita panggil RPC 'get_accounts_with_balance' untuk mendapatkan saldo yang sudah dihitung
       const [accountsRes, categoriesRes] = await Promise.all([
-        supabase.from('accounts').select('*').eq('household_id', currentHouseholdId).order('name'),
+        supabase.rpc('get_accounts_with_balance', { p_user_id: currentUser.id }),
         supabase.from('categories').select('*').eq('household_id', currentHouseholdId).order('name')
       ]);
+      // --- PERBAIKAN SELESAI ---
 
       if (accountsRes.error) throw accountsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
