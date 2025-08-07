@@ -22,62 +22,70 @@ module.exports = {
         "2xl": "1400px",
       },
     },
-    extend: {
-      colors: {
-        // WARNA UNTUK SHADCN/UI
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-        // WARNA UNTUK TREMOR
-        tremor: {
-          brand: { faint: "#eff6ff", muted: "#bfdbfe", subtle: "#60a5fa", DEFAULT: "#3b82f6", emphasis: "#1d4ed8", inverted: "#ffffff" },
-          background: { muted: "#f9fafb", subtle: "#f3f4f6", DEFAULT: "#ffffff", emphasis: "#374151" },
-          border: { DEFAULT: "#e5e7eb" },
-          ring: { DEFAULT: "#e5e7eb" },
-          content: { subtle: "#9ca3af", DEFAULT: "#6b7280", emphasis: "#374151", strong: "#111827", inverted: "#ffffff" },
-        },
-        // === TAMBAHAN PALET WARNA DASAR UNTUK TREMOR ===
-        rose: colors.rose,
-        yellow: colors.yellow,
-        orange: colors.orange,
-        green: colors.green,
-        blue: colors.blue,
-        sky: colors.sky,
-        violet: colors.violet,
-        indigo: colors.indigo,
-        cyan: colors.cyan,
-        fuchsia: colors.fuchsia,
+    colors: {
+      // Warna dasar dari Tailwind
+      transparent: 'transparent',
+      current: 'currentColor',
+      black: colors.black,
+      white: colors.white,
+      gray: colors.gray,
+      // Warna-warna yang dibutuhkan oleh Tremor
+      slate: colors.slate,
+      rose: colors.rose,
+      yellow: colors.yellow,
+      orange: colors.orange,
+      green: colors.green,
+      blue: colors.blue,
+      sky: colors.sky,
+      violet: colors.violet,
+      indigo: colors.indigo,
+      cyan: colors.cyan,
+      fuchsia: colors.fuchsia,
+      red: colors.red, // Pastikan 'red' ada di sini
+      // Warna kustom untuk shadcn/ui
+      border: "hsl(var(--border))",
+      input: "hsl(var(--input))",
+      ring: "hsl(var(--ring))",
+      background: "hsl(var(--background))",
+      foreground: "hsl(var(--foreground))",
+      primary: {
+        DEFAULT: "hsl(var(--primary))",
+        foreground: "hsl(var(--primary-foreground))",
       },
+      secondary: {
+        DEFAULT: "hsl(var(--secondary))",
+        foreground: "hsl(var(--secondary-foreground))",
+      },
+      destructive: {
+        DEFAULT: "hsl(var(--destructive))",
+        foreground: "hsl(var(--destructive-foreground))",
+      },
+      muted: {
+        DEFAULT: "hsl(var(--muted))",
+        foreground: "hsl(var(--muted-foreground))",
+      },
+      accent: {
+        DEFAULT: "hsl(var(--accent))",
+        foreground: "hsl(var(--accent-foreground))",
+      },
+      popover: {
+        DEFAULT: "hsl(var(--popover))",
+        foreground: "hsl(var(--popover-foreground))",
+      },
+      card: {
+        DEFAULT: "hsl(var(--card))",
+        foreground: "hsl(var(--card-foreground))",
+      },
+      // Tema warna spesifik untuk Tremor
+      tremor: {
+        brand: { faint: "#eff6ff", muted: "#bfdbfe", subtle: "#60a5fa", DEFAULT: "#3b82f6", emphasis: "#1d4ed8", inverted: "#ffffff" },
+        background: { muted: "#f9fafb", subtle: "#f3f4f6", DEFAULT: "#ffffff", emphasis: "#374151" },
+        border: { DEFAULT: "#e5e7eb" },
+        ring: { DEFAULT: "#e5e7eb" },
+        content: { subtle: "#9ca3af", DEFAULT: "#6b7280", emphasis: "#374151", strong: "#111827", inverted: "#ffffff" },
+      },
+    },
+    extend: {
       boxShadow: {
         "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
         "tremor-card": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",

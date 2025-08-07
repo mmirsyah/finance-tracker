@@ -1,14 +1,9 @@
 // src/types/index.ts
 
-
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-// --- PERBAIKAN DI SINI ---
-// Menonaktifkan aturan ESLint untuk baris ini karena tipe dari Supabase
-// memang memerlukan constraint `any`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SupabaseRealtimePayload<T extends { [key: string]: any; }> = RealtimePostgresChangesPayload<T>;
-// --- PERBAIKAN SELESAI ---
 
 
 export interface Category {
@@ -47,6 +42,18 @@ export interface Transaction {
   to_account?: { name: string };
 }
 
+// --- PENAMBAHAN TIPE BARU DI SINI ---
+// Tipe ini khusus untuk data yang dikembalikan oleh RPC get_recent_transactions
+export type RecentTransaction = {
+  id: string;
+  date: string;
+  type: 'expense' | 'income' | 'transfer';
+  amount: number;
+  note: string | null;
+  category_name: string | null;
+  account_name: string | null;
+}
+// --- PENAMBAHAN SELESAI ---
 
 export type TransactionSummary = {
   total_transactions: number;
