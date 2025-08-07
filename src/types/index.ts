@@ -1,9 +1,13 @@
 // src/types/index.ts
 
-// 1. Tambahkan tipe baru ini untuk menangani payload dari Supabase
+
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-export type SupabaseRealtimePayload<T> = RealtimePostgresChangesPayload<{ [key: string]: any; }>;
+// --- PERBAIKAN DI SINI ---
+// Menambahkan batasan `extends { [key: string]: any; }` pada T
+// untuk memenuhi persyaratan dari tipe Supabase.
+export type SupabaseRealtimePayload<T extends { [key: string]: any; }> = RealtimePostgresChangesPayload<T>;
+// --- PERBAIKAN SELESAI ---
 
 
 export interface Category {

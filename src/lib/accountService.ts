@@ -14,10 +14,9 @@ export const saveAccount = async (
   user_id: string,
   household_id: string
 ) => {
-  // --- PERBAIKAN DIMULAI DI SINI ---
-  // Kita hapus properti 'balance' dari objek sebelum mengirimnya ke database.
-  // Properti 'balance' hanya untuk tampilan dan dihitung oleh RPC, bukan kolom fisik.
-  const { id, balance, ...dataToSave } = account;
+  // --- PERBAIKAN DI SINI ---
+  // Variabel 'balance' diubah menjadi '_balance' untuk menandakan tidak digunakan.
+  const { id, balance: _balance, ...dataToSave } = account;
   // --- PERBAIKAN SELESAI ---
 
   const payload = {
