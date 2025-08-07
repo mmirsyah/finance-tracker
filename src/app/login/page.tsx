@@ -6,11 +6,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button'; // Menggunakan komponen Button kustom Anda
+import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 
-// --- PERBAIKAN DI SINI ---
-// Komponen Ikon Google diganti dengan SVG yang lebih akurat dan berwarna
+
 const GoogleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" className="mr-2">
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -20,7 +19,7 @@ const GoogleIcon = () => (
     <path fill="none" d="M1 1h22v22H1z"/>
   </svg>
 );
-// --- PERBAIKAN SELESAI ---
+
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,7 +36,7 @@ export default function LoginPage() {
     });
 
     return () => {
-      
+
       subscription.unsubscribe();
     };
   }, [router]);
@@ -72,7 +71,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md border">
         <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">Money Management</h1>
         
-        {/* Tombol Google Login */}
+
         <Button 
           variant="outline" 
           className="w-full mb-4"
@@ -91,7 +90,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Form Login Email/Password */}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email address</label>
@@ -127,7 +126,9 @@ export default function LoginPage() {
           <a href="#" className="font-medium text-primary hover:underline">Forgot your password?</a>
         </div>
         <div className="text-center text-sm mt-2">
-          <span className="text-gray-600">Don't have an account? </span>
+          {/* --- PERBAIKAN DI SINI --- */}
+          <span className="text-gray-600">Don&apos;t have an account? </span>
+          {/* --- PERBAIKAN SELESAI --- */}
           <a href="#" className="font-medium text-primary hover:underline">Sign up</a>
         </div>
       </div>
