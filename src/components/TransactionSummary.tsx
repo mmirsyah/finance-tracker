@@ -4,7 +4,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Download } from 'lucide-react';
-import type { TransactionSummary as TSummary } from '@/types';
+import type { TransactionSummary as TSummary, SupabaseRealtimePayload, Transaction } from '@/types';
+import { useAppData } from '@/contexts/AppDataContext'; // Import context
 
 interface SummaryProps { userId: string; }
 const formatCurrency = (value: number | null | undefined) => { if (value === null || value === undefined) return 'Rp 0'; return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -13,44 +14,54 @@ const formatDate = (dateString: string | null | undefined) => { if (!dateString)
 export default function TransactionSummary({ userId }: SummaryProps) {
   const [summary, setSummary] = useState<TSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const { householdId } = useAppData(); // Ambil householdId dari context
 
   const fetchSummary = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-
-    const startDate = '1970-01-01';
-    const endDate = '2999-12-31';
+    if (!userId || !householdId) return;
+    // Tidak perlu set loading di sini agar tidak berkedip saat realtime update
     
+    // Untuk ringkasan, kita tetap panggil RPC karena kalkulasinya kompleks
+    // dan datanya kecil, jadi tidak membebani.
     const { data, error } = await supabase.rpc('get_transaction_summary', {
       p_user_id: userId,
-      p_start_date: startDate,
-      p_end_date: endDate,
+      // Kita ambil ringkasan sepanjang waktu, bukan berdasarkan filter tanggal
+      p_start_date: '1970-01-01',
+      p_end_date: '2999-12-31',
     });
-    if (error) { console.error('Error fetching summary:', error); } else if (data && data.length > 0) { setSummary(data[0]); }
-    setLoading(false);
-  }, [userId]);
+    if (error) { 
+      console.error('Error fetching summary:', error); 
+    } else if (data && data.length > 0) { 
+      setSummary(data[0]); 
+    }
+    setLoading(false); // Set loading false hanya setelah pemuatan awal
+  }, [userId, householdId]);
 
   useEffect(() => {
-    if (userId) {
+    if (userId && householdId) {
       fetchSummary();
+      
+      const handleRealtimeChange = (payload: SupabaseRealtimePayload<Transaction>) => {
+        // Setiap kali ada perubahan pada transaksi, panggil ulang fungsi summary
+        console.log('Summary needs update due to:', payload.eventType);
+        fetchSummary();
+      };
+
       const channel = supabase
         .channel(`transaction_summary_update_for_${userId}`)
         .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
-          // <-- PERBAIKAN: 'payload' yang tidak terpakai sudah dihapus dari sini
-          () => { 
-            fetchSummary(); 
-          }
+          { event: '*', schema: 'public', table: 'transactions', filter: `household_id=eq.${householdId}` }, 
+          handleRealtimeChange
         )
         .subscribe();
+        
        return () => { supabase.removeChannel(channel); };
     }
-  }, [userId, fetchSummary]);
+  }, [userId, householdId, fetchSummary]);
 
   if (loading) { return (<div className="bg-white p-6 rounded-lg shadow-md"><h2 className="text-xl font-bold mb-4 text-gray-800">Summary</h2><div className="text-center text-gray-500">Loading summary...</div></div>); }
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">Summary</h2>
+      <h2 className="text-xl font-bold mb-4 text-gray-800">Lifetime Summary</h2>
       <div className="space-y-3 text-sm">
         <div className="flex justify-between"><span className="text-gray-600">Total transactions</span><span className="font-medium text-gray-900">{summary?.total_transactions || 0}</span></div>
         <div className="flex justify-between"><span className="text-gray-600">Largest transaction</span><span className="font-medium text-green-600">{formatCurrency(summary?.largest_transaction)}</span></div>

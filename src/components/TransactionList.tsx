@@ -3,37 +3,68 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Transaction, TransactionGroup } from '@/types';
+import { Transaction, TransactionGroup, SupabaseRealtimePayload } from '@/types';
 import Link from 'next/link';
 import { MoreVertical, Edit, Trash2, ArrowRight } from 'lucide-react';
+import { useAppData } from '@/contexts/AppDataContext'; // Import context
 
-interface TransactionListProps { userId: string; startEdit: (transaction: Transaction) => void; filters: { filterType: string; filterCategory: string; filterAccount: string; filterStartDate: string; filterEndDate: string; }; }
+interface TransactionListProps { 
+  userId: string; 
+  startEdit: (transaction: Transaction) => void; 
+  filters: { filterType: string; filterCategory: string; filterAccount: string; filterStartDate: string; filterEndDate: string; }; 
+}
+
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
-const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[] => { if (!transactions) return []; const groups = transactions.reduce((acc, t) => { const date = t.date; if (!acc[date]) { acc[date] = { date, subtotal: 0, transactions: [] }; } if (t.type !== 'transfer') { const amount = t.type === 'expense' ? -t.amount : t.amount; acc[date].subtotal += amount; } acc[date].transactions.push(t); return acc; }, {} as Record<string, TransactionGroup>); return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); };
+
+const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[] => { 
+  if (!transactions) return []; 
+  const groups = transactions.reduce((acc, t) => { 
+    const date = t.date; 
+    if (!acc[date]) { 
+      acc[date] = { date, subtotal: 0, transactions: [] }; 
+    } 
+    if (t.type !== 'transfer') { 
+      const amount = t.type === 'expense' ? -t.amount : t.amount; 
+      acc[date].subtotal += amount; 
+    } 
+    acc[date].transactions.push(t); 
+    return acc; 
+  }, {} as Record<string, TransactionGroup>); 
+  return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); 
+};
 
 export default function TransactionList({ userId, startEdit, filters }: TransactionListProps) {
-  const [groupedTransactions, setGroupedTransactions] = useState<TransactionGroup[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // State untuk semua transaksi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { householdId } = useAppData(); // Ambil householdId dari context
+
+  // Fungsi untuk mengambil detail transaksi (termasuk nama kategori/akun)
+  const fetchTransactionDetails = async (transactionId: string): Promise<Transaction | null> => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
+      .eq('id', transactionId)
+      .single();
+    if (error) {
+      console.error('Error fetching transaction details:', error);
+      return null;
+    }
+    return data;
+  };
 
   const fetchTransactions = useCallback(async () => {
+    if (!householdId) return;
     setLoading(true);
     setError(null);
 
-    // Dapatkan household_id terlebih dahulu
-    const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
-    if (!profile) {
-      setError("Could not find user profile.");
-      setLoading(false);
-      return;
-    }
-
+    
     let query = supabase
       .from('transactions')
       .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
-      .eq('household_id', profile.household_id) // <-- PERBAIKAN: Filter berdasarkan household_id
+      .eq('household_id', householdId)
       .order('date', { ascending: false });
 
     if (filters.filterType) query = query.eq('type', filters.filterType);
@@ -45,24 +76,92 @@ export default function TransactionList({ userId, startEdit, filters }: Transact
     const { data, error: fetchError } = await query.returns<Transaction[]>();
     
     if (fetchError) { setError(`Failed to load data: ${fetchError.message}`); } 
-    else { setGroupedTransactions(groupTransactionsByDate(data || [])); }
+    else { setAllTransactions(data || []); }
     setLoading(false);
-  }, [userId, filters]);
+  }, [householdId, filters]);
 
-  const handleDelete = async (transactionId: string) => { if (confirm('Are you sure you want to delete this transaction?')) { const { error } = await supabase.from('transactions').delete().eq('id', transactionId); if (error) { alert('Failed to delete transaction.'); } else { fetchTransactions(); setActiveMenu(null); } } };
-  useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } }; const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { setActiveMenu(null); } }; if (activeMenu) { document.addEventListener('mousedown', handleClickOutside); document.addEventListener('keydown', handleKeyDown); } return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKeyDown); }; }, [activeMenu]);
+
   useEffect(() => {
     fetchTransactions();
-    const channel = supabase.channel(`realtime-transactions-${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchTransactions()).subscribe();
+  }, [fetchTransactions]);
+
+  // --- LOGIKA REALTIME YANG DIOPTIMALKAN ---
+  useEffect(() => {
+    const handleRealtimeChange = (payload: SupabaseRealtimePayload<Transaction>) => {
+      console.log('Realtime change received:', payload);
+
+      // INSERT: Tambahkan transaksi baru ke state
+      if (payload.eventType === 'INSERT') {
+        fetchTransactionDetails(payload.new.id).then(newTransaction => {
+          if (newTransaction) {
+            setAllTransactions(currentTransactions => [newTransaction, ...currentTransactions]);
+          }
+        });
+      }
+
+      // UPDATE: Cari dan ganti transaksi yang ada di state
+      if (payload.eventType === 'UPDATE') {
+        fetchTransactionDetails(payload.new.id).then(updatedTransaction => {
+          if (updatedTransaction) {
+            setAllTransactions(currentTransactions =>
+              currentTransactions.map(t => t.id === updatedTransaction.id ? updatedTransaction : t)
+            );
+          }
+        });
+      }
+
+      // DELETE: Hapus transaksi dari state
+      if (payload.eventType === 'DELETE') {
+        setAllTransactions(currentTransactions =>
+          currentTransactions.filter(t => t.id !== payload.old.id)
+        );
+      }
+    };
+
+    const channel = supabase.channel(`realtime-transactions-${userId}`)
+      .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
+          handleRealtimeChange
+      )
+      .subscribe();
+      
     return () => { supabase.removeChannel(channel); };
-  }, [fetchTransactions, userId]);
+  }, [userId]);
   
+  const handleDelete = async (transactionId: string) => { 
+    if (confirm('Are you sure you want to delete this transaction?')) { 
+      const { error } = await supabase.from('transactions').delete().eq('id', transactionId); 
+      if (error) { 
+        // Notifikasi sudah ditangani oleh toast di komponen induk
+      } else { 
+        // State akan diperbarui secara realtime, tidak perlu fetch manual
+        setActiveMenu(null); 
+      } 
+    } 
+  };
+  
+  useEffect(() => { 
+    const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } }; 
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { setActiveMenu(null); } }; 
+    if (activeMenu) { 
+      document.addEventListener('mousedown', handleClickOutside); 
+      document.addEventListener('keydown', handleKeyDown); 
+    } 
+    return () => { 
+      document.removeEventListener('mousedown', handleClickOutside); 
+      document.removeEventListener('keydown', handleKeyDown); 
+    }; 
+  }, [activeMenu]);
+  
+  const groupedTransactions = groupTransactionsByDate(allTransactions);
+
   if (loading) return <div className="text-center p-6 bg-white rounded-lg shadow">Loading transactions...</div>;
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
-  if (groupedTransactions.length === 0) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
+  if (groupedTransactions.length === 0) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found for the selected filters.</div>;
   
   const renderTransactionDetails = (t: Transaction) => { if (t.type === 'transfer') { return ( <div className="flex-grow"> <p className="font-semibold text-gray-800">Transfer</p> <div className="text-sm text-gray-500 flex items-center gap-1"> <span>{t.accounts?.name || '?'}</span> <ArrowRight size={12} /> <span>{t.to_account?.name || '?'}</span> </div> </div> ); } return ( <div className="flex-grow"> <p className="font-semibold text-gray-800"> <Link href={`/categories/${t.category}`} className="text-blue-600 hover:text-blue-800 hover:underline">{t.categories?.name || 'Uncategorized'}</Link> </p> <p className="text-sm text-gray-500">{t.note || 'No note'}</p> </div> ); };
   const getAmountColor = (type: string) => { if (type === 'income') return 'text-green-600'; if (type === 'expense') return 'text-red-600'; return 'text-gray-500'; };
+  
   return (
     <div className="space-y-4">{groupedTransactions.map(group => (<div key={group.date} className="bg-white rounded-lg shadow"><header className="flex justify-between items-center p-3 bg-gray-50 border-b"><h3 className="font-semibold text-gray-700">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3><span className={`font-bold text-sm ${group.subtotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(group.subtotal)}</span></header><ul className="divide-y divide-gray-200">{group.transactions.map(t => (<li key={t.id} className="flex items-center p-3 hover:bg-gray-50">{renderTransactionDetails(t)}<div className="flex items-center gap-4">{t.type !== 'transfer' && (<span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full hidden md:block">{t.accounts?.name || 'No Account'}</span>)}<p className={`font-bold text-right w-32 ${getAmountColor(t.type)}`}>{t.type === 'income' ? '+' : ''} {formatCurrency(t.amount)}</p><div className="relative"><button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>{activeMenu === t.id && (<div ref={menuRef} className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border"><button onClick={() => { startEdit(t); setActiveMenu(null); }} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit size={14} /> Edit</button><button onClick={() => handleDelete(t.id)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"><Trash2 size={14} /> Delete</button></div>)}</div></div></li>))}</ul></div>))}</div>
   );

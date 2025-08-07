@@ -1,5 +1,11 @@
 // src/types/index.ts
 
+// 1. Tambahkan tipe baru ini untuk menangani payload dari Supabase
+import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+
+export type SupabaseRealtimePayload<T> = RealtimePostgresChangesPayload<{ [key: string]: any; }>;
+
+
 export interface Category {
   id: number;
   name: string;
@@ -36,7 +42,7 @@ export interface Transaction {
   to_account?: { name: string };
 }
 
-// === DEFINISI YANG HILANG DITAMBAHKAN KEMBALI DI SINI ===
+
 export type TransactionSummary = {
   total_transactions: number;
   largest_transaction: number;
