@@ -12,8 +12,8 @@ import { RecentTransaction } from '@/types';
 const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
 const TransactionIcon = ({ type }: { type: string }) => {
-  if (type === 'income') return <ArrowDown className="w-5 h-5 text-green-500 bg-green-100 rounded-full p-1" />;
-  if (type === 'expense') return <ArrowUp className="w-5 h-5 text-red-500 bg-red-100 rounded-full p-1" />;
+  if (type === 'income') return <ArrowUp className="w-5 h-5 text-green-500 bg-green-100 rounded-full p-1" />;
+  if (type === 'expense') return <ArrowDown className="w-5 h-5 text-red-500 bg-red-100 rounded-full p-1" />;
   return <ArrowRightLeft className="w-5 h-5 text-gray-500 bg-gray-100 rounded-full p-1" />;
 };
 
