@@ -1,15 +1,15 @@
 // src/components/TransactionToolbar.tsx
 
 "use client";
-import { Plus } from 'lucide-react'; // <-- ListFilter sudah dihapus dari sini
+
 import { DateRange } from 'react-day-picker';
 import { DateRangePicker } from './DateRangePicker';
 import { FilterPopover } from './FilterPopover';
 import { Category, Account } from '@/types';
 
-
+// Hapus `onAddTransaction` dari props di sini
 interface TransactionToolbarProps {
-  onAddTransaction: () => void;
+
   dateRange: DateRange | undefined;
   setDateRange: (date: DateRange | undefined) => void;
   filterType: string; setFilterType: (value: string) => void;
@@ -19,7 +19,7 @@ interface TransactionToolbarProps {
 }
 
 export default function TransactionToolbar({ 
-  onAddTransaction, dateRange, setDateRange, filterType, setFilterType,
+  dateRange, setDateRange, filterType, setFilterType,
   filterCategory, setFilterCategory, filterAccount, setFilterAccount,
   categories, accounts, onResetFilters,
 }: TransactionToolbarProps) {
@@ -41,10 +41,7 @@ export default function TransactionToolbar({
             accounts={accounts} 
             onResetFilters={onResetFilters} 
           />
-          <button onClick={onAddTransaction} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow">
-            <Plus size={20} />
-            <span className="hidden sm:inline">Add transaction</span>
-          </button>
+
         </div>
       </div>
     </div>

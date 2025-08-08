@@ -7,7 +7,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { Card, Title, Text } from '@tremor/react';
 import { ArrowRightLeft, ArrowUp, ArrowDown } from 'lucide-react';
 import Link from 'next/link';
-import { RecentTransaction } from '@/types'; // <-- 1. Import tipe baru
+import { RecentTransaction } from '@/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
@@ -18,8 +18,7 @@ const TransactionIcon = ({ type }: { type: string }) => {
 };
 
 export default function RecentTransactions() {
-  const { user } = useAppData();
-  // 2. Gunakan tipe baru untuk state
+  const { user, dataVersion } = useAppData(); // Ambil juga dataVersion
   const [transactions, setTransactions] = useState<RecentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +40,8 @@ export default function RecentTransactions() {
     };
 
     fetchRecent();
-  }, [user]);
+    // Buat komponen ini juga "mendengarkan" perubahan data
+  }, [user, dataVersion]);
 
   if (loading) {
     return (
@@ -72,13 +72,17 @@ export default function RecentTransactions() {
             <li key={t.id} className="py-3 flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <TransactionIcon type={t.type} />
-                <div>
-                  {/* 3. Properti t.category_name dan t.account_name sekarang valid */}
-                  <Text className="font-medium text-gray-800">{t.category_name || t.type}</Text>
-                  <Text className="text-sm text-gray-500">{t.account_name}</Text>
+                <div className="flex-1">
+                  {/* --- PERUBAHAN DI SINI --- */}
+                  <Text className="font-medium text-gray-800 truncate">
+                    {t.note || t.category_name || t.type}
+                  </Text>
+                  <Text className="text-sm text-gray-500">
+                    {t.account_name}
+                  </Text>
                 </div>
               </div>
-              <Text className={`font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+              <Text className={`font-semibold shrink-0 ml-2 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(t.amount)}
               </Text>
             </li>

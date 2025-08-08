@@ -23,7 +23,6 @@ const formatCurrency = (value: number | null | undefined) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); 
 };
 
-// Fungsi baru untuk memformat angka di sumbu Y grafik
 const formatNumberShort = (value: number) => {
   if (Math.abs(value) >= 1_000_000_000) {
     return `Rp ${(value / 1_000_000_000).toFixed(1)} M`;
@@ -40,7 +39,8 @@ const formatNumberShort = (value: number) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoading: isAppDataLoading } = useAppData();
+  // Ambil dataVersion dari context
+  const { user, isLoading: isAppDataLoading, dataVersion } = useAppData();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,6 @@ export default function DashboardPage() {
     to: endOfMonth(new Date()),
   });
 
-  // State untuk data dasbor
   const [summary, setSummary] = useState<TransactionSummary | null>(null);
   const [cashFlowData, setCashFlowData] = useState<CashFlowItem[]>([]);
   const [spendingData, setSpendingData] = useState<SpendingItem[]>([]);
@@ -108,7 +107,8 @@ export default function DashboardPage() {
       }
     };
     initializeDashboard();
-  }, [router, user, isAppDataLoading, startDate, endDate]);
+    // Tambahkan dataVersion ke dependency array. Setiap kali dataVersion berubah, useEffect ini akan berjalan lagi.
+  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion]);
 
   if (isAppDataLoading || loading) return <DashboardSkeleton />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;

@@ -3,13 +3,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import * as transactionService from '@/lib/transactionService';
 import TransactionSummary from '@/components/TransactionSummary';
 import TransactionList from '@/components/TransactionList';
-import TransactionModal from '@/components/TransactionModal';
 import TransactionToolbar from '@/components/TransactionToolbar';
-import { Transaction } from '@/types';
 import { useRouter } from 'next/navigation';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
@@ -19,13 +15,13 @@ import TransactionListSkeleton from '@/components/skeletons/TransactionListSkele
 export default function TransactionsPage() {
   const router = useRouter();
 
-  const { accounts, categories, isLoading: isAppDataLoading, user, householdId } = useAppData();
+  // Ambil semua yang dibutuhkan dari context, termasuk fungsi edit
+  const { accounts, categories, isLoading: isAppDataLoading, user, handleOpenModalForEdit } = useAppData();
 
   const [transactionVersion, setTransactionVersion] = useState(0); 
   const [isListLoading, setIsListLoading] = useState(true);
 
-  const [isSaving, setIsSaving] = useState(false);
-
+  // State untuk filter tetap di sini
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [filterType, setFilterType] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
@@ -39,74 +35,19 @@ export default function TransactionsPage() {
     else { if (date?.from) { setFilterEndDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterEndDate(''); } }
   }, [date]);
 
-
-  const [formType, setFormType] = useState<Transaction['type']>('expense');
-  const [formAmount, setFormAmount] = useState('');
-  const [formCategory, setFormCategory] = useState('');
-  const [formAccountId, setFormAccountId] = useState('');
-  const [formToAccountId, setFormToAccountId] = useState('');
-  const [formNote, setFormNote] = useState('');
-  // --- PERUBAHAN 1 DI SINI ---
-  const [formDate, setFormDate] = useState(''); // Defaultnya string kosong
-  const [editId, setEditId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-
-
   useEffect(() => {
-
     if (!isAppDataLoading && !user) {
       router.push('/login');
     }
   }, [isAppDataLoading, user, router]);
 
-
   const handleTransactionChange = () => {
     setTransactionVersion(v => v + 1);
     setIsListLoading(true);
   };
-  
 
-  const resetForm = () => {
-    setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormNote('');
-    // --- PERUBAHAN 2 DI SINI ---
-    setFormDate(''); // Reset menjadi string kosong
-    setEditId(null); setFormToAccountId('');
-  };
   const onResetFilters = () => {
     setFilterType(''); setFilterCategory(''); setFilterAccount(''); setDate(undefined);
-  };
-  const handleOpenModalForCreate = () => { resetForm(); setIsModalOpen(true); };
-  const handleOpenModalForEdit = (t: Transaction) => {
-    setEditId(t.id); setFormType(t.type); setFormAmount(String(t.amount)); 
-    setFormCategory(t.category?.toString() || '');
-    setFormAccountId(t.account_id || ''); setFormToAccountId(t.to_account_id || '');
-    setFormNote(t.note || ''); setFormDate(t.date); setIsModalOpen(true);
-  };
-
-  const handleSaveTransaction = async () => {
-    setIsSaving(true);
-    if (!user || !householdId) { 
-
-      alert('Sesi pengguna tidak ditemukan.'); 
-      setIsSaving(false); 
-      return; 
-    }
-    
-    
-    const payload = {
-      type: formType, amount: Number(formAmount), note: formNote || null, date: formDate,
-      user_id: user.id, household_id: householdId,
-      category: formType !== 'transfer' ? Number(formCategory) : null,
-      account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null,
-    };
-    
-    const success = await transactionService.saveTransaction(supabase, payload, editId);
-    if (success) { 
-      setIsModalOpen(false);
-      handleTransactionChange();
-    }
-    setIsSaving(false);
   };
 
   const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, }), 
@@ -120,7 +61,6 @@ export default function TransactionsPage() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 order-2 lg:order-1">
           <TransactionToolbar 
-            onAddTransaction={handleOpenModalForCreate} 
             dateRange={date} setDateRange={setDate}
             filterType={filterType} setFilterType={setFilterType}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
@@ -134,6 +74,7 @@ export default function TransactionsPage() {
             <TransactionList 
               key={transactionVersion} 
               userId={user.id} 
+              // Teruskan fungsi edit dari context ke komponen list
               startEdit={handleOpenModalForEdit} 
               filters={filters}
               onDataLoaded={() => setIsListLoading(false)}
@@ -143,23 +84,6 @@ export default function TransactionsPage() {
         </div>
         <div className="order-1 lg:order-2"><TransactionSummary userId={user.id} /></div>
       </div>
-      <TransactionModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSaveTransaction} 
-        editId={editId}
-        isSaving={isSaving} 
-        type={formType} setType={setFormType} 
-        amount={formAmount} setAmount={setFormAmount} 
-        category={formCategory} setCategory={setFormCategory} 
-        accountId={formAccountId} setAccountId={setFormAccountId} 
-        toAccountId={formToAccountId} setToAccountId={setFormToAccountId} 
-        note={formNote} setNote={setFormNote} 
-        date={formDate} 
-        setDate={setFormDate} 
-        categories={categories}
-        accounts={accounts}
-      />
     </div>
   )
 }
