@@ -14,7 +14,7 @@ interface TransactionListProps {
   startEdit: (transaction: Transaction) => void; 
   filters: { filterType: string; filterCategory: string; filterAccount: string; filterStartDate: string; filterEndDate: string; };
   onDataLoaded: () => void;
-  onTransactionChange: () => void; // <-- 1. Terima prop baru
+  onTransactionChange: () => void;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -55,7 +55,10 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
       .from('transactions')
       .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
       .eq('household_id', householdId)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      // --- PERUBAHAN DI SINI ---
+      // Menambahkan urutan sortir sekunder berdasarkan waktu pembuatan (created_at)
+      .order('created_at', { ascending: false });
 
     if (filters.filterType) query = query.eq('type', filters.filterType);
     if (filters.filterCategory) query = query.eq('category', Number(filters.filterCategory));
@@ -82,7 +85,7 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
           () => {
             console.log('Realtime change detected, triggering refetch.');
-            onTransactionChange(); // Gunakan fungsi dari parent untuk realtime update juga
+            onTransactionChange();
           }
       )
       .subscribe();
@@ -95,10 +98,7 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
       const promise = async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
         if (error) throw error;
-        // --- PERBAIKAN DI SINI ---
-        // 2. Panggil fungsi dari parent untuk memicu pembaruan secara paksa
         onTransactionChange();
-        // --- PERBAIKAN SELESAI ---
       };
 
       toast.promise(promise(), {

@@ -36,14 +36,13 @@ export interface Transaction {
   date: string;
   user_id: string;
   household_id: string;
+  created_at?: string; // <-- TAMBAHAN DI SINI
   sequence_number?: number;
   categories?: { name: string; icon?: string };
   accounts?: { name: string };
   to_account?: { name: string };
 }
 
-// --- PENAMBAHAN TIPE BARU DI SINI ---
-// Tipe ini khusus untuk data yang dikembalikan oleh RPC get_recent_transactions
 export type RecentTransaction = {
   id: string;
   date: string;
@@ -53,7 +52,6 @@ export type RecentTransaction = {
   category_name: string | null;
   account_name: string | null;
 }
-// --- PENAMBAHAN SELESAI ---
 
 export type TransactionSummary = {
   total_transactions: number;
