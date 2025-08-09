@@ -6,13 +6,15 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import { Card, Metric, Text, Flex, Title, BarChart, DonutChart } from '@tremor/react';
-import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
+// --- PERBAIKAN: endOfMonth dihapus dari import di bawah ini ---
+import { startOfMonth, format, subMonths } from 'date-fns';
 import type { TransactionSummary } from '@/types';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { DateRange } from 'react-day-picker';
 import { useAppData } from '@/contexts/AppDataContext';
 import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
 import RecentTransactions from '@/components/dashboard/RecentTransactions';
+import { getCustomPeriod } from '@/lib/periodUtils';
 
 // Tipe data untuk grafik
 type CashFlowItem = { date: string; Pemasukan: number; Pengeluaran: number; };
@@ -24,43 +26,46 @@ const formatCurrency = (value: number | null | undefined) => {
 };
 
 const formatNumberShort = (value: number) => {
-  if (Math.abs(value) >= 1_000_000_000) {
-    return `Rp ${(value / 1_000_000_000).toFixed(1)} M`;
-  }
-  if (Math.abs(value) >= 1_000_000) {
-    return `Rp ${(value / 1_000_000).toFixed(1)} jt`;
-  }
-  if (Math.abs(value) >= 1_000) {
-    return `Rp ${(value / 1_000).toFixed(0)} rb`;
-  }
+  if (Math.abs(value) >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)} M`;
+  if (Math.abs(value) >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)} jt`;
+  if (Math.abs(value) >= 1_000) return `Rp ${(value / 1_000).toFixed(0)} rb`;
   return `Rp ${value.toString()}`;
 };
 
 
 export default function DashboardPage() {
   const router = useRouter();
-  // Ambil dataVersion dari context
   const { user, isLoading: isAppDataLoading, dataVersion } = useAppData();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
+  const [date, setDate] = useState<DateRange | undefined>(undefined);
+  const [periodStartDay, setPeriodStartDay] = useState<number>(1);
 
   const [summary, setSummary] = useState<TransactionSummary | null>(null);
   const [cashFlowData, setCashFlowData] = useState<CashFlowItem[]>([]);
   const [spendingData, setSpendingData] = useState<SpendingItem[]>([]);
 
-  const { startDate, endDate } = useMemo(() => {
-    const now = new Date();
-    return {
-      startDate: date?.from ? format(date.from, 'yyyy-MM-dd') : format(startOfMonth(now), 'yyyy-MM-dd'),
-      endDate: date?.to ? format(date.to, 'yyyy-MM-dd') : format(endOfMonth(now), 'yyyy-MM-dd'),
+  useEffect(() => {
+    const fetchProfileAndSetDate = async () => {
+      if(user) {
+        const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('id', user.id).single();
+        const startDay = profile?.period_start_day || 1;
+        setPeriodStartDay(startDay);
+        setDate(getCustomPeriod(startDay));
+      }
     };
-  }, [date]);
+    fetchProfileAndSetDate();
+  }, [user]);
+
+  const { startDate, endDate } = useMemo(() => {
+    const defaultPeriod = getCustomPeriod(periodStartDay);
+    return {
+      startDate: date?.from ? format(date.from, 'yyyy-MM-dd') : format(defaultPeriod.from, 'yyyy-MM-dd'),
+      endDate: date?.to ? format(date.to, 'yyyy-MM-dd') : format(defaultPeriod.to, 'yyyy-MM-dd'),
+    };
+  }, [date, periodStartDay]);
 
   useEffect(() => {
     const initializeDashboard = async () => {
@@ -69,6 +74,8 @@ export default function DashboardPage() {
         return;
       }
       
+      if (!date?.from) return;
+
       setLoading(true);
       try {
         const [ summaryResult, spendingResult ] = await Promise.all([
@@ -107,10 +114,9 @@ export default function DashboardPage() {
       }
     };
     initializeDashboard();
-    // Tambahkan dataVersion ke dependency array. Setiap kali dataVersion berubah, useEffect ini akan berjalan lagi.
-  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion]);
+  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion, date]);
 
-  if (isAppDataLoading || loading) return <DashboardSkeleton />;
+  if (isAppDataLoading || loading || !date) return <DashboardSkeleton />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
   const netCashFlow = (summary?.total_income || 0) - (summary?.total_spending || 0);
@@ -122,7 +128,7 @@ export default function DashboardPage() {
       }
       return `Summary for ${format(date.from, 'd MMM')} to ${format(date.to, 'd MMM yyyy')}`;
     }
-    return `Summary for ${format(new Date(), 'MMMM yyyy')}`;
+    return `Summary for current period`;
   };
 
   return (
