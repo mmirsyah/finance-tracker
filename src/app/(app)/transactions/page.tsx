@@ -11,6 +11,8 @@ import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import { useAppData } from '@/contexts/AppDataContext';
 import TransactionListSkeleton from '@/components/skeletons/TransactionListSkeleton';
+import { supabase } from '@/lib/supabase'; // <-- IMPORT BARU
+import { getCustomPeriod } from '@/lib/periodUtils'; // <-- IMPORT BARU
 
 export default function TransactionsPage() {
   const router = useRouter();
@@ -29,6 +31,21 @@ export default function TransactionsPage() {
   const [filterStartDate, setFilterStartDate] = useState<string>('');
   const [filterEndDate, setFilterEndDate] = useState<string>('');
   
+  // --- LOGIKA BARU UNTUK MENGATUR TANGGAL DEFAULT ---
+  useEffect(() => {
+    // Hanya jalankan jika user sudah ada dan tanggal belum diatur
+    if (user && !date) {
+      const fetchProfileAndSetDate = async () => {
+        const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('id', user.id).single();
+        const startDay = profile?.period_start_day || 1;
+        // Atur state 'date' dengan periode kustom
+        setDate(getCustomPeriod(startDay));
+      };
+      fetchProfileAndSetDate();
+    }
+  }, [user, date]); // Jalankan ketika user berubah atau 'date' di-reset
+  // --- AKHIR LOGIKA BARU ---
+
   useEffect(() => {
     if (date?.from) { setFilterStartDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterStartDate(''); }
     if (date?.to) { setFilterEndDate(format(date.to, 'yyyy-MM-dd')); } 
@@ -47,13 +64,28 @@ export default function TransactionsPage() {
   };
 
   const onResetFilters = () => {
-    setFilterType(''); setFilterCategory(''); setFilterAccount(''); setDate(undefined);
+    setFilterType(''); 
+    setFilterCategory(''); 
+    setFilterAccount(''); 
+    
+    // Saat reset, kembalikan ke periode kustom default, bukan mengosongkannya
+    const fetchProfileAndSetDate = async () => {
+        if(user) {
+            const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('id', user.id).single();
+            const startDay = profile?.period_start_day || 1;
+            setDate(getCustomPeriod(startDay));
+        }
+    };
+    fetchProfileAndSetDate();
   };
 
   const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, }), 
     [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate]);
   
-  if (isAppDataLoading) { return <div className="p-6"><TransactionListSkeleton /></div>; }
+  // Tampilkan skeleton jika app data sedang loading ATAU jika tanggal default belum siap
+  if (isAppDataLoading || !date) { 
+    return <div className="p-6"><TransactionListSkeleton /></div>; 
+  }
   if (!user) { return null; }
 
   return (
