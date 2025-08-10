@@ -1,6 +1,6 @@
 // src/lib/categoryService.ts
 import { supabase } from '@/lib/supabase';
-import { Category } from '@/types';
+import { BudgetType, Category } from '@/types';
 
 /**
  * Menyimpan (membuat atau memperbarui) kategori.
@@ -59,4 +59,26 @@ export const reassignAndDeleleCategory = async (
   if (updateError) throw new Error(`Failed to reassign transactions: ${updateError.message}`);
 
   await deleteCategory(oldCategoryId);
+};
+
+
+/**
+ * ====================================================================
+ * FUNGSI BARU DITAMBAHKAN DI SINI
+ * ====================================================================
+ * Memperbarui tipe budget untuk beberapa kategori sekaligus.
+ * @param updates - Array dari objek yang berisi id kategori dan budget_type barunya.
+ * @returns Promise yang resolve jika berhasil, atau reject dengan error jika gagal.
+ */
+export const updateCategoryBudgetTypes = async (
+  updates: { id: number; budget_type: BudgetType }[]
+) => {
+  // .rpc() digunakan untuk memanggil fungsi di database
+  // Ini jauh lebih efisien daripada melakukan update satu per satu dalam perulangan.
+  const { error } = await supabase.rpc('update_category_budget_types', { updates });
+
+  if (error) {
+    console.error('Error updating category budget types:', error);
+    throw error;
+  }
 };

@@ -5,7 +5,8 @@ import { Inter } from "next/font/google";
 import "@/styles/globals.css";
 
 import NextTopLoader from 'nextjs-toploader';
-import { Toaster } from 'react-hot-toast';
+// Perbaikan: Ganti import ke 'sonner'
+import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,12 +35,12 @@ export default function RootLayout({
           speed={200}
         />
 
-        <Toaster 
-          position="top-center"
-          reverseOrder={false}
-        />
         {/* AppLayout sudah tidak ada di sini lagi */}
         {children}
+
+        {/* Perbaikan: Gunakan Toaster dari sonner. 
+            Atribut 'richColors' akan memberikan warna otomatis (hijau untuk sukses, merah untuk error) */}
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

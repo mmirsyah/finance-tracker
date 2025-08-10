@@ -37,3 +37,21 @@ export function getCustomPeriod(startDay: number): { from: Date; to: Date } {
 
   return { from: startDate, to: endDate };
 }
+
+
+/**
+ * ====================================================================
+ * FUNGSI BARU DITAMBAHKAN DI SINI
+ * ====================================================================
+ * Mendapatkan string periode saat ini dalam format YYYY-MM-01.
+ * Ini digunakan oleh fitur Budget untuk menyimpan dan mengambil data per bulan.
+ * @returns string Format 'YYYY-MM-DD'. Contoh: '2024-08-01'.
+ */
+export const getCurrentPeriod = (): string => {
+  const now = new Date();
+  // Mengatur hari menjadi tanggal 1, karena budget berlaku untuk satu bulan penuh.
+  const firstDayOfMonth = setDate(now, 1);
+  // Mengonversi ke format YYYY-MM-DD. `toISOString()` menghasilkan format UTC,
+  // lalu kita potong untuk mendapatkan bagian tanggalnya saja.
+  return firstDayOfMonth.toISOString().split('T')[0];
+};

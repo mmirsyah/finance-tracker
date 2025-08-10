@@ -3,9 +3,10 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Account, Category, Transaction } from '@/types';
+// Perbaikan: Impor tipe Profile
+import { Account, Category, Transaction, Profile } from '@/types'; 
 import { User } from '@supabase/supabase-js';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import * as transactionService from '@/lib/transactionService';
 import TransactionModal from '@/components/TransactionModal';
 
@@ -15,9 +16,9 @@ interface AppDataContextType {
   isLoading: boolean;
   user: User | null;
   householdId: string | null;
+  profile: Profile | null; // <<< PENAMBAHAN PROPERTI BARU
   dataVersion: number;
   refetchData: () => void;
-  // Fungsi yang bisa dipanggil dari mana saja
   handleOpenModalForCreate: () => void;
   handleOpenModalForEdit: (transaction: Transaction) => void;
 }
@@ -30,14 +31,13 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null); // <<< PENAMBAHAN STATE BARU
   const [dataVersion, setDataVersion] = useState(0);
 
-  // --- SEMUA STATE & LOGIKA MODAL SEKARANG TINGGAL DI SINI ---
+  // ... (sisa state dan fungsi modal tidak berubah)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-
-  // State Form
   const [formType, setFormType] = useState<Transaction['type']>('expense');
   const [formAmount, setFormAmount] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -46,59 +46,20 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [formNote, setFormNote] = useState('');
   const [formDate, setFormDate] = useState('');
 
-  const handleOpenModalForCreate = () => {
-    setEditId(null);
-    setFormType('expense');
-    setFormAmount('');
-    setFormCategory('');
-    setFormAccountId('');
-    setFormToAccountId('');
-    setFormNote('');
-    setFormDate(new Date().toISOString().split('T')[0]);
-    setIsModalOpen(true);
-  };
+  const handleOpenModalForCreate = () => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); };
+  const handleOpenModalForEdit = (transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsModalOpen(true); };
+  const handleSaveTransaction = async () => { setIsSaving(true); if (!user || !householdId) { toast.error('User session not found.'); setIsSaving(false); return; } const payload = { type: formType, amount: Number(formAmount), note: formNote || null, date: formDate, user_id: user.id, household_id: householdId, category: formType !== 'transfer' ? Number(formCategory) : null, account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null, }; const success = await transactionService.saveTransaction(supabase, payload, editId); if (success) { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); setIsModalOpen(false); refetchData(); } setIsSaving(false); };
 
-  const handleOpenModalForEdit = (transaction: Transaction) => {
-    setEditId(transaction.id);
-    setFormType(transaction.type);
-    setFormAmount(String(transaction.amount));
-    setFormCategory(transaction.category?.toString() || '');
-    setFormAccountId(transaction.account_id || '');
-    setFormToAccountId(transaction.to_account_id || '');
-    setFormNote(transaction.note || '');
-    setFormDate(transaction.date);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveTransaction = async () => {
-    setIsSaving(true);
-    if (!user || !householdId) {
-      toast.error('User session not found.');
-      setIsSaving(false);
-      return;
+  // fetchData sekarang juga menerima data profil
+  const fetchData = async (currentUser: User, currentProfile: Profile) => {
+    if (!currentProfile.household_id) {
+        setIsLoading(false);
+        return;
     }
-
-    const payload = {
-      type: formType, amount: Number(formAmount), note: formNote || null, date: formDate,
-      user_id: user.id, household_id: householdId,
-      category: formType !== 'transfer' ? Number(formCategory) : null,
-      account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null,
-    };
-
-    const success = await transactionService.saveTransaction(supabase, payload, editId);
-    if (success) {
-      toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
-      setIsModalOpen(false);
-      refetchData();
-    }
-    setIsSaving(false);
-  };
-
-  const fetchData = async (currentUser: User, currentHouseholdId: string) => {
     try {
       const [accountsRes, categoriesRes] = await Promise.all([
         supabase.rpc('get_accounts_with_balance', { p_user_id: currentUser.id }),
-        supabase.from('categories').select('*').eq('household_id', currentHouseholdId).order('name')
+        supabase.from('categories').select('*').eq('household_id', currentProfile.household_id).order('name')
       ]);
       if (accountsRes.error) throw accountsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
@@ -112,12 +73,12 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refetchData = useCallback(() => {
-    if (user && householdId) {
+    if (user && profile) { // Diubah untuk menggunakan profile
       console.log('Refetching data...');
-      fetchData(user, householdId);
+      fetchData(user, profile);
       setDataVersion(v => v + 1);
     }
-  }, [user, householdId]);
+  }, [user, profile]);
 
   useEffect(() => {
     const initialize = async () => {
@@ -125,12 +86,14 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', session.user.id).single();
-        if (profile?.household_id) {
-          setHouseholdId(profile.household_id);
-          await fetchData(session.user, profile.household_id);
+        // Perbaikan: Ambil semua data profile, bukan hanya household_id
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        if (profileData) {
+            setProfile(profileData); // Simpan seluruh objek profile
+            setHouseholdId(profileData.household_id); // Tetap simpan householdId untuk kompatibilitas
+            await fetchData(session.user, profileData);
         } else {
-          setIsLoading(false);
+            setIsLoading(false);
         }
       } else {
         setIsLoading(false);
@@ -142,42 +105,17 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!householdId) return;
     const channelDefs = [{ table: 'transactions' }, { table: 'accounts' }, { table: 'categories' }];
-    const channels = channelDefs.map(def => 
-      supabase.channel(`public:${def.table}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: def.table, filter: `household_id=eq.${householdId}` }, (payload) => {
-          console.log(`Change received from ${def.table} table!`, payload);
-          refetchData();
-        })
-        .subscribe()
-    );
-    return () => {
-      channels.forEach(channel => supabase.removeChannel(channel));
-    };
+    const channels = channelDefs.map(def => supabase.channel(`public:${def.table}`).on('postgres_changes', { event: '*', schema: 'public', table: def.table, filter: `household_id=eq.${householdId}` }, (payload) => { console.log(`Change received from ${def.table} table!`, payload); refetchData(); }).subscribe());
+    return () => { channels.forEach(channel => supabase.removeChannel(channel)); };
   }, [householdId, refetchData]);
 
-  const value = { accounts, categories, isLoading, user, householdId, dataVersion, refetchData, handleOpenModalForCreate, handleOpenModalForEdit };
+  // Perbaikan: Tambahkan 'profile' ke dalam objek value
+  const value = { accounts, categories, isLoading, user, householdId, profile, dataVersion, refetchData, handleOpenModalForCreate, handleOpenModalForEdit };
 
   return (
     <AppDataContext.Provider value={value}>
       {children}
-      {/* Modal sekarang dirender secara global dari provider */}
-      <TransactionModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSaveTransaction} 
-        editId={editId}
-        isSaving={isSaving} 
-        type={formType} setType={setFormType} 
-        amount={formAmount} setAmount={setFormAmount} 
-        category={formCategory} setCategory={setFormCategory} 
-        accountId={formAccountId} setAccountId={setFormAccountId} 
-        toAccountId={formToAccountId} setToAccountId={setFormToAccountId} 
-        note={formNote} setNote={setFormNote} 
-        date={formDate} 
-        setDate={setFormDate} 
-        categories={categories}
-        accounts={accounts}
-      />
+      <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} editId={editId} isSaving={isSaving} type={formType} setType={setFormType} amount={formAmount} setAmount={setFormAmount} category={formCategory} setCategory={setFormCategory} accountId={formAccountId} setAccountId={setFormAccountId} toAccountId={formToAccountId} setToAccountId={setFormToAccountId} note={formNote} setNote={setFormNote} date={formDate} setDate={setFormDate} categories={categories} accounts={accounts} />
     </AppDataContext.Provider>
   );
 };

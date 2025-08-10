@@ -41,3 +41,31 @@ export async function saveTransaction(supabase: SupabaseClient, payload: Transac
   }
   return true;
 }
+
+/**
+ * ====================================================================
+ * FUNGSI BARU DITAMBAHKAN DI SINI UNTUK DIAGNOSTIK
+ * ====================================================================
+ * Mengambil semua transaksi 'expense' dalam rentang tanggal tertentu.
+ */
+export const getExpensesByPeriod = async (
+  supabase: SupabaseClient, // Menambahkan supabase sebagai argumen agar konsisten
+  household_id: string,
+  period_start: string,
+  period_end: string
+): Promise<Transaction[]> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('household_id', household_id)
+    .eq('type', 'expense')
+    .gte('date', period_start)
+    .lte('date', period_end);
+    
+  if (error) {
+    console.error('Error fetching expenses by period:', error);
+    throw error;
+  }
+
+  return data || [];
+};

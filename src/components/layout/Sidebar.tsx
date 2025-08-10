@@ -16,10 +16,10 @@ const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/accounts', label: 'Accounts', icon: Wallet },
   { href: '/categories', label: 'Categories', icon: Shapes },
+  { href: '/budgets', label: 'Budget', icon: FileText },
   { href: '/transactions', label: 'Transactions', icon: ArrowRightLeft },
   { href: '/reports', label: 'Reports', icon: PieChart },
-  { href: '/budget', label: 'Budget', icon: Target },
-  { href: '/goals', label: 'Goals', icon: FileText },
+  { href: '/goals', label: 'Goals', icon: Target },
 ];
 
 interface SidebarProps {

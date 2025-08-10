@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import { Card, Metric, Text, Flex, Title, BarChart, DonutChart } from '@tremor/react';
-// --- PERBAIKAN: endOfMonth dihapus dari import di bawah ini ---
 import { startOfMonth, format, subMonths } from 'date-fns';
 import type { TransactionSummary } from '@/types';
 import { DateRangePicker } from '@/components/DateRangePicker';
@@ -16,7 +15,6 @@ import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
 import RecentTransactions from '@/components/dashboard/RecentTransactions';
 import { getCustomPeriod } from '@/lib/periodUtils';
 
-// Tipe data untuk grafik
 type CashFlowItem = { date: string; Pemasukan: number; Pengeluaran: number; };
 type SpendingItem = { name: string; value: number; };
 
@@ -35,7 +33,8 @@ const formatNumberShort = (value: number) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoading: isAppDataLoading, dataVersion } = useAppData();
+  // Ambil 'categories' dari AppDataContext untuk proses "penerjemahan"
+  const { user, isLoading: isAppDataLoading, dataVersion, categories } = useAppData();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +86,24 @@ export default function DashboardPage() {
         if (spendingResult.error) throw new Error(`Spending Error: ${spendingResult.error.message}`);
 
         if (Array.isArray(summaryResult.data)) setSummary(summaryResult.data[0]);
+        
+        /**
+         * ====================================================================
+         * PERBAIKAN DI SINI: Menerjemahkan data pengeluaran
+         * ====================================================================
+         */
         if (Array.isArray(spendingResult.data)) {
-          setSpendingData(spendingResult.data.map(item => ({ name: item.name, value: item.amount })));
+          const translatedSpendingData = spendingResult.data.map(item => {
+            // Cari nama kategori yang cocok berdasarkan category_id
+            const categoryName = categories.find(c => c.id === item.category_id)?.name || 'Lainnya';
+            return {
+              name: categoryName,
+              value: item.total_spent, // Gunakan properti yang benar: 'total_spent'
+            };
+          });
+          setSpendingData(translatedSpendingData);
         }
+        // ====================================================================
 
         const sixMonthsAgo = format(startOfMonth(subMonths(new Date(), 5)), 'yyyy-MM-dd');
         const { data: cashFlowResult, error: cashFlowError } = await supabase.rpc('get_monthly_cash_flow_v2', { 
@@ -114,7 +128,7 @@ export default function DashboardPage() {
       }
     };
     initializeDashboard();
-  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion, date]);
+  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion, date, categories]); // `categories` ditambahkan sebagai dependency
 
   if (isAppDataLoading || loading || !date) return <DashboardSkeleton />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
