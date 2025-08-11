@@ -20,66 +20,66 @@ export const getBudgetsByPeriod = async (household_id: string, period: string): 
 
 /**
  * ====================================================================
- * PERUBAHAN UTAMA DI SINI: Mengganti UPSERT dengan logika manual
+ * PERBAIKAN UTAMA DI SINI: Memperbaiki typo dan logika
  * ====================================================================
  */
 export const upsertSingleBudget = async (budget: Partial<Budget>) => {
-  // 1. Definisikan kriteria pencarian
-  const matchCriteria: {
-    household_id: string;
-    period: string;
-    budget_type: BudgetType;
-    category_id?: number | null;
-  } = {
-    household_id: budget.household_id!,
-    period: budget.period!,
-    budget_type: budget.budget_type!,
-  };
-
-  if (budget.category_id) {
-    matchCriteria.category_id = budget.category_id;
-  }
-
-  // 2. Coba UPDATE terlebih dahulu
-  let query = supabase
+  // Cek dulu apakah data sudah ada
+  let checkQuery = supabase
     .from('budgets')
-    .update({ amount: budget.amount })
-    .eq('household_id', matchCriteria.household_id)
-    .eq('period', matchCriteria.period)
-    .eq('budget_type', matchCriteria.budget_type);
+    .select('id', { count: 'exact', head: true })
+    .eq('household_id', budget.household_id!)
+    .eq('period', budget.period!)
+    .eq('budget_type', budget.budget_type!);
 
   if (budget.category_id) {
-    query = query.eq('category_id', budget.category_id);
+    checkQuery = checkQuery.eq('category_id', budget.category_id);
   } else {
-    query = query.is('category_id', null);
+    checkQuery = checkQuery.is('category_id', null);
   }
 
-  const { data: updatedData, error: updateError, count: updateCount } = await query.select().single();
+  const { count, error: checkError } = await checkQuery;
 
-  // Jika ada error selain data tidak ditemukan, lemparkan
-  if (updateError && updateError.code !== 'PGRST116') {
-    console.error('Error updating budget:', updateError);
-    throw updateError;
+  if (checkError) {
+    console.error('Error checking for existing budget:', checkError);
+    throw checkError;
   }
 
-  // 3. Jika UPDATE berhasil (count > 0), kembalikan hasilnya
-  if (updateCount && updateCount > 0) {
-    return updatedData;
+  // Jika data sudah ada (count > 0), lakukan UPDATE
+  if (count && count > 0) {
+    // Bangun query update
+    let updateQuery = supabase
+      .from('budgets')
+      .update({ amount: budget.amount })
+      .eq('household_id', budget.household_id!)
+      .eq('period', budget.period!)
+      .eq('budget_type', budget.budget_type!);
+
+    // Tambahkan kondisi untuk category_id
+    if (budget.category_id) {
+      updateQuery = updateQuery.eq('category_id', budget.category_id);
+    } else {
+      // Perbaikan: Chaining dari 'updateQuery' yang sudah ada
+      updateQuery = updateQuery.is('category_id', null);
+    }
+
+    const { error: updateError } = await updateQuery;
+
+    if (updateError) {
+      console.error('Error updating budget:', updateError);
+      throw updateError;
+    }
+  } else {
+    // Jika data belum ada, lakukan INSERT
+    const { error: insertError } = await supabase
+      .from('budgets')
+      .insert(budget);
+
+    if (insertError) {
+      console.error('Error inserting budget:', insertError);
+      throw insertError;
+    }
   }
-
-  // 4. Jika UPDATE tidak menemukan baris (count = 0), lakukan INSERT
-  const { data: insertedData, error: insertError } = await supabase
-    .from('budgets')
-    .insert(budget)
-    .select()
-    .single();
-
-  if (insertError) {
-    console.error('Error inserting budget:', insertError);
-    throw insertError;
-  }
-
-  return insertedData;
 };
 
 
