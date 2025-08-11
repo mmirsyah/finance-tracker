@@ -3,36 +3,39 @@
 import { subMonths, addMonths, subDays, setDate, startOfMonth, endOfMonth } from 'date-fns';
 
 /**
- * Menghitung tanggal mulai dan selesai periode keuangan kustom berdasarkan tanggal hari ini.
+ * ====================================================================
+ * PERBAIKAN DI SINI: Fungsi dibuat lebih fleksibel
+ * ====================================================================
+ * Menghitung tanggal mulai dan selesai periode keuangan kustom.
  * @param startDay Hari dalam sebulan (1-31) di mana periode dimulai.
+ * @param fromDate Tanggal referensi (opsional). Jika tidak diberikan, akan menggunakan tanggal hari ini.
  * @returns Object berisi `from` (tanggal mulai) dan `to` (tanggal selesai).
  */
-export function getCustomPeriod(startDay: number): { from: Date; to: Date } {
-  // Jika startDay tidak valid atau null, kembalikan periode bulan ini.
+export function getCustomPeriod(startDay: number, fromDate?: Date): { from: Date; to: Date } {
+  const referenceDate = fromDate || new Date(); // Gunakan fromDate jika ada, jika tidak, gunakan hari ini
+
+  // Jika startDay tidak valid atau null, kembalikan periode bulan dari tanggal referensi.
   if (!startDay || startDay < 1 || startDay > 31) {
-    const now = new Date();
     return {
-      from: startOfMonth(now),
-      to: endOfMonth(now),
+      from: startOfMonth(referenceDate),
+      to: endOfMonth(referenceDate),
     };
   }
 
-  const today = new Date();
-  const currentDayOfMonth = today.getDate();
+  const currentDayOfMonth = referenceDate.getDate();
 
   let startDate: Date;
 
-  // Tentukan tanggal mulai berdasarkan apakah hari ini sudah melewati tanggal gajian
+  // Tentukan tanggal mulai berdasarkan tanggal referensi
   if (currentDayOfMonth >= startDay) {
-    // Periode saat ini dimulai pada bulan ini
-    startDate = setDate(today, startDay);
+    // Periode dimulai pada bulan dari tanggal referensi
+    startDate = setDate(referenceDate, startDay);
   } else {
-    // Periode saat ini dimulai pada bulan sebelumnya
-    const thisMonthStartDate = setDate(today, startDay);
+    // Periode dimulai pada bulan sebelumnya dari tanggal referensi
+    const thisMonthStartDate = setDate(referenceDate, startDay);
     startDate = subMonths(thisMonthStartDate, 1);
   }
 
-  // Tanggal selesai adalah satu hari sebelum tanggal mulai periode berikutnya
   const endDate = subDays(addMonths(startDate, 1), 1);
 
   return { from: startDate, to: endDate };
@@ -40,18 +43,12 @@ export function getCustomPeriod(startDay: number): { from: Date; to: Date } {
 
 
 /**
- * ====================================================================
- * FUNGSI BARU DITAMBAHKAN DI SINI
- * ====================================================================
  * Mendapatkan string periode saat ini dalam format YYYY-MM-01.
  * Ini digunakan oleh fitur Budget untuk menyimpan dan mengambil data per bulan.
  * @returns string Format 'YYYY-MM-DD'. Contoh: '2024-08-01'.
  */
 export const getCurrentPeriod = (): string => {
   const now = new Date();
-  // Mengatur hari menjadi tanggal 1, karena budget berlaku untuk satu bulan penuh.
   const firstDayOfMonth = setDate(now, 1);
-  // Mengonversi ke format YYYY-MM-DD. `toISOString()` menghasilkan format UTC,
-  // lalu kita potong untuk mendapatkan bagian tanggalnya saja.
   return firstDayOfMonth.toISOString().split('T')[0];
 };
