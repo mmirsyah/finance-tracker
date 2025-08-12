@@ -1,7 +1,7 @@
 // src/lib/budgetService.ts
 
 import { supabase } from './supabase';
-import { BudgetAllocation, BudgetSummary } from '@/types';
+import { BudgetAllocation, BudgetSummary, OverallBudgetSummary } from '@/types';
 
 /**
  * Mengambil ringkasan budget dari server.
@@ -83,4 +83,19 @@ export const deleteAllocation = async (
     console.error('Error deleting allocation:', error);
     throw error;
   }
+};
+
+export const getOverallBudgetSummary = async (household_id: string, start_date: string, end_date: string): Promise<OverallBudgetSummary | null> => {
+  const { data, error } = await supabase.rpc('get_overall_budget_summary', {
+    p_household_id: household_id,
+    p_start_date: start_date,
+    p_end_date: end_date,
+  });
+
+  if (error) {
+    console.error('Error fetching overall budget summary:', error);
+    throw error;
+  }
+  // RPC mengembalikan array, kita hanya butuh objek pertama
+  return data?.[0] || null;
 };

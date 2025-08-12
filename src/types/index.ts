@@ -117,3 +117,9 @@ export type TransactionGroup = {
   subtotal: number;
   transactions: Transaction[];
 };
+
+export interface OverallBudgetSummary {
+  total_income: number;
+  total_budgeted: number;
+  total_spent: number;
+}

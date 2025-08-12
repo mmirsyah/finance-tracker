@@ -8,14 +8,18 @@ import { Button } from '@/components/ui/button';
 import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
 import { toast } from 'sonner';
 import { saveBudgetPlanWithCategories, deleteBudgetPlan } from '@/lib/budgetPlanService';
-import { Budget, BudgetAllocation, BudgetSummary } from '@/types';
+// Perbarui import types
+import { Budget, BudgetAllocation, BudgetSummary, OverallBudgetSummary } from '@/types';
 import { BudgetPlanCard } from '@/components/budget/BudgetPlanCard';
-import { getBudgetSummary, saveAllocation, getAllocationsByPeriod } from '@/lib/budgetService';
+// Perbarui import service
+import { getBudgetSummary, saveAllocation, getAllocationsByPeriod, getOverallBudgetSummary } from '@/lib/budgetService';
 import { format } from 'date-fns';
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+// Import komponen baru
+import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
 
 type PendingAllocationData = {
     mode: 'total' | 'category';
@@ -28,6 +32,8 @@ const BudgetView = () => {
 
   const [budgetSummaries, setBudgetSummaries] = useState<BudgetSummary[]>([]);
   const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
+  // State baru untuk data ringkasan
+  const [overallSummary, setOverallSummary] = useState<OverallBudgetSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
@@ -56,12 +62,15 @@ const BudgetView = () => {
       if (householdId) {
         setIsLoading(true);
         try {
-          const [summaryData, allocationData] = await Promise.all([
+          // Panggil semua data secara paralel
+          const [summaryData, allocationData, overallSummaryData] = await Promise.all([
             getBudgetSummary(householdId, periodStartDate, periodEndDate),
-            getAllocationsByPeriod(householdId, periodForSave)
+            getAllocationsByPeriod(householdId, periodForSave),
+            getOverallBudgetSummary(householdId, periodStartDate, periodEndDate)
           ]);
           setBudgetSummaries(summaryData);
           setAllocations(allocationData);
+          setOverallSummary(overallSummaryData);
         } catch (error) {
           let errorMessage = "Gagal memuat data ringkasan anggaran.";
           if (error instanceof Error) { errorMessage += `: ${error.message}`; }
@@ -79,19 +88,15 @@ const BudgetView = () => {
 
   const handleSaveChanges = async (planId: number, data: PendingAllocationData) => {
     if (!householdId) return;
-
     const { mode, allocations: pendingAllocs } = data;
     const isTotalMode = mode === 'total';
     const previouslySavedMode = allocations.some(a => a.budget_id === planId && a.category_id === null) ? 'total' : 'category';
-
     try {
         if (mode !== previouslySavedMode) {
             const modeToClear = isTotalMode ? 'category' : 'total';
             await clearAllocationsForMode(planId, modeToClear);
         }
-
         const promises: Promise<void>[] = [];
-
         if (isTotalMode) {
             for (const key in pendingAllocs) {
                 const amount = pendingAllocs[key] || 0;
@@ -111,7 +116,6 @@ const BudgetView = () => {
                 }
             }
         }
-
         await Promise.all(promises);
         toast.success("Perubahan alokasi berhasil disimpan!");
         refetchData();
@@ -136,11 +140,7 @@ const BudgetView = () => {
   const handleOpenCreateModal = () => { setEditingPlan(null); setIsModalOpen(true); };
 
   const handleOpenEditModal = async (planSummary: BudgetSummary) => {
-    const { data: planToEdit, error } = await supabase
-        .from('budgets')
-        .select(`*, categories ( * )`)
-        .eq('id', planSummary.plan_id)
-        .single();
+    const { data: planToEdit, error } = await supabase.from('budgets').select(`*, categories ( * )`).eq('id', planSummary.plan_id).single();
     if (error) { toast.error(`Gagal memuat detail rencana: ${error.message}`); return; }
     if (planToEdit) { setEditingPlan(planToEdit); setIsModalOpen(true); }
     else { toast.error("Rencana anggaran tidak ditemukan."); }
@@ -148,8 +148,7 @@ const BudgetView = () => {
 
   const handleSavePlan = async (id: number | null, name: string, categoryIds: number[]) => {
     if (!householdId) { toast.error("Household tidak ditemukan."); return; }
-    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds)
-        .then(() => { refetchData(); });
+    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { refetchData(); });
     toast.promise(promise, { loading: 'Menyimpan rencana...', success: `Rencana anggaran "${name}" berhasil disimpan!`, error: (err: Error) => `Gagal menyimpan: ${err.message}` });
   };
 
@@ -174,10 +173,16 @@ const BudgetView = () => {
     <>
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-800">Atur Anggaran</h1>
-          <Button onClick={handleOpenCreateModal} className="w-full md:w-auto">
-            Buat Rencana Anggaran Baru
-          </Button>
+          <h1 className="text-2xl font-bold text-gray-800">Ringkasan Anggaran</h1>
+        </div>
+        
+        <BudgetSummaryCards summary={overallSummary} />
+
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 pt-4 border-t">
+            <h2 className="text-xl font-bold text-gray-800">Rencana Anggaran</h2>
+            <Button onClick={handleOpenCreateModal} className="w-full md:w-auto">
+                Buat Rencana Baru
+            </Button>
         </div>
 
         {budgetSummaries.length > 0 ? (
@@ -195,9 +200,8 @@ const BudgetView = () => {
             </div>
         ) : (
             <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                <h3 className="text-xl font-semibold text-gray-700">Selamat Datang di Fitur Anggaran!</h3>
-                <p className="text-muted-foreground mt-2">Anda belum memiliki Rencana Anggaran.</p>
-                <p className="text-sm text-muted-foreground mt-1">Klik tombol di atas untuk membuat yang pertama.</p>
+                <h3 className="text-xl font-semibold text-gray-700">Belum Ada Rencana Anggaran</h3>
+                <p className="text-muted-foreground mt-2">Klik tombol di atas untuk membuat yang pertama.</p>
             </div>
         )}
       </div>
