@@ -19,6 +19,15 @@ export interface Profile {
   period_start_day: number | null;
 }
 
+export interface Budget {
+  id: number;
+  name: string;
+  household_id: string;
+  // --- PERBAIKAN DI SINI ---
+  total_budget?: number | null; // Tambahkan properti baru
+  categories?: Category[];
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -27,26 +36,33 @@ export interface Category {
   household_id: string;
   parent_id: number | null;
   children?: Category[];
-  budget_type: BudgetType;
 }
 
-export type BudgetType = 'Fixed' | 'Flex' | 'Non-Monthly';
-
-export interface Budget {
+export interface BudgetAllocation {
   id: number;
   household_id: string;
-  period: string; // Format: 'YYYY-MM-01'
-  budget_type: BudgetType;
+  period: string; // Format: 'YYYY-MM-DD'
+  budget_id: number;
+  category_id: number | null;
   amount: number;
   created_at: string;
-  /**
-   * ====================================================================
-   * PENAMBAHAN PROPERTI BARU DI SINI
-   * ====================================================================
-   * Kolom ini opsional, karena budget bucket tidak memiliki category_id.
-   */
-  category_id?: number | null;
 }
+
+export interface BudgetCategoryDetail {
+  id: number;
+  name: string;
+  allocated: number;
+  spent: number;
+}
+
+export interface BudgetSummary {
+  plan_id: number;
+  plan_name: string;
+  total_allocated: number;
+  total_spent: number;
+  categories: BudgetCategoryDetail[];
+}
+
 
 export interface Account {
   id: string;

@@ -1,4 +1,4 @@
-// src/app/categories/page.tsx
+// src/app/(app)/categories/page.tsx
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -6,12 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { Category } from '@/types';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { useAppData } from '@/contexts/AppDataContext';
 import * as categoryService from '@/lib/categoryService';
 import CategoryModal from '@/components/modals/CategoryModal';
 import ReassignCategoryModal from '@/components/modals/ReassignCategoryModal';
-import TableSkeleton from '@/components/skeletons/TableSkeleton'; // <-- Import Skeleton
+import TableSkeleton from '@/components/skeletons/TableSkeleton';
 
 const CategoryRow = ({ category, level, onEdit, onDelete }: { category: Category & { children?: Category[] }; level: number; onEdit: (cat: Category) => void; onDelete: (cat: Category) => void; }) => (
   <>
@@ -65,19 +65,23 @@ export default function CategoriesPage() {
   }, [allCategories]);
 
   const handleSaveCategory = async (payload: Partial<Category>) => {
-    if (!user || !householdId) return toast.error('User session not found.');
+    if (!user || !householdId) {
+      toast.error('User session not found.');
+      return;
+    }
 
-    const promise = categoryService.saveCategory(payload, user.id, householdId)
-      .then(() => refetchData());
+    const promise = () => categoryService.saveCategory(payload, user.id!, householdId);
 
     toast.promise(promise, {
-      loading: 'Saving category...',
-      success: 'Category saved successfully!',
-      error: (err) => `Failed to save category: ${err.message}`,
+      loading: 'Menyimpan kategori...',
+      success: () => {
+        refetchData();
+        setIsModalOpen(false);
+        setEditingCategory(null);
+        return 'Kategori berhasil disimpan!';
+      },
+      error: (err: Error) => `Gagal menyimpan: ${err.message}`,
     });
-    
-    setIsModalOpen(false);
-    setEditingCategory(null);
   };
 
   const handleDeleteCategory = async (category: Category) => {
@@ -93,28 +97,31 @@ export default function CategoriesPage() {
       setIsReassignModalOpen(true);
     } else {
       if (confirm(`Are you sure you want to delete the category "${category.name}"? This cannot be undone.`)) {
-        const promise = categoryService.deleteCategory(category.id).then(() => refetchData());
+        const promise = () => categoryService.deleteCategory(category.id);
         toast.promise(promise, {
-          loading: 'Deleting category...',
-          success: 'Category deleted successfully!',
-          error: (err) => `Failed to delete category: ${err.message}`,
+          loading: 'Menghapus kategori...',
+          success: () => {
+            refetchData();
+            return 'Kategori berhasil dihapus!';
+          },
+          error: (err: Error) => `Gagal menghapus: ${err.message}`,
         });
       }
     }
   };
 
   const handleReassignAndDelele = async (oldCatId: number, newCatId: number) => {
-    const promise = categoryService.reassignAndDeleleCategory(oldCatId, newCatId)
-      .then(() => refetchData());
-
+    const promise = () => categoryService.reassignAndDeleleCategory(oldCatId, newCatId);
     toast.promise(promise, {
-      loading: 'Reassigning and deleting...',
-      success: 'Category deleted successfully!',
-      error: (err) => err.message,
+      loading: 'Memindahkan transaksi dan menghapus...',
+      success: () => {
+        refetchData();
+        setIsReassignModalOpen(false);
+        setCategoryToDelete(null);
+        return 'Kategori berhasil dihapus!';
+      },
+      error: (err: Error) => err.message,
     });
-    
-    setIsReassignModalOpen(false);
-    setCategoryToDelete(null);
   };
 
   const handleAddNew = () => { setEditingCategory(null); setIsModalOpen(true); };
@@ -128,7 +135,6 @@ export default function CategoriesPage() {
           <Plus size={20} /> Add New
         </button>
       </div>
-      {/* --- PERUBAHAN DI SINI: Tampilkan Skeleton saat loading --- */}
       {isAppDataLoading ? (
         <TableSkeleton />
       ) : (

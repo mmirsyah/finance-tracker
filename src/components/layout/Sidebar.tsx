@@ -2,12 +2,12 @@
 
 "use client";
 
-import { usePathname, useRouter } from 'next/navigation'; // <-- Import useRouter
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase'; // <-- Import Supabase client
+import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, Wallet, ArrowRightLeft, PieChart, 
-  Target, FileText, Shapes, Settings, X, LogOut // <-- Import ikon LogOut
+  Target, FileText, Shapes, Settings, X, LogOut
 } from 'lucide-react';
 
 interface NavItem { href: string; label: string; icon: React.ElementType; }
@@ -29,12 +29,11 @@ interface SidebarProps {
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter(); // <-- Panggil hook useRouter
+  const router = useRouter();
 
-  // --- FUNGSI BARU UNTUK LOG OUT ---
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push('/login'); // Arahkan kembali ke halaman login
+    router.push('/login');
     setSidebarOpen(false);
   };
 
@@ -65,10 +64,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           </button>
         </div>
         
-        {/* Navigasi Wrapper untuk memisahkan dengan tombol logout */}
         <div className="flex flex-col justify-between flex-1">
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {/* Menu Utama */}
             {navItems.map((item) => {
               const isActive = item.href === '/transactions' ? pathname === item.href : pathname.startsWith(item.href);
               return (
@@ -85,7 +82,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             })}
           </nav>
 
-          {/* Menu Bawah (Settings, Profil, & Log Out) */}
           <div className="p-4 border-t border-gray-200 space-y-2">
             <Link href="/settings"
               className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
@@ -97,7 +93,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <span>Settings</span>
             </Link>
             
-            {/* --- TOMBOL LOG OUT BARU --- */}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-gray-600 hover:bg-gray-100"

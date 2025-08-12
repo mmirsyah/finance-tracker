@@ -4,198 +4,226 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAppData } from '@/contexts/AppDataContext';
-import { getTotalIncome, getBudgetsByPeriod, upsertSingleBudget, deleteBudget } from '@/lib/budgetService';
-import { getExpensesByPeriod } from '@/lib/transactionService';
-import { updateCategoryBudgetTypes } from '@/lib/categoryService';
-import { getCustomPeriod } from '@/lib/periodUtils';
-import { Budget, BudgetType, Category } from '@/types';
-import { format, addMonths, subMonths } from 'date-fns';
-import { supabase } from '@/lib/supabase';
-import { DateRange } from 'react-day-picker';
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
+import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
 import { toast } from 'sonner';
-import { ManageCategoriesModal } from '@/components/budget/ManageCategoriesModal';
-import { formatCurrency } from '@/lib/utils';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { saveBudgetPlanWithCategories, deleteBudgetPlan } from '@/lib/budgetPlanService';
+import { Budget, BudgetAllocation, BudgetSummary } from '@/types';
+import { BudgetPlanCard } from '@/components/budget/BudgetPlanCard';
+import { getBudgetSummary, saveAllocation, getAllocationsByPeriod } from '@/lib/budgetService';
+import { format } from 'date-fns';
+import { getCustomPeriod } from '@/lib/periodUtils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-type SpendingByCategory = Record<number, number>;
-type BudgetsByCategory = Record<number, number>;
-
-// Komponen-komponen ini tidak berubah
-const BudgetCategoryRow = ({ category, budgetAmount, spendingAmount, onBudgetChange, onSave, isSaving }: { category: Category; budgetAmount: number; spendingAmount: number; onBudgetChange: (categoryId: number, amount: number) => void; onSave: (categoryId: number) => Promise<void>; isSaving: boolean; }) => { const remaining = budgetAmount - spendingAmount; const progress = budgetAmount > 0 ? (spendingAmount / budgetAmount) * 100 : 0; return ( <div className="flex flex-col"> <div className="flex items-center py-2 px-2 hover:bg-gray-50"> <div className="flex-1 text-sm font-medium">{category.name}</div> <div className="w-40 px-2"> <div className="flex items-center gap-2"> <Input type="number" placeholder="0" value={budgetAmount || ''} onChange={(e) => onBudgetChange(category.id, parseFloat(e.target.value) || 0)} className="h-8 text-sm text-right" /> <Button size="sm" variant="outline" onClick={() => onSave(category.id)} disabled={isSaving} className="w-16"> {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Simpan'} </Button> </div> </div> <div className="w-32 text-right text-sm px-2">{formatCurrency(spendingAmount)}</div> <div className="w-32 text-right px-2"> <span className={cn( "px-2 py-0.5 rounded-full text-xs font-semibold", { "bg-green-100 text-green-800": remaining >= 0, "bg-red-100 text-red-800": remaining < 0, } )}> {formatCurrency(remaining)} </span> </div> </div> <Progress value={progress} className="w-full h-1 mt-1" /> </div> ); };
+type PendingAllocationData = {
+    mode: 'total' | 'category';
+    allocations: Record<string, number | undefined>;
+};
 
 const BudgetView = () => {
-  const { householdId, categories, refetchData, profile } = useAppData();
-  const [date, setDate] = useState<DateRange | undefined>(undefined);
+  const { householdId, categories, refetchData, dataVersion, profile } = useAppData();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [bucketBudgets, setBucketBudgets] = useState<Record<BudgetType, number>>({ Fixed: 0, Flex: 0, 'Non-Monthly': 0 });
-  const [categoryBudgets, setCategoryBudgets] = useState<BudgetsByCategory>({});
-  const [bucketSpending, setBucketSpending] = useState<Record<BudgetType, number>>({ Fixed: 0, Flex: 0, 'Non-Monthly': 0 });
-  const [categorySpending, setCategorySpending] = useState<SpendingByCategory>({});
-  const [totalIncome, setTotalIncome] = useState(0);
+  const [budgetSummaries, setBudgetSummaries] = useState<BudgetSummary[]>([]);
+  const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [savingStatus, setSavingStatus] = useState<Record<string, boolean>>({});
-  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
 
-  useEffect(() => { if (profile) { const startDay = profile.period_start_day || 1; setDate(getCustomPeriod(startDay)); } }, [profile]);
-  
-  const { startDate, endDate, periodForSave } = useMemo(() => {
-    const startDay = profile?.period_start_day || 1;
-    const currentPeriod = date || getCustomPeriod(startDay);
-    if (!currentPeriod.from || !currentPeriod.to) { const defaultPeriod = getCustomPeriod(startDay); return { startDate: format(defaultPeriod.from, 'yyyy-MM-dd'), endDate: format(defaultPeriod.to, 'yyyy-MM-dd'), periodForSave: format(defaultPeriod.from, 'yyyy-MM-01'), } }
-    return { startDate: format(currentPeriod.from, 'yyyy-MM-dd'), endDate: format(currentPeriod.to, 'yyyy-MM-dd'), periodForSave: format(currentPeriod.from, 'yyyy-MM-01'), }
-  }, [date, profile]);
+  const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<BudgetSummary | null>(null);
 
-  const categoriesKey = useMemo(() => { return categories.map(c => c.id).join(','); }, [categories]);
+  const { periodForSave, periodStartDate, periodEndDate } = useMemo(() => {
+    if (!profile) {
+        const now = new Date();
+        return {
+            periodForSave: format(now, 'yyyy-MM-01'),
+            periodStartDate: format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd'),
+            periodEndDate: format(new Date(now.getFullYear(), now.getMonth() + 1, 0), 'yyyy-MM-dd'),
+        };
+    }
+    const startDay = profile.period_start_day || 1;
+    const period = getCustomPeriod(startDay);
+    return {
+        periodForSave: format(period.from, 'yyyy-MM-01'),
+        periodStartDate: format(period.from, 'yyyy-MM-dd'),
+        periodEndDate: format(period.to, 'yyyy-MM-dd'),
+    };
+  }, [profile]);
 
   useEffect(() => {
-    if (!householdId || !startDate) return;
-    const fetchAllData = async () => {
-      setIsLoading(true);
-      try {
-        const [budgetsData, expenseTransactions, incomeData] = await Promise.all([ getBudgetsByPeriod(householdId, periodForSave), getExpensesByPeriod(supabase, householdId, startDate, endDate), getTotalIncome(householdId, startDate, endDate), ]);
-        const newBucketBudgets: Record<BudgetType, number> = { Fixed: 0, Flex: 0, 'Non-Monthly': 0 };
-        const newCategoryBudgets: BudgetsByCategory = {};
-        budgetsData.forEach((budget: Budget) => { if (budget.category_id) { newCategoryBudgets[budget.category_id] = budget.amount; } else { newBucketBudgets[budget.budget_type] = budget.amount; } });
-        setBucketBudgets(newBucketBudgets);
-        setCategoryBudgets(newCategoryBudgets);
-        const newBucketSpending: Record<BudgetType, number> = { Fixed: 0, Flex: 0, 'Non-Monthly': 0 };
-        const newCategorySpending: SpendingByCategory = {};
-        for (const trx of expenseTransactions) { if (trx.category) { newCategorySpending[trx.category] = (newCategorySpending[trx.category] || 0) + trx.amount; const categoryDetails = categories.find(c => c.id === trx.category); if (categoryDetails) { newBucketSpending[categoryDetails.budget_type] = (newBucketSpending[categoryDetails.budget_type] || 0) + trx.amount; } } }
-        setBucketSpending(newBucketSpending);
-        setCategorySpending(newCategorySpending);
-        setTotalIncome(incomeData);
-      } catch (error) { console.error("Error fetching budget data:", error); toast.error('Gagal memuat data budget.'); } finally { setIsLoading(false); }
+    const fetchBudgetDahboards = async () => {
+      if (householdId) {
+        setIsLoading(true);
+        try {
+          const [summaryData, allocationData] = await Promise.all([
+            getBudgetSummary(householdId, periodStartDate, periodEndDate),
+            getAllocationsByPeriod(householdId, periodForSave)
+          ]);
+          setBudgetSummaries(summaryData);
+          setAllocations(allocationData);
+        } catch (error) {
+          let errorMessage = "Gagal memuat data ringkasan anggaran.";
+          if (error instanceof Error) { errorMessage += `: ${error.message}`; }
+          else if (typeof error === 'object' && error !== null) { errorMessage += `: ${JSON.stringify(error)}`; }
+          else { errorMessage += `: ${String(error)}`; }
+          toast.error(errorMessage);
+          console.error("Error detail:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
     };
-    fetchAllData();
-  }, [householdId, startDate, endDate, periodForSave, refetchData, categoriesKey, categories]);
+    fetchBudgetDahboards();
+  }, [householdId, dataVersion, periodForSave, periodStartDate, periodEndDate]);
 
-  const totalBudgeted = useMemo(() => { const totalFromCategories = Object.values(categoryBudgets).reduce((sum, amount) => sum + amount, 0); if (totalFromCategories > 0) return totalFromCategories; return Object.values(bucketBudgets).reduce((sum, amount) => sum + amount, 0); }, [bucketBudgets, categoryBudgets]);
-  const budgetVsIncome = totalIncome - totalBudgeted;
-  
-  const handlePeriodChange = (direction: 'next' | 'prev') => {
-    if (!date?.from) return;
-    const referenceDate = direction === 'next' ? addMonths(date.from, 1) : subMonths(date.from, 1);
-    const startDay = profile?.period_start_day || 1;
-    setDate(getCustomPeriod(startDay, referenceDate));
-  };
-  
-  const periodText = useMemo(() => {
-    if (!date?.from || !date?.to) return "Loading...";
-    return `${format(date.from, 'd MMM yyyy')} - ${format(date.to, 'd MMM yyyy')}`;
-  }, [date]);
+  const handleSaveChanges = async (planId: number, data: PendingAllocationData) => {
+    if (!householdId) return;
 
-  const handleSaveBudget = async ( budgetType: BudgetType, amount: number, categoryId?: number ) => { if (!householdId) return; const savingKey = categoryId ? `cat-${categoryId}` : `bucket-${budgetType}`; setSavingStatus(prev => ({ ...prev, [savingKey]: true })); const sanitizedAmount = isNaN(amount) ? 0 : amount; try { if (sanitizedAmount > 0) { const budgetToSave: Partial<Budget> = { household_id: householdId, period: periodForSave, budget_type: budgetType, amount: sanitizedAmount, category_id: categoryId || null, }; await upsertSingleBudget(budgetToSave); } else { await deleteBudget(householdId, periodForSave, budgetType, categoryId); } toast.success(`Anggaran berhasil disimpan!`); } catch (error) { console.error("Save budget error:", error); toast.error(`Gagal menyimpan anggaran.`); } finally { setSavingStatus(prev => ({ ...prev, [savingKey]: false })); } };
-  
-  const handleCategoryUpdates = async (updates: { id: number; budget_type: BudgetType }[]) => {
+    const { mode, allocations: pendingAllocs } = data;
+    const isTotalMode = mode === 'total';
+    const previouslySavedMode = allocations.some(a => a.budget_id === planId && a.category_id === null) ? 'total' : 'category';
+
     try {
-      await updateCategoryBudgetTypes(updates);
-      toast.success('Tipe kategori berhasil diperbarui!');
-      refetchData();
-    // PERBAIKAN DI SINI: Menggunakan komentar eslint-disable-next-line
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (_error) {
-      toast.error('Gagal memperbarui tipe kategori.');
+        if (mode !== previouslySavedMode) {
+            const modeToClear = isTotalMode ? 'category' : 'total';
+            await clearAllocationsForMode(planId, modeToClear);
+        }
+
+        const promises: Promise<void>[] = [];
+
+        if (isTotalMode) {
+            for (const key in pendingAllocs) {
+                const amount = pendingAllocs[key] || 0;
+                if (key.startsWith('total-')) {
+                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: null, amount }));
+                } else if (key.startsWith('cat-')) {
+                    const categoryId = parseInt(key.replace('cat-', ''), 10);
+                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: categoryId, amount }));
+                }
+            }
+        } else {
+            for (const key in pendingAllocs) {
+                if (key.startsWith('cat-')) {
+                    const categoryId = parseInt(key.replace('cat-', ''), 10);
+                    const amount = pendingAllocs[key] || 0;
+                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: categoryId, amount }));
+                }
+            }
+        }
+
+        await Promise.all(promises);
+        toast.success("Perubahan alokasi berhasil disimpan!");
+        refetchData();
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Gagal menyimpan perubahan: ${errorMessage}`);
     }
   };
 
-  const handleCategoryBudgetChange = (categoryId: number, amount: number) => { setCategoryBudgets(prev => ({...prev, [categoryId]: amount })); };
-  const groupedCategories = useMemo(() => { const fixed: Category[] = []; const flex: Category[] = []; const nonMonthly: Category[] = []; categories .filter(cat => cat.type === 'expense') .forEach((cat) => { if (cat.budget_type === 'Fixed') fixed.push(cat); else if (cat.budget_type === 'Non-Monthly') nonMonthly.push(cat); else flex.push(cat); }); return { fixedCategories: fixed, flexCategories: flex, nonMonthlyCategories: nonMonthly }; }, [categories]);
+  const clearAllocationsForMode = async (planId: number, modeToClear: 'total' | 'category') => {
+      if (!householdId) return;
+      let query = supabase.from('budget_allocations').delete().eq('household_id', householdId).eq('period', periodForSave).eq('budget_id', planId);
+      if (modeToClear === 'total') {
+          query = query.is('category_id', null);
+      } else {
+          query = query.not('category_id', 'is', null);
+      }
+      const { error } = await query;
+      if (error) throw error;
+  };
 
-  if (isLoading || !date) { return <div>Memuat data anggaran...</div>; }
+  const handleOpenCreateModal = () => { setEditingPlan(null); setIsModalOpen(true); };
 
-  // Fungsi untuk merender satu seksi accordion
-  const renderBudgetSection = (
-    title: string,
-    budgetType: BudgetType,
-    sectionCategories: Category[]
-  ) => {
-    const sectionCategoryBudgets = Object.fromEntries(Object.entries(categoryBudgets).filter(([catId]) => sectionCategories.some(c => c.id === Number(catId))));
-    const isCategoryMode = Object.values(sectionCategoryBudgets).some(amount => amount > 0);
-    const totalSectionBudget = isCategoryMode 
-        ? Object.values(sectionCategoryBudgets).reduce((sum, amount) => sum + amount, 0)
-        : (bucketBudgets[budgetType] || 0);
-    const totalSectionSpending = bucketSpending[budgetType] || 0;
-    const totalSectionRemaining = totalSectionBudget - totalSectionSpending;
+  const handleOpenEditModal = async (planSummary: BudgetSummary) => {
+    const { data: planToEdit, error } = await supabase
+        .from('budgets')
+        .select(`*, categories ( * )`)
+        .eq('id', planSummary.plan_id)
+        .single();
+    if (error) { toast.error(`Gagal memuat detail rencana: ${error.message}`); return; }
+    if (planToEdit) { setEditingPlan(planToEdit); setIsModalOpen(true); }
+    else { toast.error("Rencana anggaran tidak ditemukan."); }
+  };
 
-    return (
-        <AccordionItem value={budgetType}>
-            <AccordionTrigger className="hover:bg-gray-50 px-2">
-                <div className="flex-1 flex items-center">
-                    <div className="flex-1 text-left font-semibold">{title}</div>
-                    <div className="w-40 text-right font-medium px-2">{formatCurrency(totalSectionBudget)}</div>
-                    <div className="w-32 text-right text-muted-foreground px-2">{formatCurrency(totalSectionSpending)}</div>
-                    <div className="w-32 text-right font-semibold px-2">
-                        <span className={cn( "px-2 py-1 rounded-full text-sm", { "bg-green-100 text-green-800": totalSectionRemaining >= 0, "bg-red-100 text-red-800": totalSectionRemaining < 0, } )}>
-                            {formatCurrency(totalSectionRemaining)}
-                        </span>
-                    </div>
-                </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                {sectionCategories.map(cat => (
-                    <BudgetCategoryRow
-                        key={cat.id}
-                        category={cat}
-                        budgetAmount={categoryBudgets[cat.id] || 0}
-                        spendingAmount={categorySpending[cat.id] || 0}
-                        onBudgetChange={handleCategoryBudgetChange}
-                        onSave={(catId) => handleSaveBudget(budgetType, categoryBudgets[catId], catId)}
-                        isSaving={savingStatus[`cat-${cat.id}`] || false}
-                    />
-                ))}
-            </AccordionContent>
-        </AccordionItem>
-    );
+  const handleSavePlan = async (id: number | null, name: string, categoryIds: number[]) => {
+    if (!householdId) { toast.error("Household tidak ditemukan."); return; }
+    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds)
+        .then(() => { refetchData(); });
+    toast.promise(promise, { loading: 'Menyimpan rencana...', success: `Rencana anggaran "${name}" berhasil disimpan!`, error: (err: Error) => `Gagal menyimpan: ${err.message}` });
+  };
+
+  const handleDeletePlan = async () => {
+    if (!planToDelete) return;
+    try {
+        await deleteBudgetPlan(planToDelete.plan_id);
+        toast.success(`"${planToDelete.plan_name}" berhasil dihapus.`);
+        setPlanToDelete(null);
+        refetchData();
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Gagal menghapus: ${errorMessage}`);
+    }
+  };
+
+  if (isLoading) {
+    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data anggaran Anda...</p></div>)
   }
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">Atur Anggaran</h1>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => handlePeriodChange('prev')}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-semibold text-muted-foreground w-48 text-center">{periodText}</span>
-              <Button variant="outline" size="icon" onClick={() => handlePeriodChange('next')}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <Button variant="outline" onClick={() => setIsManageModalOpen(true)}>
-            Kelola Kategori
+      <div className="space-y-6 p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-800">Atur Anggaran</h1>
+          <Button onClick={handleOpenCreateModal} className="w-full md:w-auto">
+            Buat Rencana Anggaran Baru
           </Button>
         </div>
-        
-        <Card className="bg-green-50 border-green-200"><CardHeader className="pb-2"><CardTitle className="text-base font-medium text-green-800">Pemasukan Bulan Ini</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-green-700">{formatCurrency(totalIncome)}</p></CardContent></Card>
-        <Card className={ budgetVsIncome >= 0 ? "bg-blue-50 border-blue-200" : "bg-red-50 border-red-200" }><CardHeader className="pb-2"><CardTitle className={`text-base font-medium ${ budgetVsIncome >= 0 ? "text-blue-800" : "text-red-800" }`}> Ringkasan Anggaran </CardTitle></CardHeader><CardContent className="space-y-2"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Pemasukan</span><span>{formatCurrency(totalIncome)}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Rencana Budget</span><span>- {formatCurrency(totalBudgeted)}</span></div><hr className="my-1"/><div className={`flex justify-between font-semibold ${ budgetVsIncome >= 0 ? "text-blue-700" : "text-red-700" }`}><span> {budgetVsIncome >= 0 ? "Sisa untuk ditabung" : "Melebihi pemasukan"} </span><span>{formatCurrency(budgetVsIncome)}</span></div></CardContent></Card>
 
-        <Card>
-            <CardContent className="p-2">
-                <div className="flex items-center text-sm font-semibold text-muted-foreground border-b pb-2">
-                    <div className="flex-1 text-left">Kategori</div>
-                    <div className="w-40 text-right px-2">Budget</div>
-                    <div className="w-32 text-right px-2">Aktual</div>
-                    <div className="w-32 text-right px-2">Sisa</div>
-                </div>
-                <Accordion type="multiple" className="w-full">
-                    {renderBudgetSection("Tagihan Tetap (Fixed)", 'Fixed', groupedCategories.fixedCategories)}
-                    {renderBudgetSection("Pengeluaran Fleksibel (Flex)", 'Flex', groupedCategories.flexCategories)}
-                    {renderBudgetSection("Kebutuhan Non-Bulanan", 'Non-Monthly', groupedCategories.nonMonthlyCategories)}
-                </Accordion>
-            </CardContent>
-        </Card>
+        {budgetSummaries.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                {budgetSummaries.map(summary => (
+                    <BudgetPlanCard
+                        key={summary.plan_id}
+                        planSummary={summary}
+                        allocations={allocations.filter(a => a.budget_id === summary.plan_id)}
+                        onSaveChanges={(data) => handleSaveChanges(summary.plan_id, data)}
+                        onEdit={() => handleOpenEditModal(summary)}
+                        onDelete={() => setPlanToDelete(summary)}
+                    />
+                ))}
+            </div>
+        ) : (
+            <div className="text-center py-16 border-2 border-dashed rounded-lg">
+                <h3 className="text-xl font-semibold text-gray-700">Selamat Datang di Fitur Anggaran!</h3>
+                <p className="text-muted-foreground mt-2">Anda belum memiliki Rencana Anggaran.</p>
+                <p className="text-sm text-muted-foreground mt-1">Klik tombol di atas untuk membuat yang pertama.</p>
+            </div>
+        )}
       </div>
-      <ManageCategoriesModal isOpen={isManageModalOpen} onClose={() => setIsManageModalOpen(false)} categories={categories} onSave={handleCategoryUpdates} />
+
+      <BudgetPlanModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSavePlan}
+        editingPlan={editingPlan}
+        allCategories={categories.filter(c => c.type === 'expense')}
+      />
+
+      <Dialog open={!!planToDelete} onOpenChange={() => setPlanToDelete(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Anda yakin ingin menghapus?</DialogTitle>
+                <DialogDescription>
+                    Aksi ini akan menghapus Rencana Anggaran &quot;{planToDelete?.plan_name}&quot; beserta semua alokasi dananya secara permanen.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setPlanToDelete(null)}>Batal</Button>
+                <Button variant="destructive" onClick={handleDeletePlan}>Ya, Hapus</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
