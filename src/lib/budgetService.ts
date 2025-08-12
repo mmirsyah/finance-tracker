@@ -1,7 +1,7 @@
 // src/lib/budgetService.ts
 
 import { supabase } from './supabase';
-import { BudgetAllocation, BudgetSummary, OverallBudgetSummary } from '@/types';
+import { BudgetAllocation, BudgetSummary, OverallBudgetSummary, CategorySpendingHistory } from '@/types';
 
 /**
  * Mengambil ringkasan budget dari server.
@@ -38,15 +38,14 @@ export const getAllocationsByPeriod = async (household_id: string, period: strin
 };
 
 /**
- * PERBAIKAN UTAMA FINAL: Menyimpan (membuat atau memperbarui) satu alokasi dana
- * dengan memanggil fungsi RPC `upsert_budget_allocation`.
+ * Menyimpan (membuat atau memperbarui) satu alokasi dana dengan memanggil fungsi RPC.
  */
 export const saveAllocation = async (allocation: Partial<BudgetAllocation>) => {
   const { error } = await supabase.rpc('upsert_budget_allocation', {
       p_household_id: allocation.household_id,
       p_period: allocation.period,
       p_budget_id: allocation.budget_id,
-      p_category_id: allocation.category_id, // Akan menjadi NULL jika tidak ada
+      p_category_id: allocation.category_id,
       p_amount: allocation.amount
   });
 
@@ -85,6 +84,9 @@ export const deleteAllocation = async (
   }
 };
 
+/**
+ * Mengambil ringkasan budget keseluruhan.
+ */
 export const getOverallBudgetSummary = async (household_id: string, start_date: string, end_date: string): Promise<OverallBudgetSummary | null> => {
   const { data, error } = await supabase.rpc('get_overall_budget_summary', {
     p_household_id: household_id,
@@ -96,6 +98,29 @@ export const getOverallBudgetSummary = async (household_id: string, start_date: 
     console.error('Error fetching overall budget summary:', error);
     throw error;
   }
-  // RPC mengembalikan array, kita hanya butuh objek pertama
+  return data?.[0] || null;
+};
+
+/**
+ * Mengambil histori pengeluaran untuk satu kategori.
+ */
+export const getCategorySpendingHistory = async (
+    household_id: string,
+    category_id: number,
+    reference_date: string,
+    period_start_day: number
+): Promise<CategorySpendingHistory | null> => {
+  const { data, error } = await supabase.rpc('get_category_spending_history', {
+    p_household_id: household_id,
+    p_category_id: category_id,
+    p_reference_date: reference_date,
+    p_period_start_day: period_start_day
+  });
+
+  if (error) {
+    const errorMessage = `Error fetching category spending history: ${JSON.stringify(error, null, 2)}`;
+    console.error(errorMessage);
+    throw new Error(errorMessage);
+  }
   return data?.[0] || null;
 };

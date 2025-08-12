@@ -1,7 +1,7 @@
 // src/components/budget/BudgetPlanCard.tsx
 
 import { useState, useMemo, useEffect } from 'react';
-import { BudgetSummary, BudgetAllocation } from '@/types';
+import { BudgetSummary, BudgetAllocation, CategorySpendingHistory } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,13 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { Loader2, Trash2, Info, AlertCircle, Save } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getCategorySpendingHistory } from '@/lib/budgetService';
+import { useAppData } from '@/contexts/AppDataContext';
+import { format } from 'date-fns';
+import { BarChart, Title, Text } from '@tremor/react';
+// Import toast untuk menampilkan error
+import { toast } from 'sonner';
 
 type PendingAllocationData = {
     mode: 'total' | 'category';
@@ -23,12 +30,18 @@ interface BudgetPlanCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onSaveChanges: (data: PendingAllocationData) => Promise<void>;
+  currentDate: Date;
 }
 
-export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onSaveChanges }: BudgetPlanCardProps) => {
+export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onSaveChanges, currentDate }: BudgetPlanCardProps) => {
+  const { householdId, profile } = useAppData();
   const [currentMode, setCurrentMode] = useState<'total' | 'category'>('category');
   const [pendingAllocations, setPendingAllocations] = useState<Record<string, number | undefined>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const [historyData, setHistoryData] = useState<CategorySpendingHistory | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [openPopoverId, setOpenPopoverId] = useState<number | null>(null);
 
   useEffect(() => {
     const totalAllocationExists = allocations.some(a => a.category_id === null);
@@ -43,40 +56,51 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
   
   const handleSaveAll = async () => {
     setIsSaving(true);
-    await onSaveChanges({
-        mode: currentMode,
-        allocations: pendingAllocations
-    });
+    await onSaveChanges({ mode: currentMode, allocations: pendingAllocations });
     setIsSaving(false);
   };
   
   const hasPendingChanges = useMemo(() => Object.keys(pendingAllocations).length > 0, [pendingAllocations]);
 
   const getDisplayValue = (key: string, savedValue: number) => {
-      if (pendingAllocations[key] !== undefined) {
-          return pendingAllocations[key];
-      }
+      if (pendingAllocations[key] !== undefined) return pendingAllocations[key];
       return savedValue || '';
   };
 
-  const savedTotalAllocation = useMemo(() => allocations.find(a => a.category_id === null)?.amount ?? 0, [allocations]);
-  
-  const sumOfCategoryAllocations = useMemo(() => {
-      return (planSummary.categories || []).reduce((sum, cat) => {
-          const key = `cat-${cat.id}`;
-          const pendingValue = pendingAllocations[key];
-          const savedValue = cat.allocated || 0;
-          const currentValue = pendingValue !== undefined ? pendingValue : savedValue;
-          return sum + (currentValue || 0);
-      }, 0);
-  }, [planSummary.categories, pendingAllocations]);
-  
-  const totalAllocatedForDisplay = currentMode === 'total'
-    ? (getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation) as number | string) === ''
-      ? 0
-      : parseFloat(getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation).toString())
-    : sumOfCategoryAllocations;
+  // --- PERBAIKAN DI SINI ---
+  const handleInputFocus = async (categoryId: number) => {
+    if (!householdId || !profile) return;
+    setOpenPopoverId(categoryId);
+    setIsHistoryLoading(true);
+    try {
+        const data = await getCategorySpendingHistory(
+            householdId,
+            categoryId,
+            format(currentDate, 'yyyy-MM-dd'),
+            profile.period_start_day || 1
+        );
+        setHistoryData(data);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Gagal mengambil histori:", error);
+        // Tampilkan toast dengan error yang lebih detail
+        toast.error(`Gagal mengambil histori: ${errorMessage}`);
+        setHistoryData(null);
+    } finally {
+        setIsHistoryLoading(false);
+    }
+  };
 
+  const savedTotalAllocation = useMemo(() => allocations.find(a => a.category_id === null)?.amount ?? 0, [allocations]);
+  const sumOfCategoryAllocations = useMemo(() => (planSummary.categories || []).reduce((sum, cat) => {
+      const key = `cat-${cat.id}`;
+      const pendingValue = pendingAllocations[key];
+      const savedValue = cat.allocated || 0;
+      const currentValue = pendingValue !== undefined ? pendingValue : savedValue;
+      return sum + (currentValue || 0);
+  }, 0), [planSummary.categories, pendingAllocations]);
+  
+  const totalAllocatedForDisplay = currentMode === 'total' ? parseFloat(getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation).toString()) || 0 : sumOfCategoryAllocations;
   const totalSpentForDisplay = planSummary.total_spent;
   const headerRemaining = totalAllocatedForDisplay - totalSpentForDisplay;
   const headerProgress = totalAllocatedForDisplay > 0 ? (totalSpentForDisplay / totalAllocatedForDisplay) * 100 : 0;
@@ -105,29 +129,14 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
           <AccordionItem value={`plan-${planSummary.plan_id}`}>
             <AccordionTrigger>Atur Alokasi Dana</AccordionTrigger>
             <AccordionContent>
-              {/* --- PERUBAHAN RESPONSIVE DI SINI --- */}
               <RadioGroup value={currentMode} onValueChange={(val) => setCurrentMode(val as 'total' | 'category')} className="flex flex-col sm:flex-row gap-2 sm:gap-4 my-4">
-                  <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="total" id={`r1-${planSummary.plan_id}`} />
-                      <Label htmlFor={`r1-${planSummary.plan_id}`}>Mode Total (Hybrid)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="category" id={`r2-${planSummary.plan_id}`} />
-                      <Label htmlFor={`r2-${planSummary.plan_id}`}>Mode per Kategori</Label>
-                  </div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="total" id={`r1-${planSummary.plan_id}`} /><Label htmlFor={`r1-${planSummary.plan_id}`}>Mode Total (Hybrid)</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="category" id={`r2-${planSummary.plan_id}`} /><Label htmlFor={`r2-${planSummary.plan_id}`}>Mode per Kategori</Label></div>
               </RadioGroup>
               
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 border-b">
                 <span className="flex-1 font-semibold">Anggaran Total</span>
-                <Input type="number" placeholder="0" className="w-full sm:w-40 h-8" 
-                  value={
-                    currentMode === 'category'
-                      ? sumOfCategoryAllocations
-                      : getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation)
-                  }
-                  onChange={(e) => handleAllocationChange(`total-${planSummary.plan_id}`, e.target.value)} 
-                  disabled={currentMode === 'category'} 
-                />
+                <Input type="number" placeholder="0" className="w-full sm:w-40 h-8" value={currentMode === 'category' ? sumOfCategoryAllocations : getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation)} onChange={(e) => handleAllocationChange(`total-${planSummary.plan_id}`, e.target.value)} disabled={currentMode === 'category'} />
               </div>
               
               <div className="mt-4 space-y-2">
@@ -135,11 +144,7 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
                 {currentMode === 'total' && (<div className="flex items-center gap-2 p-2 rounded-md bg-blue-50 border border-blue-200"><Info className="h-4 w-4 text-blue-600"/><span className="flex-1 text-sm font-semibold text-blue-800">Sisa untuk kategori lain</span><span className={cn("text-sm font-bold", unallocatedHybridBalance < 0 ? "text-red-600" : "text-blue-800")}>{formatCurrency(unallocatedHybridBalance)}</span></div>)}
                 
                 {(!planSummary.categories || planSummary.categories.length === 0) ? (
-                    <div className="text-center p-4 my-2 border-2 border-dashed rounded-lg">
-                        <AlertCircle className="mx-auto h-8 w-8 text-gray-400" />
-                        <p className="mt-2 text-sm text-muted-foreground">Tidak ada kategori di rencana ini.</p>
-                        <Button variant="link" size="sm" className="mt-1" onClick={onEdit}>Klik di sini untuk menambahkannya</Button>
-                    </div>
+                    <div className="text-center p-4 my-2 border-2 border-dashed rounded-lg"><AlertCircle className="mx-auto h-8 w-8 text-gray-400" /><p className="mt-2 text-sm text-muted-foreground">Tidak ada kategori di rencana ini.</p><Button variant="link" size="sm" className="mt-1" onClick={onEdit}>Klik di sini untuk menambahkannya</Button></div>
                 ) : (
                     (planSummary.categories || []).map(cat => {
                         const key = `cat-${cat.id}`;
@@ -149,23 +154,53 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
                             <div key={key} className="flex flex-col gap-2 p-2 rounded-md hover:bg-gray-50">
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                     <p className="flex-1 text-sm font-medium">{cat.name}</p>
-                                    <Input 
-                                      type="number" 
-                                      placeholder="0" 
-                                      className="w-full sm:w-40 h-8" 
-                                      value={getDisplayValue(key, savedValue)} 
-                                      onChange={(e) => handleAllocationChange(key, e.target.value)} 
-                                    />
+                                    <Popover open={openPopoverId === cat.id} onOpenChange={(isOpen) => setOpenPopoverId(isOpen ? cat.id : null)}>
+                                        <PopoverTrigger asChild>
+                                            <Input 
+                                              type="number" 
+                                              placeholder="0" 
+                                              className="w-full sm:w-40 h-8" 
+                                              value={getDisplayValue(key, savedValue)} 
+                                              onChange={(e) => handleAllocationChange(key, e.target.value)}
+                                              onFocus={() => handleInputFocus(cat.id)}
+                                            />
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80" side="top" align="end">
+                                            {isHistoryLoading ? (
+                                                <div className="flex items-center justify-center p-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                                            ) : historyData ? (
+                                                <div className="space-y-4">
+                                                    <Title>Histori Pengeluaran</Title>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <Text>Periode Lalu</Text>
+                                                            <Text className="font-semibold text-lg">{formatCurrency(historyData.spent_last_period)}</Text>
+                                                        </div>
+                                                        <div>
+                                                            <Text>Rata-rata per Periode</Text>
+                                                            <Text className="font-semibold text-lg">{formatCurrency(historyData.period_average)}</Text>
+                                                        </div>
+                                                    </div>
+                                                    <BarChart
+                                                        className="mt-4 h-40"
+                                                        data={historyData.period_breakdown || []}
+                                                        index="month"
+                                                        categories={["Pengeluaran"]}
+                                                        colors={["blue"]}
+                                                        valueFormatter={formatCurrency}
+                                                        yAxisWidth={48}
+                                                        showAnimation
+                                                    />
+                                                </div>
+                                            ) : <p className="text-sm text-center text-muted-foreground p-4">Gagal memuat data.</p>}
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                                 <div className="sm:pl-1">
                                   <Progress value={savedValue > 0 ? (cat.spent / savedValue) * 100 : 0} className="h-1.5"/>
                                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                                       <span>Aktual: {formatCurrency(cat.spent)}</span>
-                                      {savedValue > 0 && (
-                                          <span className={cn(categoryRemaining < 0 && "text-red-600 font-semibold")}>
-                                              Sisa: {formatCurrency(categoryRemaining)}
-                                          </span>
-                                      )}
+                                      {savedValue > 0 && (<span className={cn(categoryRemaining < 0 && "text-red-600 font-semibold")}>Sisa: {formatCurrency(categoryRemaining)}</span>)}
                                   </div>
                                 </div>
                             </div>
@@ -173,14 +208,12 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
                     })
                 )}
               </div>
-
               <div className="mt-6 flex justify-end">
                 <Button onClick={handleSaveAll} disabled={isSaving || !hasPendingChanges}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Simpan Alokasi
                 </Button>
               </div>
-
             </AccordionContent>
           </AccordionItem>
         </Accordion>

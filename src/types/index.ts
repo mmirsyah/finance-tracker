@@ -2,9 +2,7 @@
 
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type SupabaseRealtimePayload<T extends { [key: string]: any; }> = RealtimePostgresChangesPayload<T>;
-
+export type SupabaseRealtimePayload<T extends { [key: string]: unknown; }> = RealtimePostgresChangesPayload<T>;
 
 export interface Household {
   id: string;
@@ -23,8 +21,6 @@ export interface Budget {
   id: number;
   name: string;
   household_id: string;
-  // --- PERBAIKAN DI SINI ---
-  total_budget?: number | null; // Tambahkan properti baru
   categories?: Category[];
 }
 
@@ -62,7 +58,6 @@ export interface BudgetSummary {
   total_spent: number;
   categories: BudgetCategoryDetail[];
 }
-
 
 export interface Account {
   id: string;
@@ -122,4 +117,16 @@ export interface OverallBudgetSummary {
   total_income: number;
   total_budgeted: number;
   total_spent: number;
+}
+
+// --- TIPE BARU YANG BENAR UNTUK HISTORI ---
+export interface MonthlyBreakdown {
+    month: string;
+    Pengeluaran: number;
+}
+
+export interface CategorySpendingHistory {
+    spent_last_period: number;
+    period_average: number;
+    period_breakdown: MonthlyBreakdown[];
 }

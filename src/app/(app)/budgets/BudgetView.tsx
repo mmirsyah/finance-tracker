@@ -8,18 +8,17 @@ import { Button } from '@/components/ui/button';
 import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
 import { toast } from 'sonner';
 import { saveBudgetPlanWithCategories, deleteBudgetPlan } from '@/lib/budgetPlanService';
-// Perbarui import types
 import { Budget, BudgetAllocation, BudgetSummary, OverallBudgetSummary } from '@/types';
 import { BudgetPlanCard } from '@/components/budget/BudgetPlanCard';
-// Perbarui import service
 import { getBudgetSummary, saveAllocation, getAllocationsByPeriod, getOverallBudgetSummary } from '@/lib/budgetService';
-import { format } from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-// Import komponen baru
 import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
+// Import komponen navigasi baru
+import { BudgetPeriodNavigator } from '@/components/budget/BudgetPeriodNavigator';
 
 type PendingAllocationData = {
     mode: 'total' | 'category';
@@ -27,42 +26,51 @@ type PendingAllocationData = {
 };
 
 const BudgetView = () => {
-  const { householdId, categories, refetchData, dataVersion, profile } = useAppData();
+  const { householdId, categories, /*refetchData*/dataVersion, profile } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // --- PERUBAHAN UTAMA: State untuk mengelola periode ---
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const [budgetSummaries, setBudgetSummaries] = useState<BudgetSummary[]>([]);
   const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
-  // State baru untuk data ringkasan
   const [overallSummary, setOverallSummary] = useState<OverallBudgetSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
   const [planToDelete, setPlanToDelete] = useState<BudgetSummary | null>(null);
 
-  const { periodForSave, periodStartDate, periodEndDate } = useMemo(() => {
+  // --- PERUBAHAN UTAMA: Kalkulasi periode sekarang berdasarkan `currentDate` ---
+  const { periodForSave, periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
     if (!profile) {
         const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         return {
             periodForSave: format(now, 'yyyy-MM-01'),
-            periodStartDate: format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd'),
-            periodEndDate: format(new Date(now.getFullYear(), now.getMonth() + 1, 0), 'yyyy-MM-dd'),
+            periodStartDate: format(startOfMonth, 'yyyy-MM-dd'),
+            periodEndDate: format(endOfMonth, 'yyyy-MM-dd'),
+            periodDisplayText: format(now, 'MMMM yyyy'),
         };
     }
     const startDay = profile.period_start_day || 1;
-    const period = getCustomPeriod(startDay);
+    // Gunakan `currentDate` sebagai referensi untuk menghitung periode
+    const period = getCustomPeriod(startDay, currentDate);
+    const displayText = `${format(period.from, 'd MMM')} - ${format(period.to, 'd MMM yyyy')}`;
+    
     return {
         periodForSave: format(period.from, 'yyyy-MM-01'),
         periodStartDate: format(period.from, 'yyyy-MM-dd'),
         periodEndDate: format(period.to, 'yyyy-MM-dd'),
+        periodDisplayText: displayText,
     };
-  }, [profile]);
+  }, [profile, currentDate]);
 
   useEffect(() => {
     const fetchBudgetDahboards = async () => {
       if (householdId) {
         setIsLoading(true);
         try {
-          // Panggil semua data secara paralel
           const [summaryData, allocationData, overallSummaryData] = await Promise.all([
             getBudgetSummary(householdId, periodStartDate, periodEndDate),
             getAllocationsByPeriod(householdId, periodForSave),
@@ -85,6 +93,16 @@ const BudgetView = () => {
     };
     fetchBudgetDahboards();
   }, [householdId, dataVersion, periodForSave, periodStartDate, periodEndDate]);
+
+  // --- PERUBAHAN UTAMA: Fungsi untuk menangani navigasi ---
+  const handlePeriodChange = (direction: 'next' | 'prev') => {
+    setCurrentDate(current => {
+      // Kalkulasi dari tanggal mulai periode saat ini untuk menghindari bug lompat bulan
+      const currentPeriod = getCustomPeriod(profile?.period_start_day || 1, current);
+      const baseDate = currentPeriod.from;
+      return direction === 'next' ? addMonths(baseDate, 1) : subMonths(baseDate, 1);
+    });
+  };
 
   const handleSaveChanges = async (planId: number, data: PendingAllocationData) => {
     if (!householdId) return;
@@ -118,7 +136,7 @@ const BudgetView = () => {
         }
         await Promise.all(promises);
         toast.success("Perubahan alokasi berhasil disimpan!");
-        refetchData();
+        // Cukup panggil useEffect dengan mengubah `currentDate`
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Gagal menyimpan perubahan: ${errorMessage}`);
@@ -148,7 +166,7 @@ const BudgetView = () => {
 
   const handleSavePlan = async (id: number | null, name: string, categoryIds: number[]) => {
     if (!householdId) { toast.error("Household tidak ditemukan."); return; }
-    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { refetchData(); });
+    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { setCurrentDate(new Date()) }); // Reset ke periode saat ini setelah simpan
     toast.promise(promise, { loading: 'Menyimpan rencana...', success: `Rencana anggaran "${name}" berhasil disimpan!`, error: (err: Error) => `Gagal menyimpan: ${err.message}` });
   };
 
@@ -158,14 +176,14 @@ const BudgetView = () => {
         await deleteBudgetPlan(planToDelete.plan_id);
         toast.success(`"${planToDelete.plan_name}" berhasil dihapus.`);
         setPlanToDelete(null);
-        refetchData();
+        setCurrentDate(new Date()); // Reset ke periode saat ini setelah hapus
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Gagal menghapus: ${errorMessage}`);
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !overallSummary) { // Tampilkan skeleton hanya pada pemuatan awal
     return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data anggaran Anda...</p></div>)
   }
 
@@ -174,6 +192,12 @@ const BudgetView = () => {
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <h1 className="text-2xl font-bold text-gray-800">Ringkasan Anggaran</h1>
+          {/* --- PERUBAHAN UTAMA: Tampilkan komponen navigasi --- */}
+          <BudgetPeriodNavigator 
+            periodText={periodDisplayText}
+            onPrev={() => handlePeriodChange('prev')}
+            onNext={() => handlePeriodChange('next')}
+          />
         </div>
         
         <BudgetSummaryCards summary={overallSummary} />
@@ -185,25 +209,35 @@ const BudgetView = () => {
             </Button>
         </div>
 
-        {budgetSummaries.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-                {budgetSummaries.map(summary => (
-                    <BudgetPlanCard
-                        key={summary.plan_id}
-                        planSummary={summary}
-                        allocations={allocations.filter(a => a.budget_id === summary.plan_id)}
-                        onSaveChanges={(data) => handleSaveChanges(summary.plan_id, data)}
-                        onEdit={() => handleOpenEditModal(summary)}
-                        onDelete={() => setPlanToDelete(summary)}
-                    />
-                ))}
-            </div>
-        ) : (
-            <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                <h3 className="text-xl font-semibold text-gray-700">Belum Ada Rencana Anggaran</h3>
-                <p className="text-muted-foreground mt-2">Klik tombol di atas untuk membuat yang pertama.</p>
-            </div>
-        )}
+        {/* --- PERUBAHAN UTAMA: Tampilkan loading overlay saat navigasi --- */}
+        <div className="relative">
+            {isLoading && (
+                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                </div>
+            )}
+            {budgetSummaries.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                    {budgetSummaries.map(summary => (
+                        <BudgetPlanCard
+                            key={summary.plan_id}
+                            planSummary={summary}
+                            allocations={allocations.filter(a => a.budget_id === summary.plan_id)}
+                            onSaveChanges={(data) => handleSaveChanges(summary.plan_id, data)}
+                            onEdit={() => handleOpenEditModal(summary)}
+                            onDelete={() => setPlanToDelete(summary)}
+                            // --- TAMBAHKAN PROP BARU DI SINI ---
+                            currentDate={currentDate}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-16 border-2 border-dashed rounded-lg">
+                    <h3 className="text-xl font-semibold text-gray-700">Belum Ada Rencana Anggaran</h3>
+                    <p className="text-muted-foreground mt-2">Tidak ada data anggaran untuk periode ini.</p>
+                </div>
+            )}
+        </div>
       </div>
 
       <BudgetPlanModal
