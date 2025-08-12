@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { OverallBudgetSummary } from "@/types";
-import { ArrowDown, Banknote, PiggyBank, Scale } from "lucide-react";
+import { Banknote, PiggyBank, Scale, WalletCards } from "lucide-react";
 
 interface BudgetSummaryCardsProps {
     summary: OverallBudgetSummary | null;
@@ -46,6 +46,10 @@ export const BudgetSummaryCards = ({ summary }: BudgetSummaryCardsProps) => {
     }
 
     const { total_income, total_budgeted, total_spent } = summary;
+    
+    // Hitung sisa dana yang bisa dianggarkan
+    const remainingToBudget = total_income - total_budgeted;
+    // Hitung sisa dana dari anggaran yang sudah dibuat
     const remainingInBudget = total_budgeted - total_spent;
 
     return (
@@ -56,23 +60,25 @@ export const BudgetSummaryCards = ({ summary }: BudgetSummaryCardsProps) => {
                 icon={<Banknote className="h-4 w-4 text-muted-foreground" />}
                 valueColor="text-green-600"
             />
+            {/* KARTU BARU UNTUK BUDGETING BY INCOME */}
+            <SummaryCard
+                title="Sisa untuk Dianggarkan"
+                value={remainingToBudget}
+                icon={<WalletCards className="h-4 w-4 text-muted-foreground" />}
+                valueColor={remainingToBudget < 0 ? "text-orange-500" : "text-blue-600"}
+                note={remainingToBudget < 0 ? "Anggaran melebihi pemasukan!" : "Dana tersedia untuk dialokasikan"}
+            />
             <SummaryCard
                 title="Total Dianggarkan"
                 value={total_budgeted}
                 icon={<PiggyBank className="h-4 w-4 text-muted-foreground" />}
             />
-            <SummaryCard
-                title="Total Pengeluaran"
-                value={total_spent}
-                icon={<ArrowDown className="h-4 w-4 text-muted-foreground" />}
-                valueColor="text-red-600"
-            />
              <SummaryCard
                 title="Sisa Dana Anggaran"
                 value={remainingInBudget}
                 icon={<Scale className="h-4 w-4 text-muted-foreground" />}
-                valueColor={remainingInBudget < 0 ? "text-orange-500" : ""}
-                note={remainingInBudget < 0 ? "Pengeluaran melebihi anggaran" : "Dapat digunakan"}
+                valueColor={remainingInBudget < 0 ? "text-red-600" : ""}
+                note={remainingInBudget < 0 ? "Pengeluaran melebihi anggaran" : "Sisa dari total anggaran"}
             />
         </div>
     );
