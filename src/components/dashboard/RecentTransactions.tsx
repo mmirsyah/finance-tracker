@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppData } from '@/contexts/AppDataContext';
 import { Card, Title, Text } from '@tremor/react';
-import { ArrowRightLeft, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowRightLeft, ArrowUp, ArrowDown, Edit } from 'lucide-react';
 import Link from 'next/link';
-import { RecentTransaction } from '@/types';
+import { RecentTransaction, Transaction } from '@/types';
+import { toast } from 'sonner';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
@@ -18,37 +19,74 @@ const TransactionIcon = ({ type }: { type: string }) => {
 };
 
 export default function RecentTransactions() {
-  const { user, dataVersion } = useAppData(); // Ambil juga dataVersion
+  // --- PERUBAHAN: Mengambil householdId dari context ---
+  const { user, householdId, dataVersion, handleOpenModalForEdit } = useAppData();
   const [transactions, setTransactions] = useState<RecentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRecent = async () => {
-      if (!user) return;
+      // --- PERUBAHAN: Pastikan householdId sudah ada sebelum fetch ---
+      if (!user || !householdId) return;
       setLoading(true);
-      const { data, error } = await supabase.rpc('get_recent_transactions', {
-        p_user_id: user.id,
-        p_limit: 5,
-      });
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          id, date, type, amount, note,
+          categories ( name ),
+          accounts:account_id ( name )
+        `)
+        // --- PERBAIKAN UTAMA: Filter berdasarkan household_id, bukan user_id ---
+        .eq('household_id', householdId)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+        .returns<Transaction[]>();
 
       if (error) {
         console.error("Error fetching recent transactions:", error);
-      } else {
-        setTransactions(data || []);
+      } else if (data) {
+        const mappedData = data.map(t => ({
+          id: t.id,
+          date: t.date,
+          type: t.type as 'expense' | 'income' | 'transfer',
+          amount: t.amount,
+          note: t.note,
+          category_name: t.categories?.name || (t.type === 'transfer' ? 'Transfer' : 'Uncategorized'),
+          account_name: t.accounts?.name || 'N/A'
+        }));
+        setTransactions(mappedData);
       }
       setLoading(false);
     };
 
     fetchRecent();
-    // Buat komponen ini juga "mendengarkan" perubahan data
-  }, [user, dataVersion]);
+    // --- PERUBAHAN: Menambahkan householdId ke dependency array ---
+  }, [user, householdId, dataVersion]);
+
+  const handleEdit = async (transactionId: string) => {
+    const { data: fullTransaction, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+
+    if (error || !fullTransaction) {
+      toast.error("Gagal mengambil detail transaksi untuk diedit.");
+      console.error("Edit error:", error);
+      return;
+    }
+
+    handleOpenModalForEdit(fullTransaction);
+  };
 
   if (loading) {
     return (
       <Card>
         <Title>Recent Transactions</Title>
         <div className="mt-4 space-y-4">
-          {[...Array(3)].map((_, i) => (
+          {[...Array(5)].map((_, i) => ( // Tampilkan 5 skeleton item
             <div key={i} className="flex items-center space-x-4 animate-pulse">
               <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
               <div className="flex-1 space-y-2">
@@ -69,15 +107,14 @@ export default function RecentTransactions() {
       {transactions.length > 0 ? (
         <ul className="mt-4 divide-y divide-gray-200">
           {transactions.map((t) => (
-            <li key={t.id} className="py-3 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
+            <li key={t.id} className="py-3 flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-4 flex-1 min-w-0">
                 <TransactionIcon type={t.type} />
-                <div className="flex-1">
-                  {/* --- PERUBAHAN DI SINI --- */}
+                <div className="flex-1 min-w-0">
                   <Text className="font-medium text-gray-800 truncate">
-                    {t.note || t.category_name || t.type}
+                    {t.note || t.category_name}
                   </Text>
-                  <Text className="text-sm text-gray-500">
+                  <Text className="text-sm text-gray-500 truncate">
                     {t.account_name}
                   </Text>
                 </div>
@@ -85,6 +122,13 @@ export default function RecentTransactions() {
               <Text className={`font-semibold shrink-0 ml-2 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(t.amount)}
               </Text>
+              <button
+                onClick={() => handleEdit(t.id)}
+                className="p-1 text-gray-400 hover:text-gray-700 rounded"
+                aria-label="Edit transaction"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
             </li>
           ))}
         </ul>
