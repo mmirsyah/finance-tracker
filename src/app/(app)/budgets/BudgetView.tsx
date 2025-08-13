@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react'; // Tambahkan useCallback
 import { useAppData } from '@/contexts/AppDataContext';
 import { Button } from '@/components/ui/button';
 import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
-// Import komponen navigasi baru
 import { BudgetPeriodNavigator } from '@/components/budget/BudgetPeriodNavigator';
 
 type PendingAllocationData = {
@@ -26,10 +25,8 @@ type PendingAllocationData = {
 };
 
 const BudgetView = () => {
-  const { householdId, categories, /*refetchData*/dataVersion, profile } = useAppData();
+  const { householdId, categories, dataVersion, profile } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // --- PERUBAHAN UTAMA: State untuk mengelola periode ---
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const [budgetSummaries, setBudgetSummaries] = useState<BudgetSummary[]>([]);
@@ -40,7 +37,6 @@ const BudgetView = () => {
   const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
   const [planToDelete, setPlanToDelete] = useState<BudgetSummary | null>(null);
 
-  // --- PERUBAHAN UTAMA: Kalkulasi periode sekarang berdasarkan `currentDate` ---
   const { periodForSave, periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
     if (!profile) {
         const now = new Date();
@@ -54,7 +50,6 @@ const BudgetView = () => {
         };
     }
     const startDay = profile.period_start_day || 1;
-    // Gunakan `currentDate` sebagai referensi untuk menghitung periode
     const period = getCustomPeriod(startDay, currentDate);
     const displayText = `${format(period.from, 'd MMM')} - ${format(period.to, 'd MMM yyyy')}`;
     
@@ -66,38 +61,37 @@ const BudgetView = () => {
     };
   }, [profile, currentDate]);
 
-  useEffect(() => {
-    const fetchBudgetDahboards = async () => {
-      if (householdId) {
-        setIsLoading(true);
-        try {
-          const [summaryData, allocationData, overallSummaryData] = await Promise.all([
-            getBudgetSummary(householdId, periodStartDate, periodEndDate),
-            getAllocationsByPeriod(householdId, periodForSave),
-            getOverallBudgetSummary(householdId, periodStartDate, periodEndDate)
-          ]);
-          setBudgetSummaries(summaryData);
-          setAllocations(allocationData);
-          setOverallSummary(overallSummaryData);
-        } catch (error) {
-          let errorMessage = "Gagal memuat data ringkasan anggaran.";
-          if (error instanceof Error) { errorMessage += `: ${error.message}`; }
-          else if (typeof error === 'object' && error !== null) { errorMessage += `: ${JSON.stringify(error)}`; }
-          else { errorMessage += `: ${String(error)}`; }
-          toast.error(errorMessage);
-          console.error("Error detail:", error);
-        } finally {
-          setIsLoading(false);
-        }
+  // --- PERBAIKAN: Bungkus fungsi dengan useCallback ---
+  const fetchBudgetDashboards = useCallback(async () => {
+    if (householdId) {
+      setIsLoading(true);
+      try {
+        const [summaryData, allocationData, overallSummaryData] = await Promise.all([
+          getBudgetSummary(householdId, periodStartDate, periodEndDate),
+          getAllocationsByPeriod(householdId, periodForSave),
+          getOverallBudgetSummary(householdId, periodStartDate, periodEndDate)
+        ]);
+        setBudgetSummaries(summaryData || []);
+        setAllocations(allocationData);
+        setOverallSummary(overallSummaryData);
+      } catch (error) {
+        let errorMessage = "Gagal memuat data ringkasan anggaran.";
+        if (error instanceof Error) { errorMessage += `: ${error.message}`; }
+        toast.error(errorMessage);
+        console.error("Error detail:", error);
+      } finally {
+        setIsLoading(false);
       }
-    };
-    fetchBudgetDahboards();
-  }, [householdId, dataVersion, periodForSave, periodStartDate, periodEndDate]);
+    }
+  }, [householdId, periodStartDate, periodEndDate, periodForSave]); // Tambahkan dependensi yang relevan
 
-  // --- PERUBAHAN UTAMA: Fungsi untuk menangani navigasi ---
+  // --- PERBAIKAN: Panggil fungsi dari useCallback ---
+  useEffect(() => {
+    fetchBudgetDashboards();
+  }, [fetchBudgetDashboards, dataVersion]); // Tambahkan fetchBudgetDashboards ke dependency array
+
   const handlePeriodChange = (direction: 'next' | 'prev') => {
     setCurrentDate(current => {
-      // Kalkulasi dari tanggal mulai periode saat ini untuk menghindari bug lompat bulan
       const currentPeriod = getCustomPeriod(profile?.period_start_day || 1, current);
       const baseDate = currentPeriod.from;
       return direction === 'next' ? addMonths(baseDate, 1) : subMonths(baseDate, 1);
@@ -136,7 +130,7 @@ const BudgetView = () => {
         }
         await Promise.all(promises);
         toast.success("Perubahan alokasi berhasil disimpan!");
-        // Cukup panggil useEffect dengan mengubah `currentDate`
+        fetchBudgetDashboards(); // Refresh data
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Gagal menyimpan perubahan: ${errorMessage}`);
@@ -166,7 +160,7 @@ const BudgetView = () => {
 
   const handleSavePlan = async (id: number | null, name: string, categoryIds: number[]) => {
     if (!householdId) { toast.error("Household tidak ditemukan."); return; }
-    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { setCurrentDate(new Date()) }); // Reset ke periode saat ini setelah simpan
+    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { fetchBudgetDashboards() });
     toast.promise(promise, { loading: 'Menyimpan rencana...', success: `Rencana anggaran "${name}" berhasil disimpan!`, error: (err: Error) => `Gagal menyimpan: ${err.message}` });
   };
 
@@ -176,14 +170,14 @@ const BudgetView = () => {
         await deleteBudgetPlan(planToDelete.plan_id);
         toast.success(`"${planToDelete.plan_name}" berhasil dihapus.`);
         setPlanToDelete(null);
-        setCurrentDate(new Date()); // Reset ke periode saat ini setelah hapus
+        fetchBudgetDashboards();
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Gagal menghapus: ${errorMessage}`);
     }
   };
 
-  if (isLoading && !overallSummary) { // Tampilkan skeleton hanya pada pemuatan awal
+  if (isLoading && !overallSummary) {
     return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data anggaran Anda...</p></div>)
   }
 
@@ -192,7 +186,6 @@ const BudgetView = () => {
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <h1 className="text-2xl font-bold text-gray-800">Ringkasan Anggaran</h1>
-          {/* --- PERUBAHAN UTAMA: Tampilkan komponen navigasi --- */}
           <BudgetPeriodNavigator 
             periodText={periodDisplayText}
             onPrev={() => handlePeriodChange('prev')}
@@ -209,7 +202,6 @@ const BudgetView = () => {
             </Button>
         </div>
 
-        {/* --- PERUBAHAN UTAMA: Tampilkan loading overlay saat navigasi --- */}
         <div className="relative">
             {isLoading && (
                 <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
@@ -226,7 +218,7 @@ const BudgetView = () => {
                             onSaveChanges={(data) => handleSaveChanges(summary.plan_id, data)}
                             onEdit={() => handleOpenEditModal(summary)}
                             onDelete={() => setPlanToDelete(summary)}
-                            // --- TAMBAHKAN PROP BARU DI SINI ---
+                            onRefresh={fetchBudgetDashboards}
                             currentDate={currentDate}
                         />
                     ))}

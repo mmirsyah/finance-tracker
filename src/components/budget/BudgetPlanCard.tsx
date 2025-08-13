@@ -12,11 +12,11 @@ import { Loader2, Trash2, Info, AlertCircle, Save } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { getCategorySpendingHistory } from '@/lib/budgetService';
+import { Switch } from '@/components/ui/switch';
+import { getCategorySpendingHistory, updateRolloverStatus } from '@/lib/budgetService';
 import { useAppData } from '@/contexts/AppDataContext';
 import { format } from 'date-fns';
 import { BarChart, Title, Text } from '@tremor/react';
-// Import toast untuk menampilkan error
 import { toast } from 'sonner';
 
 type PendingAllocationData = {
@@ -30,24 +30,54 @@ interface BudgetPlanCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onSaveChanges: (data: PendingAllocationData) => Promise<void>;
+  onRefresh: () => void;
   currentDate: Date;
 }
 
-export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onSaveChanges, currentDate }: BudgetPlanCardProps) => {
+export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onSaveChanges, onRefresh, currentDate }: BudgetPlanCardProps) => {
   const { householdId, profile } = useAppData();
   const [currentMode, setCurrentMode] = useState<'total' | 'category'>('category');
   const [pendingAllocations, setPendingAllocations] = useState<Record<string, number | undefined>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSwitching, setIsSwitching] = useState<number | null>(null);
 
   const [historyData, setHistoryData] = useState<CategorySpendingHistory | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [openPopoverId, setOpenPopoverId] = useState<number | null>(null);
 
+  // --- PERUBAHAN UTAMA DI SINI ---
+  // Logika untuk mengisi alokasi secara otomatis dari sisa dana (rollover)
   useEffect(() => {
     const totalAllocationExists = allocations.some(a => a.category_id === null);
     setCurrentMode(totalAllocationExists ? 'total' : 'category');
-    setPendingAllocations({});
-  }, [allocations, planSummary]);
+
+    const newPendingAllocations: Record<string, number | undefined> = {};
+    let hasAutoFilled = false;
+
+    // Iterasi melalui setiap kategori dalam rencana
+    if (planSummary.categories) {
+        planSummary.categories.forEach(cat => {
+            const key = `cat-${cat.id}`;
+            // Cek jika:
+            // 1. Fitur rollover aktif untuk kategori ini.
+            // 2. Ada sisa dana dari bulan lalu.
+            // 3. Alokasi untuk bulan ini masih nol (belum diisi).
+            if (cat.is_rollover && cat.rollover_amount > 0 && cat.allocated === 0) {
+                newPendingAllocations[key] = cat.rollover_amount;
+                hasAutoFilled = true;
+            }
+        });
+    }
+    
+    // Set state dengan alokasi yang sudah diisi otomatis
+    setPendingAllocations(newPendingAllocations);
+
+    // Beri notifikasi ke pengguna jika ada yang diisi otomatis
+    if (hasAutoFilled) {
+        toast.info("Beberapa alokasi telah diisi otomatis dari sisa dana bulan lalu.");
+    }
+
+  }, [allocations, planSummary]); // Dijalankan setiap kali data plan berubah
 
   const handleAllocationChange = (key: string, value: string) => {
     const amount = value === '' ? undefined : parseFloat(value);
@@ -57,6 +87,7 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
   const handleSaveAll = async () => {
     setIsSaving(true);
     await onSaveChanges({ mode: currentMode, allocations: pendingAllocations });
+    setPendingAllocations({}); // Kosongkan pending changes setelah simpan
     setIsSaving(false);
   };
   
@@ -67,7 +98,6 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
       return savedValue || '';
   };
 
-  // --- PERBAIKAN DI SINI ---
   const handleInputFocus = async (categoryId: number) => {
     if (!householdId || !profile) return;
     setOpenPopoverId(categoryId);
@@ -83,11 +113,23 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error("Gagal mengambil histori:", error);
-        // Tampilkan toast dengan error yang lebih detail
         toast.error(`Gagal mengambil histori: ${errorMessage}`);
         setHistoryData(null);
     } finally {
         setIsHistoryLoading(false);
+    }
+  };
+
+  const handleToggleRollover = async (categoryId: number, newStatus: boolean) => {
+    setIsSwitching(categoryId);
+    try {
+      await updateRolloverStatus(planSummary.plan_id, categoryId, newStatus);
+      toast.success(`Rollover untuk kategori ini telah di-${newStatus ? 'aktifkan' : 'nonaktifkan'}.`);
+      onRefresh();
+    } catch {
+      toast.error('Gagal mengubah status rollover.');
+    } finally {
+      setIsSwitching(null);
     }
   };
 
@@ -100,7 +142,7 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
       return sum + (currentValue || 0);
   }, 0), [planSummary.categories, pendingAllocations]);
   
-  const totalAllocatedForDisplay = currentMode === 'total' ? parseFloat(getDisplayValue(`total-${planSummary.plan_id}`, savedTotalAllocation).toString()) || 0 : sumOfCategoryAllocations;
+  const totalAllocatedForDisplay = planSummary.total_allocated;
   const totalSpentForDisplay = planSummary.total_spent;
   const headerRemaining = totalAllocatedForDisplay - totalSpentForDisplay;
   const headerProgress = totalAllocatedForDisplay > 0 ? (totalSpentForDisplay / totalAllocatedForDisplay) * 100 : 0;
@@ -127,7 +169,7 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
       <CardContent>
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value={`plan-${planSummary.plan_id}`}>
-            <AccordionTrigger>Atur Alokasi Dana</AccordionTrigger>
+            <AccordionTrigger>Atur Alokasi & Rollover</AccordionTrigger>
             <AccordionContent>
               <RadioGroup value={currentMode} onValueChange={(val) => setCurrentMode(val as 'total' | 'category')} className="flex flex-col sm:flex-row gap-2 sm:gap-4 my-4">
                   <div className="flex items-center space-x-2"><RadioGroupItem value="total" id={`r1-${planSummary.plan_id}`} /><Label htmlFor={`r1-${planSummary.plan_id}`}>Mode Total (Hybrid)</Label></div>
@@ -148,59 +190,66 @@ export const BudgetPlanCard = ({ planSummary, allocations, onEdit, onDelete, onS
                 ) : (
                     (planSummary.categories || []).map(cat => {
                         const key = `cat-${cat.id}`;
-                        const savedValue = cat.allocated || 0;
-                        const categoryRemaining = savedValue - cat.spent;
+                        const allocated = cat.allocated || 0;
+                        const totalBudgetForCat = (pendingAllocations[key] !== undefined ? pendingAllocations[key] as number : allocated) + cat.rollover_amount;
+                        const categoryRemaining = totalBudgetForCat - cat.spent;
+                        
                         return (
-                            <div key={key} className="flex flex-col gap-2 p-2 rounded-md hover:bg-gray-50">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <div key={key} className="flex flex-col gap-2 p-2 rounded-md hover:bg-gray-50 border-b">
+                                <div className="flex items-center gap-2">
                                     <p className="flex-1 text-sm font-medium">{cat.name}</p>
+                                    <div className="flex items-center space-x-2">
+                                      {isSwitching === cat.id ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                                        <Switch
+                                          id={`rollover-${cat.id}`}
+                                          checked={cat.is_rollover}
+                                          onCheckedChange={(checked) => handleToggleRollover(cat.id, checked)}
+                                        />
+                                      }
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <p className="flex-1 text-xs text-muted-foreground">Alokasi:</p>
                                     <Popover open={openPopoverId === cat.id} onOpenChange={(isOpen) => setOpenPopoverId(isOpen ? cat.id : null)}>
                                         <PopoverTrigger asChild>
                                             <Input 
                                               type="number" 
                                               placeholder="0" 
                                               className="w-full sm:w-40 h-8" 
-                                              value={getDisplayValue(key, savedValue)} 
+                                              value={getDisplayValue(key, allocated)} 
                                               onChange={(e) => handleAllocationChange(key, e.target.value)}
                                               onFocus={() => handleInputFocus(cat.id)}
                                             />
                                         </PopoverTrigger>
                                         <PopoverContent className="w-80" side="top" align="end">
-                                            {isHistoryLoading ? (
+                                          {isHistoryLoading ? (
                                                 <div className="flex items-center justify-center p-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
                                             ) : historyData ? (
                                                 <div className="space-y-4">
                                                     <Title>Histori Pengeluaran</Title>
                                                     <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <Text>Periode Lalu</Text>
-                                                            <Text className="font-semibold text-lg">{formatCurrency(historyData.spent_last_period)}</Text>
-                                                        </div>
-                                                        <div>
-                                                            <Text>Rata-rata per Periode</Text>
-                                                            <Text className="font-semibold text-lg">{formatCurrency(historyData.period_average)}</Text>
-                                                        </div>
+                                                        <div><Text>Periode Lalu</Text><Text className="font-semibold text-lg">{formatCurrency(historyData.spent_last_period)}</Text></div>
+                                                        <div><Text>Rata-rata per Periode</Text><Text className="font-semibold text-lg">{formatCurrency(historyData.period_average)}</Text></div>
                                                     </div>
-                                                    <BarChart
-                                                        className="mt-4 h-40"
-                                                        data={historyData.period_breakdown || []}
-                                                        index="month"
-                                                        categories={["Pengeluaran"]}
-                                                        colors={["blue"]}
-                                                        valueFormatter={formatCurrency}
-                                                        yAxisWidth={48}
-                                                        showAnimation
-                                                    />
+                                                    <BarChart className="mt-4 h-40" data={historyData.period_breakdown || []} index="month" categories={["Pengeluaran"]} colors={["blue"]} valueFormatter={formatCurrency} yAxisWidth={48} showAnimation />
                                                 </div>
                                             ) : <p className="text-sm text-center text-muted-foreground p-4">Gagal memuat data.</p>}
                                         </PopoverContent>
                                     </Popover>
                                 </div>
-                                <div className="sm:pl-1">
-                                  <Progress value={savedValue > 0 ? (cat.spent / savedValue) * 100 : 0} className="h-1.5"/>
+                                
+                                {cat.rollover_amount > 0 && (
+                                  <div className="text-xs text-green-600 pl-1">
+                                    + {formatCurrency(cat.rollover_amount)} (sisa bulan lalu)
+                                  </div>
+                                )}
+
+                                <div className="sm:pl-1 mt-1">
+                                  <Progress value={totalBudgetForCat > 0 ? (cat.spent / totalBudgetForCat) * 100 : 0} className="h-1.5"/>
                                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                                       <span>Aktual: {formatCurrency(cat.spent)}</span>
-                                      {savedValue > 0 && (<span className={cn(categoryRemaining < 0 && "text-red-600 font-semibold")}>Sisa: {formatCurrency(categoryRemaining)}</span>)}
+                                      <span className={cn(categoryRemaining < 0 && "text-red-600 font-semibold")}>Sisa: {formatCurrency(categoryRemaining)}</span>
                                   </div>
                                 </div>
                             </div>

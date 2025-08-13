@@ -124,3 +124,22 @@ export const getCategorySpendingHistory = async (
   }
   return data?.[0] || null;
 };
+
+export const updateRolloverStatus = async (
+    budgetId: number,
+    categoryId: number,
+    isRollover: boolean
+) => {
+    const { error } = await supabase.rpc('update_rollover_status', {
+      p_budget_id: budgetId,
+      p_category_id: categoryId,
+      p_is_rollover: isRollover,
+    });
+  
+    if (error) {
+      console.error('Error updating rollover status:', error);
+      throw error;
+    }
+  
+    return true;
+};
