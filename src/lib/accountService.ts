@@ -1,77 +1,93 @@
-// src/lib/accountService.ts
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Account } from '@/types';
 
+// Inisialisasi Supabase client dengan cara yang baru
+const supabase = createClient();
+
 /**
- * Menyimpan (membuat atau memperbarui) akun.
- * @param account - Objek akun parsial dengan data yang akan disimpan.
- * @param user_id - ID pengguna yang sedang login.
- * @param household_id - ID household pengguna.
- * @returns Promise yang resolve jika berhasil, atau reject dengan error jika gagal.
+ * Mengambil semua akun untuk satu household.
  */
-export const saveAccount = async (
-  account: Partial<Account>,
-  user_id: string,
-  household_id: string
-) => {
-  // --- PERBAIKAN DI SINI ---
-  // Menonaktifkan aturan ESLint untuk baris ini karena _balance sengaja tidak digunakan.
-  // Tujuannya adalah untuk memisahkan properti 'balance' dari data yang akan disimpan.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id, balance: _balance, ...dataToSave } = account;
-  // --- PERBAIKAN SELESAI ---
+export const getAccounts = async (household_id: string): Promise<Account[]> => {
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('*')
+    .eq('household_id', household_id);
 
-  const payload = {
-    ...dataToSave,
-    user_id,
-    household_id,
-  };
+  if (error) {
+    console.error('Error fetching accounts:', error);
+    throw error;
+  }
+  return data || [];
+};
 
-  let query;
+/**
+ * Menyimpan (membuat atau memperbarui) satu akun.
+ */
+export const saveAccount = async (account: Partial<Account>) => {
+  const { id, name, initial_balance, ...otherData } = account;
+
+  let error;
+
   if (id) {
-    query = supabase.from('accounts').update(payload).eq('id', id);
+    // --- PERBAIKAN DI SINI ---
+    // Saat mengedit, hanya kirim data yang boleh diubah untuk menghindari error RLS.
+    const updateData = {
+      name,
+      initial_balance,
+    };
+    ({ error } = await supabase.from('accounts').update(updateData).eq('id', id));
   } else {
-    query = supabase.from('accounts').insert([payload]);
+    // Saat membuat baru, kirim semua data yang diperlukan.
+    const insertData = {
+      name,
+      initial_balance,
+      household_id: otherData.household_id,
+      user_id: otherData.user_id,
+    };
+    ({ error } = await supabase.from('accounts').insert(insertData));
   }
 
-  const { error } = await query;
-  if (error) throw error;
+  if (error) {
+    // Log error yang lebih detail di console untuk debugging
+    console.error('Error saving account:', error);
+    throw error;
+  }
 };
 
 /**
- * Menghapus akun setelah memastikan tidak ada transaksi terkait.
- * @param accountId - ID akun yang akan dihapus.
- * @returns Promise yang resolve jika berhasil, atau reject dengan error jika gagal.
+ * Menghapus satu akun.
  */
-export const deleteAccount = async (accountId: string) => {
-  const { error } = await supabase.from('accounts').delete().eq('id', accountId);
-  if (error) throw error;
+export const deleteAccount = async (id: string) => {
+  const { error } = await supabase.from('accounts').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting account:', error);
+    throw error;
+  }
 };
 
 /**
- * Memindahkan transaksi dari akun lama ke akun baru, lalu menghapus akun lama.
- * @param oldAccountId - ID akun yang akan dihapus.
- * @param newAccountId - ID akun tujuan pemindahan transaksi.
- * @returns Promise yang resolve jika berhasil, atau reject dengan error jika gagal.
+ * Memindahkan transaksi dari satu akun ke akun lain.
  */
-export const reassignAndDeleleAccount = async (
-  oldAccountId: string,
-  newAccountId: string
-) => {
-  // Pindahkan transaksi di mana akun ini adalah 'from'
-  const { error: updateFromError } = await supabase
-    .from('transactions')
-    .update({ account_id: newAccountId })
-    .eq('account_id', oldAccountId);
-  if (updateFromError) throw new Error(`Failed to reassign 'from' transactions: ${updateFromError.message}`);
+export const reassignTransactions = async (fromAccountId: string, toAccountId: string) => {
+    const { error } = await supabase.rpc('reassign_transactions', {
+        from_account_id: fromAccountId,
+        to_account_id: toAccountId
+    });
 
-  // Pindahkan transaksi di mana akun ini adalah 'to' (untuk transfer)
-  const { error: updateToError } = await supabase
-    .from('transactions')
-    .update({ to_account_id: newAccountId })
-    .eq('to_account_id', oldAccountId);
-  if (updateToError) throw new Error(`Failed to reassign 'to' transactions: ${updateToError.message}`);
+    if (error) {
+        console.error('Error reassigning transactions:', error);
+        throw error;
+    }
+};
 
-  // Setelah semua transaksi dipindahkan, hapus akun lama
-  await deleteAccount(oldAccountId);
+/**
+ * Memindahkan transaksi dari satu akun dan kemudian menghapus akun tersebut.
+ */
+// PERBAIKAN: Typo 'Delele' menjadi 'Delete'
+export const reassignAndDeleteAccount = async (fromAccountId: string, toAccountId: string) => {
+    // Langkah 1: Pindahkan semua transaksi ke akun baru
+    await reassignTransactions(fromAccountId, toAccountId);
+    
+    // Langkah 2: Setelah berhasil, hapus akun lama
+    await deleteAccount(fromAccountId);
 };

@@ -36,12 +36,21 @@ export default function AccountsView() {
     }
   }, [searchParams, router]);
   
+  // --- PERBAIKAN DI SINI ---
   const handleSaveAccount = async (name: string, initialBalance: number) => {
     if (!user || !householdId) return toast.error('User session not found.');
 
-    const accountData = { ...editingAccount, name, initial_balance: initialBalance };
+    // Membuat objek akun yang lengkap untuk dikirim ke service
+    const accountData: Partial<Account> = {
+      ...editingAccount,
+      name,
+      initial_balance: initialBalance,
+      household_id: householdId,
+      user_id: user.id,
+    };
 
-    const promise = accountService.saveAccount(accountData, user.id, householdId)
+    // Memanggil service dengan satu argumen objek
+    const promise = accountService.saveAccount(accountData)
       .then(() => {
         refetchData();
       });
@@ -79,8 +88,10 @@ export default function AccountsView() {
     }
   };
 
+  // --- PERBAIKAN DI SINI ---
   const handleReassignAndDelete = async (oldAccId: string, newAccId: string) => {
-    const promise = accountService.reassignAndDeleleAccount(oldAccId, newAccId)
+    // Menggunakan nama fungsi yang sudah diperbaiki (tanpa typo)
+    const promise = accountService.reassignAndDeleteAccount(oldAccId, newAccId)
       .then(() => refetchData());
 
     toast.promise(promise, {
