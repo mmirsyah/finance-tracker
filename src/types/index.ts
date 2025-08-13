@@ -84,6 +84,7 @@ export interface Transaction {
   categories?: { name: string; icon?: string };
   accounts?: { name: string };
   to_account?: { name: string };
+  [key: string]: unknown;
 }
 
 export type RecentTransaction = {
