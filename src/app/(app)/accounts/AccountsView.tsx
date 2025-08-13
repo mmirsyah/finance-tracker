@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Account } from '@/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Edit, Trash2 } from 'lucide-react';
@@ -12,6 +12,8 @@ import * as accountService from '@/lib/accountService';
 import AccountModal from '@/components/modals/AccountModal';
 import ReassignAccountModal from '@/components/modals/ReassignAccountModal';
 import TableSkeleton from '@/components/skeletons/TableSkeleton'; // <-- Import Skeleton
+
+const supabase = createClient();
 
 const formatCurrency = (value: number | null | undefined) => {
   if (value === null || value === undefined) return 'Rp 0';
