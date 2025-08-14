@@ -1,23 +1,61 @@
-// src/app/accounts/AccountsView.tsx
+// src/app/(app)/accounts/AccountsView.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { useState, useEffect, useMemo } from 'react';
 import { Account } from '@/types';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Target, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppData } from '@/contexts/AppDataContext';
 import * as accountService from '@/lib/accountService';
 import AccountModal from '@/components/modals/AccountModal';
 import ReassignAccountModal from '@/components/modals/ReassignAccountModal';
-import TableSkeleton from '@/components/skeletons/TableSkeleton'; // <-- Import Skeleton
+import TableSkeleton from '@/components/skeletons/TableSkeleton';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { cn, formatCurrency } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
-const supabase = createClient();
+const GoalAccountCard = ({ account, onEdit, onDelete }: { account: Account, onEdit: (acc: Account) => void, onDelete: (acc: Account) => void }) => {
+    const currentBalance = account.balance || 0;
+    const targetAmount = account.target_amount || 0;
 
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return 'Rp 0';
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+    const progress = targetAmount > 0 
+        ? (currentBalance / targetAmount) * 100 
+        : 0;
+
+    return (
+        <Card className="flex flex-col">
+            <CardHeader>
+                <div className="flex justify-between items-start gap-4">
+                    <CardTitle className="text-lg font-bold">{account.name}</CardTitle>
+                    <div className="p-2 bg-primary/10 rounded-full">
+                        <Target className="w-5 h-5 text-primary" />
+                    </div>
+                </div>
+                <CardDescription>{account.goal_reason || 'Terus semangat menabung!'}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+                <div className="text-2xl font-bold text-primary">
+                    {formatCurrency(currentBalance)}
+                </div>
+                {account.target_amount && account.target_amount > 0 && (
+                    <div>
+                        <Progress value={progress} />
+                        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                            <span>{Math.round(progress)}%</span>
+                            <span>Target: {formatCurrency(targetAmount)}</span>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 mt-auto pt-4 border-t">
+                <Button variant="ghost" size="icon" onClick={() => onDelete(account)}><Trash2 className="h-4 w-4 text-red-500"/></Button>
+                <Button variant="outline" size="sm" onClick={() => onEdit(account)}>Edit</Button>
+            </CardFooter>
+        </Card>
+    );
 };
 
 export default function AccountsView() {
@@ -31,6 +69,19 @@ export default function AccountsView() {
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
+  const { goalAccounts, genericAccounts } = useMemo(() => {
+    const goals: Account[] = [];
+    const generics: Account[] = [];
+    accounts.forEach(acc => {
+      if (acc.type === 'goal') {
+        goals.push(acc);
+      } else {
+        generics.push(acc);
+      }
+    });
+    return { goalAccounts: goals, genericAccounts: generics };
+  }, [accounts]);
+
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
       setIsModalOpen(true);
@@ -38,29 +89,22 @@ export default function AccountsView() {
     }
   }, [searchParams, router]);
   
-  // --- PERBAIKAN DI SINI ---
-  const handleSaveAccount = async (name: string, initialBalance: number) => {
+  const handleSaveAccount = (payload: Partial<Account>) => {
     if (!user || !householdId) return toast.error('User session not found.');
 
-    // Membuat objek akun yang lengkap untuk dikirim ke service
     const accountData: Partial<Account> = {
-      ...editingAccount,
-      name,
-      initial_balance: initialBalance,
+      ...payload,
       household_id: householdId,
       user_id: user.id,
     };
-
-    // Memanggil service dengan satu argumen objek
+    
     const promise = accountService.saveAccount(accountData)
-      .then(() => {
-        refetchData();
-      });
+      .then(() => { refetchData(); });
 
     toast.promise(promise, {
-      loading: 'Saving account...',
-      success: 'Account saved successfully!',
-      error: (err) => `Failed to save account: ${err.message}`,
+      loading: 'Menyimpan akun...',
+      success: 'Akun berhasil disimpan!',
+      error: (err: Error) => `Gagal menyimpan: ${err.message}`,
     });
 
     setIsModalOpen(false);
@@ -79,27 +123,25 @@ export default function AccountsView() {
       setAccountToDelete(account);
       setIsReassignModalOpen(true);
     } else {
-      if (confirm(`Are you sure you want to delete the account "${account.name}"?`)) {
+      if (confirm(`Anda yakin ingin menghapus akun "${account.name}"?`)) {
         const promise = accountService.deleteAccount(account.id).then(() => refetchData());
         toast.promise(promise, {
-          loading: 'Deleting account...',
-          success: 'Account deleted successfully!',
-          error: (err) => `Failed to delete account: ${err.message}`,
+          loading: 'Menghapus akun...',
+          success: 'Akun berhasil dihapus!',
+          error: (err: Error) => `Gagal menghapus: ${err.message}`,
         });
       }
     }
   };
 
-  // --- PERBAIKAN DI SINI ---
   const handleReassignAndDelete = async (oldAccId: string, newAccId: string) => {
-    // Menggunakan nama fungsi yang sudah diperbaiki (tanpa typo)
     const promise = accountService.reassignAndDeleteAccount(oldAccId, newAccId)
       .then(() => refetchData());
 
     toast.promise(promise, {
-      loading: 'Reassigning and deleting...',
-      success: 'Account deleted successfully!',
-      error: (err) => err.message,
+      loading: 'Memindahkan & menghapus...',
+      success: 'Akun berhasil dihapus!',
+      error: (err: Error) => err.message,
     });
     
     setIsReassignModalOpen(false);
@@ -113,43 +155,68 @@ export default function AccountsView() {
     <div className="p-6">
       <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
         <h1 className="text-3xl font-bold">Manage Accounts</h1>
-        <button onClick={handleAddNew} disabled={isAppDataLoading} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+        <Button onClick={handleAddNew} disabled={isAppDataLoading} className="flex items-center gap-2">
           <Plus size={20} /> Add New
-        </button>
+        </Button>
       </div>
-      {/* --- PERUBAHAN DI SINI: Tampilkan Skeleton saat loading --- */}
+      
       {isAppDataLoading ? (
         <TableSkeleton />
-      ) : accounts.length === 0 ? (
-        <div className="text-center p-6 bg-white rounded-lg shadow">
-          <h3 className="text-lg font-semibold">No Accounts Found</h3>
-          <p className="text-gray-500 mt-2">Click &quot;Add New&quot; to create your first financial account.</p>
-        </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current Balance</th>
-                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {accounts.map((acc) => (
-                <tr key={acc.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{acc.name}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right ${acc.balance && acc.balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(acc.balance)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-4">
-                      <button onClick={() => handleEdit(acc)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
-                      <button onClick={() => handleDeleteAccount(acc)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+        <div className="space-y-8">
+            <div
+            >
+                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Wallet className="w-6 h-6" /> Akun Umum
+                </h2>
+                {genericAccounts.length > 0 ? (
+                     <div className="bg-white rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo Saat Ini</th>
+                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                            </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                            {genericAccounts.map((acc) => (
+                                <tr key={acc.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{acc.name}</td>
+                                <td className={cn('px-6 py-4 whitespace-nowrap text-sm font-semibold text-right', (acc.balance ?? 0) < 0 ? 'text-red-600' : 'text-gray-900')}>
+                                    {formatCurrency(acc.balance ?? 0)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div className="flex justify-end gap-4">
+                                    <button onClick={() => handleEdit(acc)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
+                                    <button onClick={() => handleDeleteAccount(acc)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                    </div>
+                                </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                ) : (
+                    <div className="text-center p-6 bg-white rounded-lg shadow">
+                        {/* --- PERBAIKAN LINTING DI SINI --- */}
+                        <p className="text-gray-500">Tidak ada akun umum. Klik &quot;Add New&quot; untuk membuat rekening bank atau dompet digital Anda.</p>
+                    </div>
+                )}
+            </div>
+
+            {goalAccounts.length > 0 && (
+                <div>
+                    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-primary">
+                        <Target className="w-6 h-6" /> Tujuan Finansial Anda
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {goalAccounts.map(acc => (
+                            <GoalAccountCard key={acc.id} account={acc} onEdit={handleEdit} onDelete={handleDeleteAccount} />
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
       )}
       <AccountModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveAccount} account={editingAccount} />

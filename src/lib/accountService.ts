@@ -1,7 +1,7 @@
+// src/lib/accountService.ts
 import { createClient } from '@/utils/supabase/client';
 import { Account } from '@/types';
 
-// Inisialisasi Supabase client dengan cara yang baru
 const supabase = createClient();
 
 /**
@@ -24,35 +24,43 @@ export const getAccounts = async (household_id: string): Promise<Account[]> => {
  * Menyimpan (membuat atau memperbarui) satu akun.
  */
 export const saveAccount = async (account: Partial<Account>) => {
-  const { id, name, initial_balance, ...otherData } = account;
-
+  const { id } = account;
   let error;
 
   if (id) {
-    // --- PERBAIKAN DI SINI ---
-    // Saat mengedit, hanya kirim data yang boleh diubah untuk menghindari error RLS.
-    const updateData = {
-      name,
-      initial_balance,
+    // --- MODE EDIT ---
+    // Logika ini sudah benar: hanya update data yang relevan.
+    const updatePayload = {
+      name: account.name,
+      initial_balance: account.initial_balance,
+      type: account.type || 'generic',
+      target_amount: account.target_amount,
+      goal_reason: account.goal_reason
     };
-    ({ error } = await supabase.from('accounts').update(updateData).eq('id', id));
+    ({ error } = await supabase.from('accounts').update(updatePayload).eq('id', id));
+
   } else {
-    // Saat membuat baru, kirim semua data yang diperlukan.
-    const insertData = {
-      name,
-      initial_balance,
-      household_id: otherData.household_id,
-      user_id: otherData.user_id,
+    // --- PERBAIKAN FINAL (MODE BUAT BARU) ---
+    // Secara eksplisit membangun payload untuk insert dari objek `account`
+    // untuk memastikan semua field (termasuk 'type') terbawa.
+    const insertPayload = {
+      name: account.name,
+      initial_balance: account.initial_balance,
+      type: account.type || 'generic',
+      target_amount: account.target_amount,
+      goal_reason: account.goal_reason,
+      household_id: account.household_id,
+      user_id: account.user_id,
     };
-    ({ error } = await supabase.from('accounts').insert(insertData));
+    ({ error } = await supabase.from('accounts').insert(insertPayload));
   }
 
   if (error) {
-    // Log error yang lebih detail di console untuk debugging
     console.error('Error saving account:', error);
     throw error;
   }
 };
+
 
 /**
  * Menghapus satu akun.
@@ -83,11 +91,7 @@ export const reassignTransactions = async (fromAccountId: string, toAccountId: s
 /**
  * Memindahkan transaksi dari satu akun dan kemudian menghapus akun tersebut.
  */
-// PERBAIKAN: Typo 'Delele' menjadi 'Delete'
 export const reassignAndDeleteAccount = async (fromAccountId: string, toAccountId: string) => {
-    // Langkah 1: Pindahkan semua transaksi ke akun baru
     await reassignTransactions(fromAccountId, toAccountId);
-    
-    // Langkah 2: Setelah berhasil, hapus akun lama
     await deleteAccount(fromAccountId);
 };

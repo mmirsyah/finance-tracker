@@ -44,16 +44,13 @@ export interface BudgetAllocation {
   created_at: string;
 }
 
-// --- PERUBAHAN DI SINI ---
-// Nama diubah dari BudgetCategoryDetail menjadi BudgetCategorySummary untuk konsistensi
-// dan ditambahkan properti untuk rollover.
 export interface BudgetCategorySummary {
   id: number;
-  name: string;
+  name:string;
   allocated: number;
   spent: number;
-  is_rollover: boolean;      // Properti baru
-  rollover_amount: number;   // Properti baru
+  is_rollover: boolean;
+  rollover_amount: number;
 }
 
 export interface BudgetSummary {
@@ -61,10 +58,10 @@ export interface BudgetSummary {
   plan_name: string;
   total_allocated: number;
   total_spent: number;
-  // Menggunakan tipe yang sudah diperbarui
   categories: BudgetCategorySummary[];
 }
 
+// --- PERUBAHAN DI SINI ---
 export interface Account {
   id: string;
   name: string;
@@ -72,7 +69,13 @@ export interface Account {
   household_id: string;
   initial_balance: number;
   balance?: number;
+  // Properti baru untuk fitur Goals
+  type: 'generic' | 'goal'; // Membedakan akun biasa vs. tujuan
+  target_amount?: number | null;
+  goal_reason?: string | null;
+  achieved_at?: string | null;
 }
+// --- AKHIR PERUBAHAN ---
 
 export interface Transaction {
   id: string;

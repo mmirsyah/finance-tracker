@@ -4,25 +4,43 @@
 import { useState, useEffect } from 'react';
 import { Account } from '@/types';
 import toast from 'react-hot-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
+
 
 interface AccountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, initialBalance: number) => void;
+  onSave: (payload: Partial<Account>) => void;
   account: Partial<Account> | null;
 }
 
 export default function AccountModal({ isOpen, onClose, onSave, account }: AccountModalProps) {
   const [name, setName] = useState('');
   const [initialBalance, setInitialBalance] = useState('0');
+  const [type, setType] = useState<'generic' | 'goal'>('generic');
+  const [targetAmount, setTargetAmount] = useState('');
+  const [goalReason, setGoalReason] = useState('');
 
   useEffect(() => {
-    if (account) {
-      setName(account.name || '');
-      setInitialBalance(String(account.initial_balance || 0));
-    } else {
-      setName('');
-      setInitialBalance('0');
+    if (isOpen) {
+        if (account) {
+            setName(account.name || '');
+            setInitialBalance(String(account.initial_balance || 0));
+            setType(account.type || 'generic');
+            setTargetAmount(String(account.target_amount || ''));
+            setGoalReason(account.goal_reason || '');
+        } else {
+            setName('');
+            setInitialBalance('0');
+            setType('generic');
+            setTargetAmount('');
+            setGoalReason('');
+        }
     }
   }, [account, isOpen]);
 
@@ -30,31 +48,76 @@ export default function AccountModal({ isOpen, onClose, onSave, account }: Accou
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return toast.error('Account name is required.');
-    onSave(name, Number(initialBalance));
+    if (!name) {
+        toast.error('Nama akun wajib diisi.');
+        return;
+    }
+
+    const payload: Partial<Account> = {
+        id: account?.id,
+        name,
+        initial_balance: Number(initialBalance) || 0,
+        type,
+        target_amount: type === 'goal' ? (Number(targetAmount) || null) : null,
+        goal_reason: type === 'goal' ? goalReason : null,
+    };
+    onSave(payload);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">{account?.id ? 'Edit Account' : 'Add New Account'}</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="name-acc" className="block text-sm font-medium text-gray-700">Name</label>
-              <input type="text" id="name-acc" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required placeholder="e.g., Bank BCA, Gopay, Dompet" />
-            </div>
-            <div>
-              <label htmlFor="initial_balance" className="block text-sm font-medium text-gray-700">Initial Balance</label>
-              <input type="number" id="initial_balance" value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} min="0" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required />
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Account</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+                <DialogTitle>{account?.id ? 'Edit Akun' : 'Buat Akun Baru'}</DialogTitle>
+                <DialogDescription>
+                    Pilih tipe &apos;Tujuan&apos; untuk membuat amplop virtual untuk menabung.
+                </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="grid gap-6 py-4">
+                <div>
+                    <Label className="mb-2 block">Tipe Akun</Label>
+                    <RadioGroup value={type} onValueChange={(val) => setType(val as 'generic' | 'goal')} className="flex gap-4">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="generic" id="r1" />
+                            <Label htmlFor="r1">Akun Umum (Rekening, Dompet)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="goal" id="r2" />
+                            <Label htmlFor="r2">Tujuan / Amplop (Goal)</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="name-acc">Nama Akun / Tujuan</Label>
+                    <Input id="name-acc" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Bank BCA, Dana Darurat" required />
+                </div>
+                
+                <div className="grid gap-2">
+                    <Label htmlFor="initial_balance">Saldo Awal</Label>
+                    <Input id="initial_balance" type="number" value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} required />
+                    <p className="text-xs text-muted-foreground">Isi dengan saldo Anda saat ini di akun tersebut.</p>
+                </div>
+
+                {type === 'goal' && (
+                    <div className="grid gap-4 border-t pt-4">
+                         <div className="grid gap-2">
+                            <Label htmlFor="target-amount">Target Dana (Opsional)</Label>
+                            <Input id="target-amount" type="number" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} placeholder="Contoh: 50000000" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="goal-reason">Apa alasanmu menabung untuk ini?</Label>
+                            <Textarea id="goal-reason" value={goalReason} onChange={(e) => setGoalReason(e.target.value)} placeholder="Contoh: Untuk membeli rumah pertama, agar lebih semangat!" />
+                        </div>
+                    </div>
+                )}
+                
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={onClose}>Batal</Button>
+                    <Button type="submit">Simpan</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
   );
 };
