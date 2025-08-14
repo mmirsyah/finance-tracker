@@ -19,7 +19,6 @@ const navItems: NavItem[] = [
   { href: '/budgets', label: 'Budget', icon: FileText },
   { href: '/transactions', label: 'Transactions', icon: ArrowRightLeft },
   { href: '/reports', label: 'Reports', icon: PieChart },
-  { href: '/goals', label: 'Goals', icon: Target },
 ];
 
 interface SidebarProps {

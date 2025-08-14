@@ -3,7 +3,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-// Perbaikan: Impor tipe Profile
 import { Account, Category, Transaction, Profile } from '@/types'; 
 import { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
@@ -16,7 +15,7 @@ interface AppDataContextType {
   isLoading: boolean;
   user: User | null;
   householdId: string | null;
-  profile: Profile | null; // <<< PENAMBAHAN PROPERTI BARU
+  profile: Profile | null;
   dataVersion: number;
   refetchData: () => void;
   handleOpenModalForCreate: () => void;
@@ -31,10 +30,9 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null); // <<< PENAMBAHAN STATE BARU
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
 
-  // ... (sisa state dan fungsi modal tidak berubah)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -46,11 +44,61 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [formNote, setFormNote] = useState('');
   const [formDate, setFormDate] = useState('');
 
+  const refetchData = useCallback(() => {
+    if (user && profile) {
+      console.log('Refetching data...');
+      fetchData(user, profile);
+      setDataVersion(v => v + 1);
+    }
+  }, [user, profile]);
+
   const handleOpenModalForCreate = () => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); };
   const handleOpenModalForEdit = (transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsModalOpen(true); };
-  const handleSaveTransaction = async () => { setIsSaving(true); if (!user || !householdId) { toast.error('User session not found.'); setIsSaving(false); return; } const payload = { type: formType, amount: Number(formAmount), note: formNote || null, date: formDate, user_id: user.id, household_id: householdId, category: formType !== 'transfer' ? Number(formCategory) : null, account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null, }; const success = await transactionService.saveTransaction(supabase, payload, editId); if (success) { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); setIsModalOpen(false); refetchData(); } setIsSaving(false); };
+  
+  // --- PERUBAHAN DI SINI: Logika Notifikasi "Kemenangan Kecil" ---
+  const handleSaveTransaction = async () => { 
+    setIsSaving(true); 
+    if (!user || !householdId) { 
+        toast.error('User session not found.'); 
+        setIsSaving(false); 
+        return; 
+    } 
+    const payload = { 
+        type: formType, 
+        amount: Number(formAmount), 
+        note: formNote || null, 
+        date: formDate, 
+        user_id: user.id, 
+        household_id: householdId, 
+        category: formType !== 'transfer' ? Number(formCategory) : null, 
+        account_id: formAccountId, 
+        to_account_id: formType === 'transfer' ? formToAccountId : null, 
+    }; 
+    
+    const success = await transactionService.saveTransaction(supabase, payload, editId); 
+    
+    if (success) { 
+        // Logika perayaan dimulai
+        if (formType === 'transfer' && formToAccountId) {
+            const targetAccount = accounts.find(acc => acc.id === formToAccountId);
+            if (targetAccount && targetAccount.type === 'goal') {
+                // Tampilkan notifikasi spesial jika transfer ke akun 'goal'
+                toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`);
+            } else {
+                 toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
+            }
+        } else {
+             toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
+        }
+        // Logika perayaan selesai
+        
+        setIsModalOpen(false); 
+        refetchData(); 
+    } 
+    setIsSaving(false); 
+  };
+  // --- AKHIR PERUBAHAN ---
 
-  // fetchData sekarang juga menerima data profil
   const fetchData = async (currentUser: User, currentProfile: Profile) => {
     if (!currentProfile.household_id) {
         setIsLoading(false);
@@ -72,25 +120,16 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const refetchData = useCallback(() => {
-    if (user && profile) { // Diubah untuk menggunakan profile
-      console.log('Refetching data...');
-      fetchData(user, profile);
-      setDataVersion(v => v + 1);
-    }
-  }, [user, profile]);
-
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        // Perbaikan: Ambil semua data profile, bukan hanya household_id
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (profileData) {
-            setProfile(profileData); // Simpan seluruh objek profile
-            setHouseholdId(profileData.household_id); // Tetap simpan householdId untuk kompatibilitas
+            setProfile(profileData);
+            setHouseholdId(profileData.household_id);
             await fetchData(session.user, profileData);
         } else {
             setIsLoading(false);
@@ -109,7 +148,6 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
     return () => { channels.forEach(channel => supabase.removeChannel(channel)); };
   }, [householdId, refetchData]);
 
-  // Perbaikan: Tambahkan 'profile' ke dalam objek value
   const value = { accounts, categories, isLoading, user, householdId, profile, dataVersion, refetchData, handleOpenModalForCreate, handleOpenModalForEdit };
 
   return (
