@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 
 const PAGE_SIZE = 20;
 
-// --- DEFINISIKAN INTERFACE UNTUK PROPS ---
 interface TransactionListProps {
     userId: string;
     startEdit: (transaction: Transaction) => void;
@@ -26,7 +25,6 @@ interface TransactionListProps {
     onDataLoaded: () => void;
     onTransactionChange: () => void;
 }
-// --- AKHIR DEFINISI ---
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
 
@@ -47,7 +45,7 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); 
 };
 
-export default function TransactionList({ userId, startEdit, filters, onDataLoaded, onTransactionChange }: TransactionListProps) { // Gunakan interface
+export default function TransactionList({ userId, startEdit, filters, onDataLoaded, onTransactionChange }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -61,8 +59,8 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
   const menuRef = useRef<HTMLDivElement>(null);
   const { householdId } = useAppData();
 
-  const fetchTransactions = useCallback(async (pageNum: number) => { // Hapus isInitialLoad
-    if (!householdId || (isLoading && pageNum > 0)) {
+  const fetchTransactions = useCallback(async (pageNum: number) => {
+    if (!householdId) {
         if (pageNum === 0) onDataLoaded();
         return;
     }
@@ -99,20 +97,20 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
     
     if (pageNum === 0) onDataLoaded();
     setIsLoading(false);
-  }, [householdId, filters, onDataLoaded, isLoading]);
+  }, [householdId, filters, onDataLoaded]);
 
   useEffect(() => {
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
     setTimeout(() => fetchTransactions(0), 0);
-  }, [filters, fetchTransactions]); // Tambahkan fetchTransactions
+  }, [filters, fetchTransactions]);
 
   useEffect(() => {
       if (page > 0) {
           fetchTransactions(page);
       }
-  }, [page, fetchTransactions]); // Tambahkan fetchTransactions
+  }, [page, fetchTransactions]);
 
   useEffect(() => {
     const handleObserver = (entries: IntersectionObserverEntry[]) => {
