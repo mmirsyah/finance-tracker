@@ -13,6 +13,7 @@ import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CashFlowReportTab from './CashFlowReportTab';
 import SpendingReportTab from './SpendingReportTab';
+import { TransactionSummary } from '@/types';
 
 // --- DEFINISI TIPE DATA ---
 interface SummaryMetrics {
@@ -49,6 +50,7 @@ export interface ReportData {
   cashFlow: CashFlowItem[];
   topTransactions: TopTransactionItem[];
   spendingByCategory: SpendingByCategoryItem[];
+  detailedSummary: TransactionSummary;
 }
 
 export default function ReportsView() {
@@ -76,7 +78,17 @@ export default function ReportsView() {
               name: categories.find(c => c.id === item.category_id)?.name || 'Lainnya',
               value: item.total_spent
           }));
-          setReportData({ ...data, spendingByCategory: spendingData });
+          
+          // --- PERBAIKAN: Membangun objek baru secara eksplisit ---
+          // Ini memastikan semua properti yang dibutuhkan oleh 'ReportData' ada.
+          const finalData: ReportData = {
+            summary: data.summary,
+            cashFlow: data.cashFlow,
+            topTransactions: data.topTransactions,
+            detailedSummary: data.detailedSummary,
+            spendingByCategory: spendingData, // Gunakan data yang sudah di-map
+          };
+          setReportData(finalData);
         })
         .catch(error => {
           console.error("Failed to fetch report data:", error);
