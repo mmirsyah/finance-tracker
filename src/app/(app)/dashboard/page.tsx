@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-// useRouter tidak lagi dibutuhkan untuk redirect
 import { ArrowDown, ArrowUp, Minus, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, Metric, Text, Flex } from '@tremor/react';
 import { format, subDays, differenceInDays } from 'date-fns';
@@ -33,11 +32,11 @@ interface MetricCardProps {
 
 const MetricCard = ({ title, icon: Icon, iconColor, currentValue, previousValue, isPositiveGood = true }: MetricCardProps) => {
   const diff = previousValue === 0 
-    ? (currentValue > 0 ? 100 : 0)
-    : ((currentValue - previousValue) / previousValue) * 100;
+    ? (currentValue !== 0 ? 100 : 0)
+    : ((currentValue - previousValue) / Math.abs(previousValue)) * 100;
   
   const isPositive = diff >= 0;
-  const isNeutral = Math.abs(diff) < 0.1;
+  const isNeutral = Math.abs(diff) < 0.1 || (currentValue === 0 && previousValue === 0);
 
   let trendIcon;
   let trendColor;
@@ -123,7 +122,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const initializeDashboard = async () => {
-      // Hapus pengecekan redirect, karena sudah dihandle oleh AppLayout
       if (!user || !householdId || !date?.from) {
         return;
       }
@@ -179,6 +177,7 @@ export default function DashboardPage() {
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
 
   const netCashFlow = comparisonData.current_income - comparisonData.current_spending;
+  const previousNetCashFlow = comparisonData.previous_income - comparisonData.previous_spending;
 
   const renderDateRangeText = () => {
     if (date?.from && date?.to) {
@@ -212,22 +211,21 @@ export default function DashboardPage() {
           previousValue={comparisonData.previous_spending}
           isPositiveGood={false}
         />
-        <Card>
-            <Flex justifyContent="start" className="space-x-4">
-                <div className={`p-3 rounded-full ${netCashFlow >= 0 ? 'bg-blue-100' : 'bg-orange-100'}`}>
-                    <Minus className={`w-6 h-6 ${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`} />
-                </div>
-                <div>
-                    <Text>Net Cash Flow</Text>
-                    <Metric className={`${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{formatCurrency(netCashFlow)}</Metric>
-                </div>
-            </Flex>
-        </Card>
+        <MetricCard
+          title="Net Cash Flow"
+          icon={Minus}
+          iconColor={netCashFlow >= 0 ? "bg-blue-500" : "bg-orange-500"}
+          currentValue={netCashFlow}
+          previousValue={previousNetCashFlow}
+          isPositiveGood={true}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <CashFlowChart startDate={startDate} />
+          {/* --- PERUBAHAN DI SINI: MENGIRIMKAN startDate & endDate --- */}
+          <CashFlowChart startDate={startDate} endDate={endDate} />
+          
           <SpendingByCategory data={spendingData} />
         </div>
         <div className="lg:col-span-1">
