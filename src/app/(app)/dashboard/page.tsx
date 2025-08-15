@@ -26,7 +26,8 @@ const formatCurrency = (value: number | null | undefined) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoading: isAppDataLoading, dataVersion, categories } = useAppData();
+  // --- PERBAIKAN: Ambil householdId dari context ---
+  const { user, isLoading: isAppDataLoading, dataVersion, categories, householdId } = useAppData();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +60,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const initializeDashboard = async () => {
-      if (!user) {
+      // --- PERBAIKAN: Pastikan householdId juga sudah siap ---
+      if (!user || !householdId) {
         if (!isAppDataLoading) router.push('/login');
         return;
       }
@@ -68,9 +70,10 @@ export default function DashboardPage() {
 
       setLoading(true);
       try {
+        // --- PERBAIKAN: Gunakan p_household_id, bukan p_user_id ---
         const [ summaryResult, spendingResult ] = await Promise.all([
-          supabase.rpc('get_transaction_summary', { p_user_id: user.id, p_start_date: startDate, p_end_date: endDate }),
-          supabase.rpc('get_spending_by_category', { p_user_id: user.id, p_start_date: startDate, p_end_date: endDate }),
+          supabase.rpc('get_transaction_summary', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
+          supabase.rpc('get_spending_by_category', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
         ]);
 
         if (summaryResult.error) throw new Error(`Summary Error: ${summaryResult.error.message}`);
@@ -79,7 +82,6 @@ export default function DashboardPage() {
         if (Array.isArray(summaryResult.data)) setSummary(summaryResult.data[0]);
 
         if (Array.isArray(spendingResult.data)) {
-          // --- PERBAIKAN UTAMA DI SINI: Memberikan tipe yang eksplisit pada accumulator ---
           const spendingMap = spendingResult.data.reduce((acc: Record<string, number>, item) => {
             const categoryName = categories.find(c => c.id === item.category_id)?.name || 'Lainnya';
             if (!acc[categoryName]) {
@@ -106,7 +108,7 @@ export default function DashboardPage() {
       }
     };
     initializeDashboard();
-  }, [router, user, isAppDataLoading, startDate, endDate, dataVersion, date, categories]);
+  }, [router, user, householdId, isAppDataLoading, startDate, endDate, dataVersion, date, categories]);
 
   if (isAppDataLoading || loading || !date) return <DashboardSkeleton />;
   if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
@@ -157,7 +159,6 @@ export default function DashboardPage() {
               <div className="ml-20">
                 {spendingData.map((item, index) => (
                   <div key={item.name} className="flex items-center space-x-2 my-2">
-                    {/* Menggunakan modulo (%) untuk mencegah error jika kategori > warna */}
                     <span className={`w-3 h-3 rounded-full bg-${spendingColors[index % spendingColors.length]}-500`}></span>
                     <Text className="w-24 truncate">{item.name}</Text>
                     <Text className="font-medium">{formatCurrency(item.value)}</Text>

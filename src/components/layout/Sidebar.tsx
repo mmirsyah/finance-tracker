@@ -5,9 +5,9 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { 
-  LayoutDashboard, Wallet, ArrowRightLeft, PieChart, 
-  Target, FileText, Shapes, Settings, X, LogOut
+import {
+  LayoutDashboard, Wallet, ArrowRightLeft, PieChart,
+  FileText, Shapes, Settings, X, LogOut // <-- PERBAIKAN: 'Target' sudah dihapus dari sini
 } from 'lucide-react';
 
 interface NavItem { href: string; label: string; icon: React.ElementType; }
@@ -38,7 +38,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   return (
     <>
-      <div 
+      <div
         className={`fixed inset-0 bg-gray-900 bg-opacity-50 z-30 transition-opacity duration-200 lg:hidden ${
           sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
@@ -46,7 +46,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         onClick={() => setSidebarOpen(false)}
       ></div>
 
-      <aside 
+      <aside
         className={`fixed left-0 top-0 z-40 h-screen w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
@@ -62,11 +62,11 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="flex flex-col justify-between flex-1">
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             {navItems.map((item) => {
-              const isActive = item.href === '/transactions' ? pathname === item.href : pathname.startsWith(item.href);
+              const isActive = pathname.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href}
                   className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
@@ -91,7 +91,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <Settings className="w-5 h-5" />
               <span>Settings</span>
             </Link>
-            
+
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-gray-600 hover:bg-gray-100"
