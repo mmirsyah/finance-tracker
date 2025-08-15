@@ -27,7 +27,7 @@ const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Mulai dengan true
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -43,65 +43,9 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [formToAccountId, setFormToAccountId] = useState('');
   const [formNote, setFormNote] = useState('');
   const [formDate, setFormDate] = useState('');
-
-  const refetchData = useCallback(() => {
-    if (user && profile) {
-      console.log('Refetching data...');
-      fetchData(user, profile);
-      setDataVersion(v => v + 1);
-    }
-  }, [user, profile]);
-
-  const handleOpenModalForCreate = () => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); };
-  const handleOpenModalForEdit = (transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsModalOpen(true); };
   
-  // --- PERUBAHAN DI SINI: Logika Notifikasi "Kemenangan Kecil" ---
-  const handleSaveTransaction = async () => { 
-    setIsSaving(true); 
-    if (!user || !householdId) { 
-        toast.error('User session not found.'); 
-        setIsSaving(false); 
-        return; 
-    } 
-    const payload = { 
-        type: formType, 
-        amount: Number(formAmount), 
-        note: formNote || null, 
-        date: formDate, 
-        user_id: user.id, 
-        household_id: householdId, 
-        category: formType !== 'transfer' ? Number(formCategory) : null, 
-        account_id: formAccountId, 
-        to_account_id: formType === 'transfer' ? formToAccountId : null, 
-    }; 
-    
-    const success = await transactionService.saveTransaction(supabase, payload, editId); 
-    
-    if (success) { 
-        // Logika perayaan dimulai
-        if (formType === 'transfer' && formToAccountId) {
-            const targetAccount = accounts.find(acc => acc.id === formToAccountId);
-            if (targetAccount && targetAccount.type === 'goal') {
-                // Tampilkan notifikasi spesial jika transfer ke akun 'goal'
-                toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`);
-            } else {
-                 toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
-            }
-        } else {
-             toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
-        }
-        // Logika perayaan selesai
-        
-        setIsModalOpen(false); 
-        refetchData(); 
-    } 
-    setIsSaving(false); 
-  };
-  // --- AKHIR PERUBAHAN ---
-
-  const fetchData = async (currentUser: User, currentProfile: Profile) => {
+  const fetchData = useCallback(async (currentUser: User, currentProfile: Profile) => {
     if (!currentProfile.household_id) {
-        setIsLoading(false);
         return;
     }
     try {
@@ -115,32 +59,58 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
       setCategories(categoriesRes.data || []);
     } catch (error) {
       console.error("Error fetching app data:", error);
-    } finally {
-      setIsLoading(false);
+      toast.error("Failed to fetch app data.");
     }
-  };
+  }, []);
+
+  const refetchData = useCallback(() => {
+    if (user && profile) {
+      console.log('Refetching data...');
+      fetchData(user, profile);
+      setDataVersion(v => v + 1);
+    }
+  }, [user, profile, fetchData]);
 
   useEffect(() => {
     const initialize = async () => {
-      setIsLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-        if (profileData) {
-            setProfile(profileData);
-            setHouseholdId(profileData.household_id);
-            await fetchData(session.user, profileData);
-        } else {
-            setIsLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
+          const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+          if (profileData) {
+              setProfile(profileData);
+              setHouseholdId(profileData.household_id);
+              await fetchData(session.user, profileData);
+          }
         }
-      } else {
+      } catch (error) {
+        console.error("Initialization error:", error);
+        toast.error("Failed to initialize session.");
+      } finally {
+        // isLoading hanya di-set ke false di satu tempat ini saja
         setIsLoading(false);
       }
     };
     initialize();
-  }, []);
+  }, [fetchData]);
 
+  // Sisa fungsi tidak berubah...
+  const handleOpenModalForCreate = () => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); };
+  const handleOpenModalForEdit = (transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsModalOpen(true); };
+  const handleSaveTransaction = async () => { 
+    setIsSaving(true); 
+    if (!user || !householdId) { toast.error('User session not found.'); setIsSaving(false); return; } 
+    const payload = { type: formType, amount: Number(formAmount), note: formNote || null, date: formDate, user_id: user.id, household_id: householdId, category: formType !== 'transfer' ? Number(formCategory) : null, account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null, }; 
+    const success = await transactionService.saveTransaction(supabase, payload, editId); 
+    if (success) { 
+        if (formType === 'transfer' && formToAccountId) { const targetAccount = accounts.find(acc => acc.id === formToAccountId); if (targetAccount && targetAccount.type === 'goal') { toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); } else { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); } } else { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); }
+        setIsModalOpen(false); 
+        refetchData(); 
+    } 
+    setIsSaving(false); 
+  };
+  
   useEffect(() => {
     if (!householdId) return;
     const channelDefs = [{ table: 'transactions' }, { table: 'accounts' }, { table: 'categories' }];

@@ -15,7 +15,6 @@ import CashFlowReportTab from './CashFlowReportTab';
 import SpendingReportTab from './SpendingReportTab';
 import { TransactionSummary } from '@/types';
 
-// --- DEFINISI TIPE DATA ---
 interface SummaryMetrics {
   total_expense: number;
   total_income: number;
@@ -79,14 +78,12 @@ export default function ReportsView() {
               value: item.total_spent
           }));
           
-          // --- PERBAIKAN: Membangun objek baru secara eksplisit ---
-          // Ini memastikan semua properti yang dibutuhkan oleh 'ReportData' ada.
           const finalData: ReportData = {
             summary: data.summary,
             cashFlow: data.cashFlow,
             topTransactions: data.topTransactions,
             detailedSummary: data.detailedSummary,
-            spendingByCategory: spendingData, // Gunakan data yang sudah di-map
+            spendingByCategory: spendingData,
           };
           setReportData(finalData);
         })
@@ -99,9 +96,13 @@ export default function ReportsView() {
   }, [householdId, date, categories]);
 
 
-  if (isLoading || !date) {
+  if (isLoading || !date?.from || !date?.to) {
     return <ReportSkeleton />;
   }
+
+  // Definisikan startDate dan endDate di sini untuk diteruskan ke anak komponen
+  const startDate = format(date.from, 'yyyy-MM-dd');
+  const endDate = format(date.to, 'yyyy-MM-dd');
 
   return (
     <div className="p-4 sm:p-6">
@@ -120,7 +121,7 @@ export default function ReportsView() {
             <CashFlowReportTab data={reportData} />
         </TabsContent>
         <TabsContent value="spending" className="mt-6">
-            <SpendingReportTab data={reportData} />
+            <SpendingReportTab data={reportData} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="income">
             {/* Placeholder untuk tab Pemasukan di masa depan */}

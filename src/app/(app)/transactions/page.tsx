@@ -1,7 +1,7 @@
 // src/app/(app)/transactions/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react'; // Tambahkan useCallback
 import TransactionSummary from '@/components/transaction/TransactionSummary';
 import TransactionList from '@/components/TransactionList';
 import TransactionToolbar from '@/components/TransactionToolbar';
@@ -25,8 +25,8 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterAccount, setFilterAccount] = useState<string>('');
-  const [filterStartDate, setFilterStartDate] = useState<string>('');
-  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  
+  // State filter tanggal tidak lagi diperlukan di sini, karena sudah di-handle oleh `date`
   
   useEffect(() => {
     if (user && !date) {
@@ -39,10 +39,11 @@ export default function TransactionsPage() {
     }
   }, [user, date]);
 
-  useEffect(() => {
-    if (date?.from) { setFilterStartDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterStartDate(''); }
-    if (date?.to) { setFilterEndDate(format(date.to, 'yyyy-MM-dd')); } 
-    else { if (date?.from) { setFilterEndDate(format(date.from, 'yyyy-MM-dd')); } else { setFilterEndDate(''); } }
+  // Gunakan useMemo untuk mendapatkan string tanggal, ini lebih efisien
+  const { filterStartDate, filterEndDate } = useMemo(() => {
+    const from = date?.from ? format(date.from, 'yyyy-MM-dd') : '';
+    const to = date?.to ? format(date.to, 'yyyy-MM-dd') : (date?.from ? format(date.from, 'yyyy-MM-dd') : '');
+    return { filterStartDate: from, filterEndDate: to };
   }, [date]);
 
   useEffect(() => {
@@ -51,7 +52,16 @@ export default function TransactionsPage() {
     }
   }, [isAppDataLoading, user, router]);
 
-  const handleTransactionChange = () => { setTransactionVersion(v => v + 1); setIsListLoading(true); };
+  // --- BUNGKUS FUNGSI DENGAN useCallback ---
+  const handleTransactionChange = useCallback(() => { 
+    setTransactionVersion(v => v + 1); 
+    setIsListLoading(true); 
+  }, []);
+
+  const handleDataLoaded = useCallback(() => {
+    setIsListLoading(false);
+  }, []);
+  // --- AKHIR PERUBAHAN ---
 
   const onResetFilters = () => {
     setFilterType(''); setFilterCategory(''); setFilterAccount(''); 
@@ -65,8 +75,8 @@ export default function TransactionsPage() {
     fetchProfileAndSetDate();
   };
 
-  const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, }), 
-    [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate]);
+  const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion }), 
+    [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion]);
   
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
   if (!user) { return null; }
@@ -89,11 +99,10 @@ export default function TransactionsPage() {
             {isListLoading && <TransactionListSkeleton />}
             <div style={{ display: isListLoading ? 'none' : 'block' }}>
               <TransactionList 
-                key={transactionVersion} 
                 userId={user.id} 
                 startEdit={handleOpenModalForEdit} 
                 filters={filters}
-                onDataLoaded={() => setIsListLoading(false)}
+                onDataLoaded={handleDataLoaded}
                 onTransactionChange={handleTransactionChange}
               />
             </div>

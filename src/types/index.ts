@@ -61,7 +61,6 @@ export interface BudgetSummary {
   categories: BudgetCategorySummary[];
 }
 
-// --- PERUBAHAN DI SINI ---
 export interface Account {
   id: string;
   name: string;
@@ -69,13 +68,11 @@ export interface Account {
   household_id: string;
   initial_balance: number;
   balance?: number;
-  // Properti baru untuk fitur Goals
-  type: 'generic' | 'goal'; // Membedakan akun biasa vs. tujuan
+  type: 'generic' | 'goal'; 
   target_amount?: number | null;
   goal_reason?: string | null;
   achieved_at?: string | null;
 }
-// --- AKHIR PERUBAHAN ---
 
 export interface Transaction {
   id: string;
@@ -116,6 +113,13 @@ export type TransactionSummary = {
   first_transaction_date: string;
   last_transaction_date: string;
 };
+
+// --- TAMBAHAN BARU DI SINI ---
+export type SpendingItem = { 
+  name: string; 
+  value: number; 
+};
+// --- AKHIR TAMBAHAN ---
 
 export type TransactionGroup = {
   date: string;
