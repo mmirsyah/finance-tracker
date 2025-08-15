@@ -6,7 +6,8 @@ import { DateRangePicker } from './DateRangePicker';
 import { FilterPopover } from './FilterPopover';
 import { Category, Account } from '@/types';
 import { Button } from './ui/button';
-import { Upload } from 'lucide-react';
+import { Upload, PlusSquare } from 'lucide-react';
+import Link from 'next/link'; // <-- IMPORT BARU
 
 interface TransactionToolbarProps {
   dateRange: DateRange | undefined;
@@ -28,6 +29,13 @@ export default function TransactionToolbar({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Transactions</h1>
         <div className="flex items-center gap-2">
+          {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+          <Link href="/transactions/bulk-add" passHref>
+            <Button variant="outline">
+                <PlusSquare className="mr-2 h-4 w-4" /> Input Massal
+            </Button>
+          </Link>
+          
           <Button variant="outline" onClick={onOpenImportModal}>
             <Upload className="mr-2 h-4 w-4" /> Impor
           </Button>
