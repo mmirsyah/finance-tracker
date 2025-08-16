@@ -8,12 +8,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { format } from 'date-fns';
 
-// --- PERBAIKAN UTAMA: Kembalikan PageProps dan definisikan params sebagai Promise ---
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-// Fungsi fetchData tidak berubah
 async function fetchData(supabase: SupabaseClient, categoryId: number, householdId: string) {
   const { data: category, error: categoryError } = await supabase
     .from('categories').select('*, parent:parent_id ( name )').eq('id', categoryId).single();
@@ -64,16 +62,16 @@ async function fetchData(supabase: SupabaseClient, categoryId: number, household
 }
 
 export default async function CategoryDetailPage({ params }: PageProps) {
-  // --- PERBAIKAN KEDUA: Gunakan 'await' untuk membuka Promise params ---
   const { id } = await params;
   const categoryId = Number(id);
 
   const supabase = createClient();
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) { notFound(); }
+  // --- PERBAIKAN UTAMA DI SINI: Gunakan getUser() untuk verifikasi ---
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { notFound(); }
 
-  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', session.user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', user.id).single();
   if (!profile?.household_id) { notFound(); }
 
   const { category, transactions, analytics } = await fetchData(supabase, categoryId, profile.household_id);

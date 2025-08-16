@@ -16,7 +16,6 @@ interface AppDataContextType {
   profile: Profile | null;
   dataVersion: number;
   refetchData: () => void;
-  // Fungsi-fungsi modal akan disediakan oleh AppLayout, bukan context inti
   handleOpenModalForCreate: () => void;
   handleOpenModalForEdit: (transaction: Transaction) => void;
   handleOpenImportModal: () => void;
@@ -60,14 +59,15 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initialize = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-          const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        // --- PERBAIKAN UTAMA DI SINI: Gunakan getUser() ---
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          setUser(currentUser);
+          const { data: profileData } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
           if (profileData) {
               setProfile(profileData);
               setHouseholdId(profileData.household_id);
-              await fetchData(session.user, profileData);
+              await fetchData(currentUser, profileData);
           }
         }
       } catch (error) {
