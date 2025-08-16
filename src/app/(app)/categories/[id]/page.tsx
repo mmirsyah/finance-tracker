@@ -1,6 +1,5 @@
 // src/app/(app)/categories/[id]/page.tsx
 
-// --- PERBAIKAN: Import createClient dari server utils ---
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import CategoryDetailView from './CategoryDetailView';
@@ -9,14 +8,14 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { format } from 'date-fns';
 
+// --- PERBAIKAN UTAMA DI SINI ---
+// Tipe untuk params sekarang adalah objek biasa, bukan Promise.
 type PageProps = {
   params: { id: string };
 };
 
 // Fungsi untuk mengambil data di server
 async function fetchData(supabase: SupabaseClient, categoryId: number, householdId: string) {
-  // Ambil kategori utama
-  // --- PERBAIKAN: Menambahkan 'parent' ke tipe Category ---
   const { data: category, error: categoryError } = await supabase
     .from('categories').select('*, parent:parent_id ( name )').eq('id', categoryId).single();
   
@@ -25,7 +24,6 @@ async function fetchData(supabase: SupabaseClient, categoryId: number, household
     return { category: null, transactions: [], analytics: null };
   }
 
-  // Ambil semua transaksi (tanpa filter tanggal di sini, agar view bisa fleksibel)
   const { data: categoryIdsData, error: rpcError } = await supabase.rpc('get_category_with_descendants', { p_category_id: categoryId });
   if (rpcError) {
     console.error("RPC Error fetching descendants:", rpcError);
@@ -43,13 +41,11 @@ async function fetchData(supabase: SupabaseClient, categoryId: number, household
     console.error("Error fetching transactions:", transactionsError);
   }
 
-  // Dapatkan periode default pengguna untuk analisis awal
   const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('household_id', householdId).limit(1).single();
   const period = getCustomPeriod(profile?.period_start_day || 1);
   const startDate = format(period.from, 'yyyy-MM-dd');
   const endDate = format(period.to, 'yyyy-MM-dd');
 
-  // Ambil data analitik untuk periode default
   const { data: analytics, error: analyticsError } = await supabase.rpc('get_category_analytics', {
     p_household_id: householdId,
     p_category_id: categoryId,
@@ -69,10 +65,10 @@ async function fetchData(supabase: SupabaseClient, categoryId: number, household
 }
 
 export default async function CategoryDetailPage({ params }: PageProps) {
+  // --- PERBAIKAN KEDUA: Hapus 'await' dari sini ---
   const { id } = params;
   const categoryId = Number(id);
 
-  // --- PERBAIKAN UTAMA: Gunakan createClient() yang sudah ada ---
   const supabase = createClient();
 
   const { data: { session } } = await supabase.auth.getSession();
