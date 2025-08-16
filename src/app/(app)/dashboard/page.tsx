@@ -15,7 +15,6 @@ import { getCustomPeriod } from '@/lib/periodUtils';
 import CashFlowChart from '@/components/dashboard/CashFlowChart';
 import SpendingByCategory from '@/components/dashboard/SpendingByCategory';
 
-// --- PERBAIKAN: Definisikan tipe untuk data chart ---
 interface SpendingDataPoint {
   id: number;
   name: string;
@@ -74,7 +73,6 @@ export default function DashboardPage() {
   const [periodStartDay, setPeriodStartDay] = useState<number>(1);
   const [comparisonData, setComparisonData] = useState({ current_income: 0, current_spending: 0, previous_income: 0, previous_spending: 0 });
   
-  // --- PERBAIKAN: Gunakan tipe yang sudah didefinisikan ---
   const [spendingData, setSpendingData] = useState<SpendingDataPoint[]>([]);
 
   useEffect(() => {
@@ -161,15 +159,16 @@ export default function DashboardPage() {
         <MetricCard title="Net Cash Flow" icon={Minus} iconColor={netCashFlow >= 0 ? "bg-blue-500" : "bg-orange-500"} currentValue={netCashFlow} previousValue={previousNetCashFlow} isPositiveGood={true} />
       </div>
       
+      {/* --- PERBAIKAN UTAMA PADA LAYOUT DI SINI --- */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
             <CashFlowChart startDate={startDate} endDate={endDate} />
-        </div>
-        <div className="lg:col-span-1">
-            <RecentTransactions />
         </div>
         <div className="lg:col-span-2">
             <SpendingByCategory data={spendingData} />
+        </div>
+        <div className="lg:col-span-1">
+            <RecentTransactions />
         </div>
       </div>
     </div>
