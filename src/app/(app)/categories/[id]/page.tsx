@@ -1,80 +1,95 @@
-// src/app/categories/[id]/page.tsx
+// src/app/(app)/categories/[id]/page.tsx
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+// --- PERBAIKAN: Import createClient dari server utils ---
+import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import CategoryDetailView from './CategoryDetailView';
-import { Transaction, /*Category --> tidak digunakan */ } from '@/types';
+import { Transaction, Category } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getCustomPeriod } from '@/lib/periodUtils';
+import { format } from 'date-fns';
 
-// Definisikan tipe untuk params Promise, sesuai referensi Anda
 type PageProps = {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 };
 
 // Fungsi untuk mengambil data di server
-async function fetchData(supabase: SupabaseClient, categoryId: number, userId: string) {
+async function fetchData(supabase: SupabaseClient, categoryId: number, householdId: string) {
+  // Ambil kategori utama
+  // --- PERBAIKAN: Menambahkan 'parent' ke tipe Category ---
   const { data: category, error: categoryError } = await supabase
-    .from('categories').select('*').eq('id', categoryId).single();
+    .from('categories').select('*, parent:parent_id ( name )').eq('id', categoryId).single();
   
   if (categoryError) {
     console.error("Error fetching category:", categoryError);
-    return { category: null, transactions: [] };
+    return { category: null, transactions: [], analytics: null };
   }
 
-  const { data: categoryIds, error: rpcError } = await supabase.rpc('get_category_with_descendants', { p_category_id: categoryId });
+  // Ambil semua transaksi (tanpa filter tanggal di sini, agar view bisa fleksibel)
+  const { data: categoryIdsData, error: rpcError } = await supabase.rpc('get_category_with_descendants', { p_category_id: categoryId });
   if (rpcError) {
-    console.error("Error fetching descendant categories:", rpcError);
-    return { category, transactions: [] };
+    console.error("RPC Error fetching descendants:", rpcError);
+    return { category: category as Category, transactions: [], analytics: null };
   }
-  const allCategoryIds = categoryIds.map((row: { id: number }) => row.id);
+  const allCategoryIds = categoryIdsData.map((r: {id: number}) => r.id);
 
   const { data: transactions, error: transactionsError } = await supabase
     .from('transactions').select('*, accounts:account_id (name), to_account:to_account_id (name)')
-    .in('category', allCategoryIds).eq('user_id', userId).order('date', { ascending: false });
+    .eq('household_id', householdId)
+    .in('category', allCategoryIds)
+    .order('date', { ascending: false });
   
   if (transactionsError) {
     console.error("Error fetching transactions:", transactionsError);
-    return { category, transactions: [] };
   }
 
-  return { category, transactions: transactions as Transaction[] };
+  // Dapatkan periode default pengguna untuk analisis awal
+  const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('household_id', householdId).limit(1).single();
+  const period = getCustomPeriod(profile?.period_start_day || 1);
+  const startDate = format(period.from, 'yyyy-MM-dd');
+  const endDate = format(period.to, 'yyyy-MM-dd');
+
+  // Ambil data analitik untuk periode default
+  const { data: analytics, error: analyticsError } = await supabase.rpc('get_category_analytics', {
+    p_household_id: householdId,
+    p_category_id: categoryId,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+
+  if (analyticsError) {
+      console.error("Error fetching category analytics:", analyticsError);
+  }
+
+  return { 
+    category: category as Category & { parent: { name: string } | null }, 
+    transactions: (transactions as Transaction[]) || [],
+    analytics: analytics || {}
+  };
 }
 
-// Halaman "Manajer" sekarang async dan menggunakan pola Promise
 export default async function CategoryDetailPage({ params }: PageProps) {
-  const { id } = await params; // Membuka "janji" params
+  const { id } = params;
   const categoryId = Number(id);
 
-  const cookieStore = await cookies(); // Menunggu cookies
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return cookieStore.get(name)?.value },
-        set(name: string, value: string, options: CookieOptions) { cookieStore.set({ name, value, ...options }) },
-        remove(name: string, options: CookieOptions) { cookieStore.set({ name, value: '', ...options }) },
-      },
-    }
-  );
+  // --- PERBAIKAN UTAMA: Gunakan createClient() yang sudah ada ---
+  const supabase = createClient();
 
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return notFound();
-  }
+  if (!session) { notFound(); }
 
-  const { category, transactions } = await fetchData(supabase, categoryId, session.user.id);
+  const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', session.user.id).single();
+  if (!profile?.household_id) { notFound(); }
+
+  const { category, transactions, analytics } = await fetchData(supabase, categoryId, profile.household_id);
   
-  if (!category) {
-    notFound();
-  }
+  if (!category) { notFound(); }
   
-  // "Manajer" memanggil "Pekerja" dan memberikan data yang sudah matang
   return (
     <CategoryDetailView 
       initialCategory={category}
       initialTransactions={transactions}
+      initialAnalytics={analytics}
     />
   );
 }
