@@ -8,7 +8,12 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { format } from 'date-fns';
 
-// --- FUNGSI fetchData TIDAK BERUBAH ---
+// --- PERBAIKAN UTAMA: Kembalikan PageProps dan definisikan params sebagai Promise ---
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+// Fungsi fetchData tidak berubah
 async function fetchData(supabase: SupabaseClient, categoryId: number, householdId: string) {
   const { data: category, error: categoryError } = await supabase
     .from('categories').select('*, parent:parent_id ( name )').eq('id', categoryId).single();
@@ -58,10 +63,9 @@ async function fetchData(supabase: SupabaseClient, categoryId: number, household
   };
 }
 
-// --- PERBAIKAN UTAMA DI SINI ---
-// Hapus definisi 'type PageProps' dan definisikan props secara inline.
-export default async function CategoryDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function CategoryDetailPage({ params }: PageProps) {
+  // --- PERBAIKAN KEDUA: Gunakan 'await' untuk membuka Promise params ---
+  const { id } = await params;
   const categoryId = Number(id);
 
   const supabase = createClient();
