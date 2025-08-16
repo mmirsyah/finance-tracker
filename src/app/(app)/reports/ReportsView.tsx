@@ -15,6 +15,7 @@ import CashFlowReportTab from './CashFlowReportTab';
 import SpendingReportTab from './SpendingReportTab';
 import { TransactionSummary } from '@/types';
 
+// ... (interface tidak berubah)
 interface SummaryMetrics {
   total_expense: number;
   total_income: number;
@@ -52,6 +53,7 @@ export interface ReportData {
   detailedSummary: TransactionSummary;
 }
 
+
 export default function ReportsView() {
   const { householdId, profile, categories } = useAppData();
   const [date, setDate] = useState<DateRange | undefined>();
@@ -74,7 +76,7 @@ export default function ReportsView() {
         .then(data => {
           const spendingData = data.spendingByCategory.map((item: RawSpendingItem) => ({
               category_id: item.category_id,
-              name: categories.find(c => c.id === item.category_id)?.name || 'Lainnya',
+              name: categories.find(c => c.id === item.category_id)?.name || 'Others',
               value: item.total_spent
           }));
           
@@ -89,7 +91,7 @@ export default function ReportsView() {
         })
         .catch(error => {
           console.error("Failed to fetch report data:", error);
-          toast.error("Gagal memuat data laporan.", { description: error.message });
+          toast.error("Failed to load report data.", { description: error.message });
         })
         .finally(() => setIsLoading(false));
     }
@@ -100,22 +102,21 @@ export default function ReportsView() {
     return <ReportSkeleton />;
   }
 
-  // Definisikan startDate dan endDate di sini untuk diteruskan ke anak komponen
   const startDate = format(date.from, 'yyyy-MM-dd');
   const endDate = format(date.to, 'yyyy-MM-dd');
 
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Laporan & Analisa</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Reports & Analysis</h1>
         <DateRangePicker date={date} setDate={setDate} />
       </div>
 
       <Tabs defaultValue="cashflow" className="w-full">
         <TabsList className="grid w-full grid-cols-3 md:w-[400px]">
-            <TabsTrigger value="cashflow">Arus Kas</TabsTrigger>
-            <TabsTrigger value="spending">Pengeluaran</TabsTrigger>
-            <TabsTrigger value="income" disabled>Pemasukan</TabsTrigger>
+            <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
+            <TabsTrigger value="spending">Spending</TabsTrigger>
+            <TabsTrigger value="income" disabled>Income</TabsTrigger>
         </TabsList>
         <TabsContent value="cashflow" className="mt-6">
             <CashFlowReportTab data={reportData} />
@@ -124,7 +125,7 @@ export default function ReportsView() {
             <SpendingReportTab data={reportData} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="income">
-            {/* Placeholder untuk tab Pemasukan di masa depan */}
+            {/* Placeholder for future Income tab */}
         </TabsContent>
       </Tabs>
     </div>

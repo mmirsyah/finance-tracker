@@ -10,7 +10,7 @@ import { getTransactionsForExport } from '@/lib/reportService';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import Papa from 'papaparse';
-import SummaryDisplay from '@/components/SummaryDisplay'; // <-- IMPORT BARU
+import SummaryDisplay from '@/components/SummaryDisplay';
 
 interface Props {
     data: ReportData | null;
@@ -31,17 +31,17 @@ export default function ReportSummaryCard({ data }: Props) {
 
     const handleDownload = async () => {
         if (!householdId || !dateRange?.from || !dateRange?.to) {
-            toast.error("Tidak dapat mengekspor: Rentang tanggal tidak valid.");
+            toast.error("Cannot export: Invalid date range.");
             return;
         }
         setIsDownloading(true);
-        toast.info("Mempersiapkan data untuk diunduh...");
+        toast.info("Preparing data for download...");
         try {
             const startDate = format(dateRange.from, 'yyyy-MM-dd');
             const endDate = format(dateRange.to, 'yyyy-MM-dd');
             const transactionsToExport = await getTransactionsForExport(householdId, startDate, endDate);
             if (!transactionsToExport || transactionsToExport.length === 0) {
-                toast.warning("Tidak ada transaksi untuk diekspor pada periode ini.");
+                toast.warning("No transactions to export in this period.");
                 return;
             }
             const csv = Papa.unparse(transactionsToExport, { header: true, columns: ['tanggal', 'jenis', 'jumlah', 'kategori', 'akun_sumber', 'akun_tujuan', 'catatan'] });
@@ -49,16 +49,16 @@ export default function ReportSummaryCard({ data }: Props) {
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
-            const fileName = `transaksi_${startDate}_hingga_${endDate}.csv`;
+            const fileName = `transaction_report_${startDate}_to_${endDate}.csv`;
             link.setAttribute('download', fileName);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            toast.success("Unduhan CSV berhasil dimulai!");
+            toast.success("CSV download started successfully!");
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan tidak diketahui.";
-            toast.error(`Gagal mengunduh: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            toast.error(`Download failed: ${errorMessage}`);
         } finally {
             setIsDownloading(false);
         }
@@ -66,9 +66,8 @@ export default function ReportSummaryCard({ data }: Props) {
     
     return (
         <Card>
-            <Title>Ringkasan Periode</Title>
+            <Title>Period Summary</Title>
             <div className="mt-4">
-                {/* --- PERUBAHAN UTAMA DI SINI --- */}
                 <SummaryDisplay summary={data?.detailedSummary || null} />
             </div>
             <button 
@@ -77,7 +76,7 @@ export default function ReportSummaryCard({ data }: Props) {
                 className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
             >
                 {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isDownloading ? 'Memproses...' : 'Download CSV'}
+                {isDownloading ? 'Processing...' : 'Download Report (CSV)'}
             </button>
         </Card>
     );

@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import TransactionListSkeleton from '@/components/skeletons/TransactionListSkeleton';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10; // Ubah menjadi 10 sesuai permintaan
 
 interface Props {
   startDate: string;
@@ -33,7 +33,7 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
     const observerRef = useRef<IntersectionObserver | null>(null);
     const loaderRef = useRef<HTMLDivElement | null>(null);
 
-    const fetchTransactions = useCallback(async (pageNum: number) => { // Hapus parameter isInitialLoad
+    const fetchTransactions = useCallback(async (pageNum: number) => {
         if (!householdId) return;
         
         setIsLoading(true);
@@ -52,7 +52,7 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
             .range(from, to);
 
         if (error) {
-            toast.error("Gagal memuat daftar transaksi: " + error.message);
+            toast.error("Failed to load transaction list: " + error.message);
         } else {
             const newTransactions = (data as Transaction[]) || [];
             setTransactions(prev => pageNum === 0 ? newTransactions : [...prev, ...newTransactions]);
@@ -66,13 +66,13 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
         setTransactions([]);
         setHasMore(true);
         setTimeout(() => fetchTransactions(0), 0);
-    }, [startDate, endDate, sortKey, sortDirection, fetchTransactions]); // Tambahkan fetchTransactions
+    }, [startDate, endDate, sortKey, sortDirection, fetchTransactions]);
 
     useEffect(() => {
         if (page > 0) {
             fetchTransactions(page);
         }
-    }, [page, fetchTransactions]); // Tambahkan fetchTransactions
+    }, [page, fetchTransactions]);
 
     useEffect(() => {
         const handleObserver = (entries: IntersectionObserverEntry[]) => {
@@ -133,10 +133,10 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
     return (
         <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b">
-                <h3 className="text-lg font-semibold">Semua Transaksi</h3>
+                <h3 className="text-lg font-semibold">All Transactions</h3>
                 <div className="flex gap-2">
-                    <SortButton columnKey="date" label="Tanggal" />
-                    <SortButton columnKey="amount" label="Jumlah" />
+                    <SortButton columnKey="date" label="Date" />
+                    <SortButton columnKey="amount" label="Amount" />
                 </div>
             </div>
             {transactions.length > 0 ? (
@@ -168,7 +168,7 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
                     </div>
                 </>
             ) : (
-                <p className="p-6 text-center text-gray-500">Tidak ada transaksi pada periode ini.</p>
+                <p className="p-6 text-center text-gray-500">No transactions found for this period.</p>
             )}
         </div>
     );

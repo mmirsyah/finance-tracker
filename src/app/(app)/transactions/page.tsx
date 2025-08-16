@@ -1,7 +1,7 @@
 // src/app/(app)/transactions/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react'; // Tambahkan useCallback
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import TransactionSummary from '@/components/transaction/TransactionSummary';
 import TransactionList from '@/components/TransactionList';
 import TransactionToolbar from '@/components/TransactionToolbar';
@@ -12,21 +12,20 @@ import { useAppData } from '@/contexts/AppDataContext';
 import TransactionListSkeleton from '@/components/skeletons/TransactionListSkeleton';
 import { supabase } from '@/lib/supabase';
 import { getCustomPeriod } from '@/lib/periodUtils';
-import ImportTransactionModal from '@/components/modals/ImportTransactionModal';
+// Hapus import ImportTransactionModal karena sudah tidak dikelola di sini
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const { accounts, categories, isLoading: isAppDataLoading, user, handleOpenModalForEdit } = useAppData();
+  // Hapus onOpenImportModal dari context karena sudah global
+  const { accounts, categories, isLoading: isAppDataLoading, user, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
   const [transactionVersion, setTransactionVersion] = useState(0); 
   const [isListLoading, setIsListLoading] = useState(true);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Hapus state isImportModalOpen
 
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [filterType, setFilterType] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterAccount, setFilterAccount] = useState<string>('');
-  
-  // State filter tanggal tidak lagi diperlukan di sini, karena sudah di-handle oleh `date`
   
   useEffect(() => {
     if (user && !date) {
@@ -39,7 +38,6 @@ export default function TransactionsPage() {
     }
   }, [user, date]);
 
-  // Gunakan useMemo untuk mendapatkan string tanggal, ini lebih efisien
   const { filterStartDate, filterEndDate } = useMemo(() => {
     const from = date?.from ? format(date.from, 'yyyy-MM-dd') : '';
     const to = date?.to ? format(date.to, 'yyyy-MM-dd') : (date?.from ? format(date.from, 'yyyy-MM-dd') : '');
@@ -52,7 +50,6 @@ export default function TransactionsPage() {
     }
   }, [isAppDataLoading, user, router]);
 
-  // --- BUNGKUS FUNGSI DENGAN useCallback ---
   const handleTransactionChange = useCallback(() => { 
     setTransactionVersion(v => v + 1); 
     setIsListLoading(true); 
@@ -61,7 +58,6 @@ export default function TransactionsPage() {
   const handleDataLoaded = useCallback(() => {
     setIsListLoading(false);
   }, []);
-  // --- AKHIR PERUBAHAN ---
 
   const onResetFilters = () => {
     setFilterType(''); setFilterCategory(''); setFilterAccount(''); 
@@ -82,7 +78,7 @@ export default function TransactionsPage() {
   if (!user) { return null; }
 
   return (
-    <>
+    // Hapus <></> yang tidak perlu
       <div className="p-4 sm:p-6 w-full h-full">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 order-2 lg:order-1">
@@ -94,7 +90,7 @@ export default function TransactionsPage() {
               categories={categories}
               accounts={accounts}
               onResetFilters={onResetFilters}
-              onOpenImportModal={() => setIsImportModalOpen(true)}
+              onOpenImportModal={handleOpenImportModal} // Tetap teruskan fungsi global ke toolbar
             />
             {isListLoading && <TransactionListSkeleton />}
             <div style={{ display: isListLoading ? 'none' : 'block' }}>
@@ -117,11 +113,5 @@ export default function TransactionsPage() {
           </div>
         </div>
       </div>
-      
-      <ImportTransactionModal 
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-      />
-    </>
   )
 }

@@ -1,7 +1,7 @@
 // src/components/modals/ImportTransactionModal.tsx
 "use client";
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ const allFields = [...requiredFields, 'kategori', 'akun_tujuan', 'catatan'];
 export default function ImportTransactionModal({ isOpen, onClose }: ImportModalProps) {
   const { householdId, accounts, categories, refetchData } = useAppData();
   const [step, setStep] = useState<Step>('upload');
-  const [/*file*/, setFile] = useState<File | null>(null);
+  // --- PERBAIKAN: Hapus state 'file' yang tidak digunakan ---
   const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -49,15 +49,28 @@ export default function ImportTransactionModal({ isOpen, onClose }: ImportModalP
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetState = () => {
-    setStep('upload'); setFile(null); setParsedData([]); setHeaders([]);
-    setMapping({}); setPreviewRows([]); setResult({ imported: 0, skipped: 0 });
+    setStep('upload'); 
+    setParsedData([]); 
+    setHeaders([]);
+    setMapping({}); 
+    setPreviewRows([]); 
+    setResult({ imported: 0, skipped: 0 });
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+        const timer = setTimeout(() => {
+            resetState();
+        }, 150);
+        return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
   
   const handleFileSelect = (selectedFile: File | null) => {
     if (selectedFile) {
         if (selectedFile.type !== 'text/csv') { toast.error("File tidak valid. Harap unggah file dengan format .csv"); return; }
-        setFile(selectedFile);
+        // Langsung proses file tanpa menyimpannya ke state
         Papa.parse(selectedFile, {
             header: true, skipEmptyLines: true,
             complete: (results) => {
@@ -148,15 +161,19 @@ export default function ImportTransactionModal({ isOpen, onClose }: ImportModalP
     if (status === 'ok') return <CheckCircle className="w-4 h-4 text-green-500" />;
     return <XCircle className="w-4 h-4 text-red-500" />;
   };
+  
+  const handleDialogClose = () => {
+    resetState();
+    onClose();
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { resetState(); onClose(); } }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleDialogClose(); }}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader><DialogTitle>Impor Transaksi dari CSV</DialogTitle></DialogHeader>
         {step === 'upload' && ( <div className="py-6 text-center"> <div onClick={() => fileInputRef.current?.click()} className="p-10 border-2 border-dashed rounded-lg hover:bg-gray-50 cursor-pointer"> <UploadCloud className="mx-auto h-12 w-12 text-gray-400" /> <p className="mt-2 text-sm font-semibold">Klik untuk memilih file</p> <p className="text-xs text-gray-500">Hanya file .csv yang didukung</p> <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} className="hidden" accept=".csv" /> </div> <a href="/template_impor_transaksi.csv" download className="mt-4 inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"> <FileText className="h-4 w-4" /> Unduh Template </a> </div> )}
         {step === 'mapping' && ( <div> <DialogDescription className="mb-4">Cocokkan kolom dari file Anda dengan kolom yang dibutuhkan oleh aplikasi.</DialogDescription> <div className="grid grid-cols-2 gap-4"> {allFields.map(field => ( <div key={field} className="grid grid-cols-2 items-center gap-2"> <Label className="font-semibold capitalize">{field.replace('_', ' ')} {requiredFields.includes(field) && '*'}</Label> <select value={mapping[field] || ''} onChange={(e) => setMapping(prev => ({ ...prev, [field]: e.target.value }))} className="w-full p-2 border rounded-md"> <option value="" disabled>Pilih Kolom...</option> {headers.map(h => <option key={h} value={h}>{h}</option>)} </select> </div> ))} </div> <DialogFooter className="mt-6"><Button onClick={handleProcessMapping}>Lanjutkan ke Pratinjau</Button></DialogFooter> </div> )}
         {step === 'preview' && ( <div className="space-y-4"> {errorCount > 0 && (<div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-md text-sm"><b>{errorCount} baris mengandung error</b> dan akan dilewati. Arahkan kursor ke ikon silang merah untuk melihat detailnya. Perbaiki file CSV Anda lalu unggah kembali.</div>)} <div className="max-h-[50vh] overflow-y-auto border rounded-lg">
-          {/* --- PERBAIKAN HYDRATION WARNING DI SINI --- */}
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-50 z-10">
               <tr className="border-b">
@@ -177,7 +194,7 @@ export default function ImportTransactionModal({ isOpen, onClose }: ImportModalP
           </table>
         </div> <DialogFooter className="mt-6"> <Button variant="outline" onClick={() => setStep('mapping')}>Kembali</Button> <Button onClick={handleImport} disabled={okCount === 0}>Impor {okCount} Transaksi</Button> </DialogFooter> </div> )}
         {step === 'importing' && (<div className="py-20 flex flex-col items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-blue-600" /><p className="mt-4">Mengimpor transaksi...</p></div>)}
-        {step === 'result' && ( <div className="py-10 text-center"> <CheckCircle className="mx-auto h-16 w-16 text-green-500" /> <h3 className="mt-4 text-xl font-semibold">Impor Selesai!</h3> <p>{result.imported} transaksi berhasil diimpor.</p> <Button onClick={onClose} className="mt-6">Tutup</Button> </div> )}
+        {step === 'result' && ( <div className="py-10 text-center"> <CheckCircle className="mx-auto h-16 w-16 text-green-500" /> <h3 className="mt-4 text-xl font-semibold">Impor Selesai!</h3> <p>{result.imported} transaksi berhasil diimpor.</p> <Button onClick={handleDialogClose} className="mt-6">Tutup</Button> </div> )}
       </DialogContent>
     </Dialog>
   );

@@ -1,38 +1,61 @@
 // src/components/layout/Header.tsx
-
 "use client";
 
-import { Menu, Plus } from 'lucide-react';
+import { Menu, Plus, PlusSquare, Upload, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useRouter } from 'next/navigation';
+import { useAppData } from '@/contexts/AppDataContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
-  // Kita asumsikan onAddTransactionClick akan disediakan oleh AppLayout
-  onAddTransactionClick: () => void;
 }
 
-export default function Header({ onMenuClick, onAddTransactionClick }: HeaderProps) {
+export default function Header({ onMenuClick }: HeaderProps) {
+  const router = useRouter();
+  const { handleOpenModalForCreate, handleOpenImportModal } = useAppData();
+
+  // --- PERBAIKAN UTAMA: Bungkus pemanggilan modal dengan setTimeout ---
+  const triggerSingleTransactionModal = () => setTimeout(handleOpenModalForCreate, 0);
+  const triggerBulkInputPage = () => router.push('/transactions/bulk-add');
+  const triggerImportModal = () => setTimeout(handleOpenImportModal, 0);
+
+
   return (
-    
     <header className="sticky top-0 bg-white/75 backdrop-blur-sm border-b border-gray-200 z-30">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Tombol Hamburger Menu */}
-        <button
-          className="p-2 text-gray-500 hover:text-gray-800"
-          onClick={onMenuClick}
-        >
+        <button className="p-2 text-gray-500 hover:text-gray-800" onClick={onMenuClick}>
           <span className="sr-only">Open/Close sidebar</span>
           <Menu className="w-6 h-6" />
         </button>
         
-        {/* Tombol Add Transaction untuk Desktop */}
-        {/* 'hidden' di mobile, 'flex' (terlihat) di layar sm ke atas */}
-        <button
-          onClick={onAddTransactionClick}
-          className="hidden sm:flex items-center gap-2 bg-blue-600 text-white font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow text-sm"
-        >
-          <Plus size={18} />
-          <span>Add Transaction</span>
-        </button>
+        <div className="hidden sm:flex items-center gap-2">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button className="pl-4 pr-2">
+                        <Plus size={18} className="mr-2"/>
+                        <span>Add Transaction</span>
+                        <span className="border-l border-blue-500 h-4 mx-2"></span>
+                        <ChevronDown size={16} />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    {/* Gunakan onSelect agar dropdown tertutup sebelum aksi dijalankan */}
+                    <DropdownMenuItem onSelect={triggerSingleTransactionModal} className="cursor-pointer">
+                        <Plus className="mr-2 h-4 w-4" />
+                        <span>Single Transaction</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={triggerBulkInputPage} className="cursor-pointer">
+                        <PlusSquare className="mr-2 h-4 w-4" />
+                        <span>Bulk Input</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={triggerImportModal} className="cursor-pointer">
+                        <Upload className="mr-2 h-4 w-4" />
+                        <span>Import from CSV</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
       </div>
     </header>
   );
