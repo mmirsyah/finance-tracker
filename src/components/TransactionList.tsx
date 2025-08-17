@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 const PAGE_SIZE = 20;
 
 interface TransactionListProps {
-    userId: string;
     startEdit: (transaction: Transaction) => void;
     filters: {
         filterType: string;
@@ -23,33 +22,32 @@ interface TransactionListProps {
         transactionVersion: number;
     };
     onDataLoaded: () => void;
-    onTransactionChange: () => void;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
 
-const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[] => { 
-  if (!transactions) return []; 
-  const groups = transactions.reduce((acc, t) => { 
-    const date = t.date; 
-    if (!acc[date]) { 
-      acc[date] = { date, subtotal: 0, transactions: [] }; 
-    } 
-    if (t.type !== 'transfer') { 
-      const amount = t.type === 'expense' ? -t.amount : t.amount; 
-      acc[date].subtotal += amount; 
-    } 
-    acc[date].transactions.push(t); 
-    return acc; 
-  }, {} as Record<string, TransactionGroup>); 
-  return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); 
+const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[] => {
+  if (!transactions) return [];
+  const groups = transactions.reduce((acc, t) => {
+    const date = t.date;
+    if (!acc[date]) {
+      acc[date] = { date, subtotal: 0, transactions: [] };
+    }
+    if (t.type !== 'transfer') {
+      const amount = t.type === 'expense' ? -t.amount : t.amount;
+      acc[date].subtotal += amount;
+    }
+    acc[date].transactions.push(t);
+    return acc;
+  }, {} as Record<string, TransactionGroup>);
+  return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-export default function TransactionList({ userId, startEdit, filters, onDataLoaded, onTransactionChange }: TransactionListProps) {
+export default function TransactionList({ startEdit, filters, onDataLoaded }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  
+
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,14 +55,14 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
   const loaderRef = useRef<HTMLDivElement | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
-  const { householdId } = useAppData();
+  const { householdId, refetchData } = useAppData();
 
-  const fetchTransactions = useCallback(async (pageNum: number) => {
+  const fetchTransactions = useCallback(async (pageNum: number, isNewFilter: boolean) => {
     if (!householdId) {
         if (pageNum === 0) onDataLoaded();
         return;
     }
-    
+
     setIsLoading(true);
     setError(null);
 
@@ -84,34 +82,38 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
     if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
     if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
     if (filters.filterEndDate) query = query.lte('date', filters.filterEndDate);
-    
+
     const { data, error: fetchError, count } = await query.returns<Transaction[]>();
-    
-    if (fetchError) { 
-      setError(`Failed to load data: ${fetchError.message}`); 
-    } else { 
+
+    if (fetchError) {
+      setError(`Failed to load data: ${fetchError.message}`);
+    } else {
       const newTransactions = data || [];
-      setAllTransactions(prev => pageNum === 0 ? newTransactions : [...prev, ...newTransactions]);
+      setAllTransactions(prev => isNewFilter ? newTransactions : [...prev, ...newTransactions]);
       setHasMore((count || 0) > (pageNum + 1) * PAGE_SIZE);
     }
-    
+
     if (pageNum === 0) onDataLoaded();
     setIsLoading(false);
   }, [householdId, filters, onDataLoaded]);
 
+  // Effect untuk memuat data ketika filter berubah
   useEffect(() => {
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
-    setTimeout(() => fetchTransactions(0), 0);
+    // setTimeout untuk memastikan state loading di parent sempat ter-update
+    setTimeout(() => fetchTransactions(0, true), 0);
   }, [filters, fetchTransactions]);
 
+  // Effect untuk infinite scroll
   useEffect(() => {
       if (page > 0) {
-          fetchTransactions(page);
+          fetchTransactions(page, false);
       }
   }, [page, fetchTransactions]);
 
+  // Effect untuk setup IntersectionObserver
   useEffect(() => {
     const handleObserver = (entries: IntersectionObserverEntry[]) => {
       const target = entries[0];
@@ -119,37 +121,21 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
         setPage(prevPage => prevPage + 1);
       }
     };
-    
+
     observerRef.current = new IntersectionObserver(handleObserver, { threshold: 0.1 });
-    
-    if (loaderRef.current) {
-      observerRef.current.observe(loaderRef.current);
-    }
-    
+    if (loaderRef.current) observerRef.current.observe(loaderRef.current);
+
     const currentObserver = observerRef.current;
-    
-    return () => {
-      if (currentObserver) {
-        currentObserver.disconnect();
-      }
-    };
+    return () => { if (currentObserver) currentObserver.disconnect(); };
   }, [hasMore, isLoading]);
 
-  useEffect(() => {
-    const channel = supabase.channel(`realtime-transactions-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, 
-          () => { onTransactionChange(); })
-      .subscribe();
-      
-    return () => { supabase.removeChannel(channel); };
-  }, [userId, onTransactionChange]);
-  
-  const handleDelete = async (transactionId: string) => { 
-    if (confirm('Are you sure you want to delete this transaction?')) { 
+  const handleDelete = async (transactionId: string) => {
+    if (confirm('Are you sure you want to delete this transaction?')) {
       const promise = async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
         if (error) { throw error; }
-        onTransactionChange(); 
+        // Sekarang panggil refetchData dari context, bukan callback prop
+        refetchData();
       };
 
       toast.promise(promise(), {
@@ -157,25 +143,25 @@ export default function TransactionList({ userId, startEdit, filters, onDataLoad
         success: 'Transaction deleted!',
         error: (err) => `Error: ${err.message}`,
       });
-      
-      setActiveMenu(null); 
-    } 
+
+      setActiveMenu(null);
+    }
   };
-  
-  useEffect(() => { 
-    const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } }; 
-    document.addEventListener('mousedown', handleClickOutside); 
-    return () => { document.removeEventListener('mousedown', handleClickOutside); }; 
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => { document.removeEventListener('mousedown', handleClickOutside); };
   }, [activeMenu]);
-  
+
   const groupedTransactions = groupTransactionsByDate(allTransactions);
 
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
   if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
-  
+
   const renderTransactionDetails = (t: Transaction) => { if (t.type === 'transfer') { return ( <div className="flex-grow"> <p className="font-semibold text-gray-800">Transfer</p> <div className="text-sm text-gray-500 flex items-center gap-1"> <span>{t.accounts?.name || '?'}</span> <ArrowRight size={12} /> <span>{t.to_account?.name || '?'}</span> </div> </div> ); } return ( <div className="flex-grow"> <p className="font-semibold text-gray-800"> <Link href={`/categories/${t.category}`} className="text-blue-600 hover:text-blue-800 hover:underline">{t.categories?.name || 'Uncategorized'}</Link> </p> <p className="text-sm text-gray-500">{t.note || 'No note'}</p> </div> ); };
   const getAmountColor = (type: string) => { if (type === 'income') return 'text-green-600'; if (type === 'expense') return 'text-red-600'; return 'text-gray-500'; };
-  
+
   return (
     <div className="space-y-4">
       {groupedTransactions.map(group => (

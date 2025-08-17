@@ -12,21 +12,17 @@ import { useAppData } from '@/contexts/AppDataContext';
 import TransactionListSkeleton from '@/components/skeletons/TransactionListSkeleton';
 import { supabase } from '@/lib/supabase';
 import { getCustomPeriod } from '@/lib/periodUtils';
-// Hapus import ImportTransactionModal karena sudah tidak dikelola di sini
 
 export default function TransactionsPage() {
   const router = useRouter();
-  // Hapus onOpenImportModal dari context karena sudah global
-  const { accounts, categories, isLoading: isAppDataLoading, user, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
-  const [transactionVersion, setTransactionVersion] = useState(0); 
+  const { accounts, categories, isLoading: isAppDataLoading, user, dataVersion, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
   const [isListLoading, setIsListLoading] = useState(true);
-  // Hapus state isImportModalOpen
 
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [filterType, setFilterType] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterAccount, setFilterAccount] = useState<string>('');
-  
+
   useEffect(() => {
     if (user && !date) {
       const fetchProfileAndSetDate = async () => {
@@ -50,17 +46,12 @@ export default function TransactionsPage() {
     }
   }, [isAppDataLoading, user, router]);
 
-  const handleTransactionChange = useCallback(() => { 
-    setTransactionVersion(v => v + 1); 
-    setIsListLoading(true); 
-  }, []);
-
   const handleDataLoaded = useCallback(() => {
     setIsListLoading(false);
   }, []);
 
   const onResetFilters = () => {
-    setFilterType(''); setFilterCategory(''); setFilterAccount(''); 
+    setFilterType(''); setFilterCategory(''); setFilterAccount('');
     const fetchProfileAndSetDate = async () => {
         if(user) {
             const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('id', user.id).single();
@@ -71,18 +62,23 @@ export default function TransactionsPage() {
     fetchProfileAndSetDate();
   };
 
-  const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion }), 
-    [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion]);
-  
+  // Pemicu fetch ulang sekarang adalah 'dataVersion' dari context
+  const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion: dataVersion }),
+    [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, dataVersion]);
+
+  // Setiap kali dataVersion berubah, set list ke loading
+  useEffect(() => {
+    setIsListLoading(true);
+  }, [dataVersion]);
+
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
   if (!user) { return null; }
 
   return (
-    // Hapus <></> yang tidak perlu
       <div className="p-4 sm:p-6 w-full h-full">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 order-2 lg:order-1">
-            <TransactionToolbar 
+            <TransactionToolbar
               dateRange={date} setDateRange={setDate}
               filterType={filterType} setFilterType={setFilterType}
               filterCategory={filterCategory} setFilterCategory={setFilterCategory}
@@ -90,23 +86,20 @@ export default function TransactionsPage() {
               categories={categories}
               accounts={accounts}
               onResetFilters={onResetFilters}
-              onOpenImportModal={handleOpenImportModal} // Tetap teruskan fungsi global ke toolbar
+              onOpenImportModal={handleOpenImportModal}
             />
             {isListLoading && <TransactionListSkeleton />}
             <div style={{ display: isListLoading ? 'none' : 'block' }}>
-              <TransactionList 
-                userId={user.id} 
-                startEdit={handleOpenModalForEdit} 
+              <TransactionList
+                startEdit={handleOpenModalForEdit}
                 filters={filters}
                 onDataLoaded={handleDataLoaded}
-                onTransactionChange={handleTransactionChange}
               />
             </div>
           </div>
-          
+
           <div className="order-1 lg:order-2">
-              <TransactionSummary 
-                  userId={user.id} 
+              <TransactionSummary
                   startDate={filterStartDate}
                   endDate={filterEndDate}
               />

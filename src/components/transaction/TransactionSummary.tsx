@@ -1,4 +1,4 @@
-// src/components/TransactionSummary.tsx
+// src/components/transaction/TransactionSummary.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -9,43 +9,42 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { getTransactionsForExport } from '@/lib/reportService';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
-import SummaryDisplay from '@/components/SummaryDisplay'; // <-- IMPORT BARU
+import SummaryDisplay from '@/components/SummaryDisplay';
 
 interface SummaryProps {
-  userId: string;
-  startDate: string; // <-- Prop baru
-  endDate: string;   // <-- Prop baru
+  startDate: string;
+  endDate: string;
 }
 
-export default function TransactionSummary({ userId, startDate, endDate }: SummaryProps) {
+export default function TransactionSummary({ startDate, endDate }: SummaryProps) {
   const [summary, setSummary] = useState<TSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
-  const { householdId } = useAppData();
+  const { householdId, dataVersion } = useAppData(); // Ambil dataVersion dari context
 
-  // Fungsi fetchSummary tidak berubah, tetap mengambil data seumur hidup
+  // fetchSummary sekarang akan dipicu oleh perubahan dataVersion
   const fetchSummary = useCallback(async () => {
-    if (!userId || !householdId) return;
+    if (!householdId) return;
+    setLoading(true);
     const { data, error } = await supabase.rpc('get_transaction_summary', {
       p_household_id: householdId,
       p_start_date: '1970-01-01',
       p_end_date: '2999-12-31',
     });
-    if (error) { 
-      console.error('Error fetching summary:', error); 
-    } else if (data && data.length > 0) { 
-      setSummary(data[0]); 
+    if (error) {
+      console.error('Error fetching summary:', error);
+    } else if (data && data.length > 0) {
+      setSummary(data[0]);
     }
     setLoading(false);
-  }, [userId, householdId]);
+  }, [householdId]);
 
+  // Hapus listener realtime lokal, ganti dengan dependency pada dataVersion
   useEffect(() => {
-    if (userId && householdId) {
+    if (householdId) {
       fetchSummary();
-      const channel = supabase.channel(`transaction_summary_update_for_${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `household_id=eq.${householdId}` }, () => { fetchSummary(); }).subscribe();
-      return () => { supabase.removeChannel(channel); };
     }
-  }, [userId, householdId, fetchSummary]);
+  }, [householdId, dataVersion, fetchSummary]);
 
   const handleDownload = async () => {
     if (!householdId || !startDate || !endDate) {
@@ -81,12 +80,11 @@ export default function TransactionSummary({ userId, startDate, endDate }: Summa
   };
 
   if (loading) { return (<div className="bg-white p-6 rounded-lg shadow-md"><h2 className="text-xl font-bold mb-4 text-gray-800">Summary</h2><div className="text-center text-gray-500">Loading summary...</div></div>); }
-  
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-xl font-bold mb-4 text-gray-800">Lifetime Summary</h2>
-      
-      {/* --- PERUBAHAN UTAMA DI SINI --- */}
+
       <SummaryDisplay summary={summary} />
 
       <button

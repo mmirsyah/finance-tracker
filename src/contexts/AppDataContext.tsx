@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Account, Category, Transaction, Profile } from '@/types'; 
+import { Account, Category, Transaction, Profile } from '@/types';
 import { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
@@ -51,6 +51,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
 
   const refetchData = useCallback(() => {
     if (user && profile) {
+      toast.info("Data is being updated...", { duration: 1000 });
       fetchData(user, profile);
       setDataVersion(v => v + 1);
     }
@@ -59,7 +60,6 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initialize = async () => {
       try {
-        // --- PERBAIKAN UTAMA DI SINI: Gunakan getUser() ---
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         if (currentUser) {
           setUser(currentUser);
@@ -81,15 +81,32 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!householdId) return;
-    const channelDefs = [{ table: 'transactions' }, { table: 'accounts' }, { table: 'categories' }];
-    const channels = channelDefs.map(def => supabase.channel(`public:${def.table}`).on('postgres_changes', { event: '*', schema: 'public', table: def.table, filter: `household_id=eq.${householdId}` }, () => { refetchData(); }).subscribe());
-    return () => { channels.forEach(channel => supabase.removeChannel(channel)); };
+
+    // Listener terpusat untuk semua perubahan data penting
+    const channel = supabase.channel(`household-db-changes-${householdId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'transactions' },
+        () => refetchData()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'accounts' },
+        () => refetchData()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        () => refetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [householdId, refetchData]);
 
-  const value = { 
-    accounts, categories, isLoading, user, householdId, profile, dataVersion, refetchData, 
-    handleOpenModalForCreate: () => console.warn('handleOpenModalForCreate not implemented'), 
-    handleOpenModalForEdit: () => console.warn('handleOpenModalForEdit not implemented'), 
+  const value = {
+    accounts, categories, isLoading, user, householdId, profile, dataVersion, refetchData,
+    handleOpenModalForCreate: () => console.warn('handleOpenModalForCreate not implemented'),
+    handleOpenModalForEdit: () => console.warn('handleOpenModalForEdit not implemented'),
     handleOpenImportModal: () => console.warn('handleOpenImportModal not implemented')
   };
 
