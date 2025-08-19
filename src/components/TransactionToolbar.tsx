@@ -7,11 +7,11 @@ import { FilterPopover } from './FilterPopover';
 import { Category, Account } from '@/types';
 import { Button } from './ui/button';
 import { Upload, PlusSquare } from 'lucide-react';
-import Link from 'next/link'; // <-- IMPORT BARU
+import Link from 'next/link';
 
 interface TransactionToolbarProps {
   dateRange: DateRange | undefined;
-  setDateRange: (date: DateRange | undefined) => void;
+  onDateChange: (date: DateRange | undefined) => void;
   filterType: string; setFilterType: (value: string) => void;
   filterCategory: string; setFilterCategory: (value: string) => void;
   filterAccount: string; setFilterAccount: (value: string) => void;
@@ -20,7 +20,8 @@ interface TransactionToolbarProps {
 }
 
 export default function TransactionToolbar({ 
-  dateRange, setDateRange, filterType, setFilterType,
+  dateRange, onDateChange,
+  filterType, setFilterType,
   filterCategory, setFilterCategory, filterAccount, setFilterAccount,
   categories, accounts, onResetFilters, onOpenImportModal
 }: TransactionToolbarProps) {
@@ -29,7 +30,6 @@ export default function TransactionToolbar({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Transactions</h1>
         <div className="flex items-center gap-2">
-          {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
           <Link href="/transactions/bulk-add" passHref>
             <Button variant="outline">
                 <PlusSquare className="mr-2 h-4 w-4" /> Input Massal
@@ -40,7 +40,10 @@ export default function TransactionToolbar({
             <Upload className="mr-2 h-4 w-4" /> Impor
           </Button>
 
-          <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <DateRangePicker 
+            initialDate={dateRange} 
+            onUpdate={({ range }) => onDateChange(range)} 
+          />
           <FilterPopover 
             filterType={filterType} 
             setFilterType={setFilterType} 

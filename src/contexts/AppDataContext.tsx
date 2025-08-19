@@ -3,13 +3,15 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Account, Category, Transaction, Profile } from '@/types';
+import { Account, Category, Transaction, Profile, AssetSummary } from '@/types';
 import { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import * as assetService from '@/lib/assetService';
 
 interface AppDataContextType {
   accounts: Account[];
   categories: Category[];
+  assets: AssetSummary[];
   isLoading: boolean;
   user: User | null;
   householdId: string | null;
@@ -26,6 +28,7 @@ export const AppDataContext = createContext<AppDataContextType | undefined>(unde
 export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
@@ -35,14 +38,18 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const fetchData = useCallback(async (currentUser: User, currentProfile: Profile) => {
     if (!currentProfile.household_id) return;
     try {
-      const [accountsRes, categoriesRes] = await Promise.all([
+      const [accountsRes, categoriesRes, assetsData] = await Promise.all([
         supabase.rpc('get_accounts_with_balance', { p_user_id: currentUser.id }),
-        supabase.from('categories').select('*').eq('household_id', currentProfile.household_id).order('name')
+        supabase.from('categories').select('*').eq('household_id', currentProfile.household_id).order('name'),
+        assetService.getAssetSummaries(currentProfile.household_id)
       ]);
       if (accountsRes.error) throw accountsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
+      
       setAccounts(accountsRes.data || []);
       setCategories(categoriesRes.data || []);
+      setAssets(assetsData || []);
+
     } catch (error) {
       console.error("Error fetching app data:", error);
       toast.error("Failed to fetch app data.");
@@ -51,7 +58,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
 
   const refetchData = useCallback(() => {
     if (user && profile) {
-      toast.info("Data is being updated...", { duration: 1000 });
+      toast.info("Refreshing data...", { duration: 1500 });
       fetchData(user, profile);
       setDataVersion(v => v + 1);
     }
@@ -96,6 +103,11 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
         { event: '*', schema: 'public', table: 'categories' },
         () => refetchData()
       )
+      // --- PERUBAHAN DI SINI ---
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'asset_transactions' },
+        () => refetchData()
+      )
       .subscribe();
 
     return () => {
@@ -104,7 +116,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   }, [householdId, refetchData]);
 
   const value = {
-    accounts, categories, isLoading, user, householdId, profile, dataVersion, refetchData,
+    accounts, categories, assets, isLoading, user, householdId, profile, dataVersion, refetchData,
     handleOpenModalForCreate: () => console.warn('handleOpenModalForCreate not implemented'),
     handleOpenModalForEdit: () => console.warn('handleOpenModalForEdit not implemented'),
     handleOpenImportModal: () => console.warn('handleOpenImportModal not implemented')

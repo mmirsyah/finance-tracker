@@ -1,33 +1,73 @@
 // src/components/OnboardingGuide.tsx
-
 "use client";
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckCircle, Circle } from 'lucide-react';
 
 interface OnboardingGuideProps {
-  title: string;
-  message: string;
-  buttonText: string;
-  buttonLink: string;
+    hasAccounts: boolean;
+    hasCategories: boolean;
 }
 
-export default function OnboardingGuide({
-  title,
-  message,
-  buttonText,
-  buttonLink,
-}: OnboardingGuideProps) {
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-blue-200">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">{title}</h2>
-      <p className="text-gray-600 mb-6">{message}</p>
-      <Link href={buttonLink}>
-        <span className="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow">
-          {buttonText}
-          <ArrowRight size={16} />
-        </span>
-      </Link>
-    </div>
-  );
+export default function OnboardingGuide({ hasAccounts, hasCategories }: OnboardingGuideProps) {
+    const steps = [
+        {
+            title: "1. Tambah Akun",
+            description: "Buat akun pertama Anda seperti rekening bank, dompet digital, atau uang tunai.",
+            isComplete: hasAccounts,
+            href: "/accounts?action=new",
+            cta: "Tambah Akun"
+        },
+        {
+            title: "2. Buat Kategori",
+            description: "Kelompokkan transaksi Anda dengan membuat kategori seperti 'Makan', 'Transportasi', atau 'Gaji'.",
+            isComplete: hasCategories,
+            href: "/categories",
+            cta: "Buat Kategori"
+        },
+        {
+            title: "3. Catat Transaksi",
+            description: "Mulai catat pemasukan dan pengeluaran pertama Anda untuk melihat laporannya.",
+            isComplete: false,
+            href: "/transactions?action=new",
+            cta: "Catat Transaksi"
+        }
+    ];
+
+    return (
+        <div className="p-6">
+            <Card className="max-w-2xl mx-auto">
+                <CardHeader>
+                    <CardTitle className="text-2xl">Selamat Datang di Aplikasi Keuangan Anda!</CardTitle>
+                    <CardDescription>Ikuti langkah-langkah berikut untuk memulai.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ul className="space-y-4">
+                        {steps.map((step, index) => (
+                            <li key={index} className="flex items-start gap-4">
+                                <div>
+                                    {step.isComplete ? (
+                                        <CheckCircle className="h-6 w-6 text-green-500" />
+                                    ) : (
+                                        <Circle className="h-6 w-6 text-gray-300" />
+                                    )}
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold">{step.title}</h3>
+                                    <p className="text-sm text-muted-foreground">{step.description}</p>
+                                    {!step.isComplete && (
+                                        <Button asChild size="sm" className="mt-2">
+                                            <Link href={step.href}>{step.cta}</Link>
+                                        </Button>
+                                    )}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </CardContent>
+            </Card>
+        </div>
+    )
 }

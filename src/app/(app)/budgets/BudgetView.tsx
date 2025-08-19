@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react'; // Tambahkan useCallback
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { Button } from '@/components/ui/button';
 import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
@@ -37,7 +37,8 @@ const BudgetView = () => {
   const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
   const [planToDelete, setPlanToDelete] = useState<BudgetSummary | null>(null);
 
-  const { periodForSave, periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
+  // --- PERBAIKAN: useMemo sekarang mengembalikan objek Date juga ---
+  const { periodForSave, periodStartDate, periodEndDate, periodStartDateObj, periodEndDateObj, periodDisplayText } = useMemo(() => {
     if (!profile) {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -46,6 +47,8 @@ const BudgetView = () => {
             periodForSave: format(now, 'yyyy-MM-01'),
             periodStartDate: format(startOfMonth, 'yyyy-MM-dd'),
             periodEndDate: format(endOfMonth, 'yyyy-MM-dd'),
+            periodStartDateObj: startOfMonth,
+            periodEndDateObj: endOfMonth,
             periodDisplayText: format(now, 'MMMM yyyy'),
         };
     }
@@ -57,19 +60,22 @@ const BudgetView = () => {
         periodForSave: format(period.from, 'yyyy-MM-01'),
         periodStartDate: format(period.from, 'yyyy-MM-dd'),
         periodEndDate: format(period.to, 'yyyy-MM-dd'),
+        periodStartDateObj: period.from,
+        periodEndDateObj: period.to,
         periodDisplayText: displayText,
     };
   }, [profile, currentDate]);
 
-  // --- PERBAIKAN: Bungkus fungsi dengan useCallback ---
   const fetchBudgetDashboards = useCallback(async () => {
     if (householdId) {
       setIsLoading(true);
       try {
         const [summaryData, allocationData, overallSummaryData] = await Promise.all([
+          // getBudgetSummary masih menggunakan string
           getBudgetSummary(householdId, periodStartDate, periodEndDate),
           getAllocationsByPeriod(householdId, periodForSave),
-          getOverallBudgetSummary(householdId, periodStartDate, periodEndDate)
+          // --- PERBAIKAN: Gunakan objek Date ---
+          getOverallBudgetSummary(householdId, periodStartDateObj, periodEndDateObj)
         ]);
         setBudgetSummaries(summaryData || []);
         setAllocations(allocationData);
@@ -83,12 +89,11 @@ const BudgetView = () => {
         setIsLoading(false);
       }
     }
-  }, [householdId, periodStartDate, periodEndDate, periodForSave]); // Tambahkan dependensi yang relevan
+  }, [householdId, periodStartDate, periodEndDate, periodForSave, periodStartDateObj, periodEndDateObj]);
 
-  // --- PERBAIKAN: Panggil fungsi dari useCallback ---
   useEffect(() => {
     fetchBudgetDashboards();
-  }, [fetchBudgetDashboards, dataVersion]); // Tambahkan fetchBudgetDashboards ke dependency array
+  }, [fetchBudgetDashboards, dataVersion]);
 
   const handlePeriodChange = (direction: 'next' | 'prev') => {
     setCurrentDate(current => {
@@ -130,7 +135,7 @@ const BudgetView = () => {
         }
         await Promise.all(promises);
         toast.success("Perubahan alokasi berhasil disimpan!");
-        fetchBudgetDashboards(); // Refresh data
+        fetchBudgetDashboards();
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Gagal menyimpan perubahan: ${errorMessage}`);
@@ -154,7 +159,7 @@ const BudgetView = () => {
   const handleOpenEditModal = async (planSummary: BudgetSummary) => {
     const { data: planToEdit, error } = await supabase.from('budgets').select(`*, categories ( * )`).eq('id', planSummary.plan_id).single();
     if (error) { toast.error(`Gagal memuat detail rencana: ${error.message}`); return; }
-    if (planToEdit) { setEditingPlan(planToEdit); setIsModalOpen(true); }
+    if (planToEdit) { setEditingPlan(planToEdit as Budget); setIsModalOpen(true); }
     else { toast.error("Rencana anggaran tidak ditemukan."); }
   };
 

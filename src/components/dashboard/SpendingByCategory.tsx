@@ -1,96 +1,69 @@
 // src/components/dashboard/SpendingByCategory.tsx
 "use client";
 
-import { Card, Title, DonutChart, Text, Legend } from '@tremor/react';
-import { useRouter } from 'next/navigation';
-import { formatCurrency } from '@/lib/utils';
-import { useMemo } from 'react';
+import { useAppData } from "@/contexts/AppDataContext";
+import useSWR from 'swr';
+import { supabase } from '@/lib/supabase';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { BarList } from "@tremor/react";
+import { formatCurrency } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
+import { format } from 'date-fns';
 
-interface SpendingDataPoint {
-    id: number;
-    name: string;
-    value: number;
+// --- Tambahkan tipe data untuk hasil RPC ---
+type SpendingData = {
+    category_name: string;
+    total_spent: number;
+};
+
+const fetcher = async ([_, householdId, dateRange]: [string, string, DateRange]): Promise<{ name: string; value: number }[]> => {
+    if (!dateRange.from || !dateRange.to) return [];
+
+    const { data, error } = await supabase.rpc('get_spending_by_parent_category', {
+        p_household_id: householdId,
+        p_start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        p_end_date: format(dateRange.to, 'yyyy-MM-dd'),
+    });
+
+    if (error) {
+        console.error("Spending by category error:", error);
+        throw new Error(error.message);
+    }
+    // --- PERBAIKAN: Beri tipe pada 'item' ---
+    return (data as SpendingData[]).map((item) => ({
+        name: item.category_name,
+        value: item.total_spent
+    }));
+};
+
+interface SpendingByCategoryProps {
+    dateRange: DateRange | undefined;
 }
 
-// --- PERBAIKAN UTAMA DI SINI ---
-// Hapus index signature [key: string]: any; karena tidak dibutuhkan
-interface ChartClickPayload {
-    id: number;
-}
-
-interface Props {
-    data: SpendingDataPoint[];
-}
-
-export default function SpendingByCategory({ data }: Props) {
-    const router = useRouter();
-
-    const handleChartClick = (payload: ChartClickPayload) => {
-        // Karena kita sudah tahu payload memiliki 'id', kita bisa langsung pakai
-        if (payload && payload.id) {
-            router.push(`/categories/${payload.id}`);
-        }
-    };
-
-    const totalSpending = useMemo(() => data.reduce((acc, item) => acc + item.value, 0), [data]);
-    const categoryNames = data.map(item => item.name);
-    const spendingColors = ['blue', 'cyan', 'indigo', 'violet', 'fuchsia', 'pink'];
+export default function SpendingByCategory({ dateRange }: SpendingByCategoryProps) {
+    const { householdId } = useAppData();
+    const { data: spendingData, isLoading } = useSWR(
+        (householdId && dateRange?.from && dateRange?.to) ? ['spendingByCategory', householdId, dateRange] : null,
+        fetcher
+    );
 
     return (
-        <Card className="flex flex-col h-full">
-            <Title>Spending by Category</Title>
-            {data.length > 0 ? (
-                <div className="flex-1 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-6 mt-4">
-                    <div className="relative flex items-center justify-center">
-                        <DonutChart
-                            className="h-48 w-48 sm:h-64 sm:w-64 cursor-pointer"
-                            data={data}
-                            category="value"
-                            index="name"
-                            variant="donut"
-                            valueFormatter={formatCurrency}
-                            onValueChange={(payload) => handleChartClick(payload)}
-                            showAnimation={true}
-                            showLabel={false}
-                            customTooltip={(props) => {
-                                const { payload, active } = props;
-                                if (!active || !payload) return null;
-                                const categoryPayload = payload[0];
-                                if (!categoryPayload) return null;
-                                return (
-                                    <div className="w-56 rounded-tremor-default border bg-tremor-background p-2 text-tremor-default shadow-tremor-dropdown">
-                                        <div className="flex flex-1 space-x-2.5">
-                                            <div className={`w-1.5 flex flex-col bg-${categoryPayload.color}-500 rounded`} />
-                                            <div className="w-full">
-                                                <p className="font-medium text-tremor-content-strong">{categoryPayload.name}</p>
-                                                <p className="text-tremor-content">{formatCurrency(categoryPayload.value as number)}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            }}
-                        />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <Text className="text-center">
-                                <span className="text-2xl font-bold text-gray-800">{formatCurrency(totalSpending)}</span>
-                                <br />
-                                <span className="text-xs text-muted-foreground">Total Spending</span>
-                            </Text>
-                        </div>
-                    </div>
-                    <Legend
-                        categories={categoryNames}
-                        colors={spendingColors}
-                        className="max-w-xs"
+        <Card>
+            <CardHeader>
+                <CardTitle>Pengeluaran per Kategori</CardTitle>
+                <CardDescription>5 kategori pengeluaran terbesar pada periode yang dipilih.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading && <div className="h-72 flex items-center justify-center text-muted-foreground">Loading data...</div>}
+                {(!isLoading && (!spendingData || spendingData.length === 0)) && <div className="h-72 flex items-center justify-center text-muted-foreground">Tidak ada pengeluaran untuk ditampilkan.</div>}
+                {(!isLoading && spendingData && spendingData.length > 0) && (
+                    <BarList
+                        data={spendingData.slice(0, 5)}
+                        valueFormatter={formatCurrency}
+                        className="mt-2"
                     />
-                </div>
-            ) : (
-                <div className="flex-1 flex items-center justify-center">
-                    <Text className="text-center text-gray-500">
-                        No spending data for this period.
-                    </Text>
-                </div>
-            )}
+                )}
+            </CardContent>
         </Card>
     );
 }

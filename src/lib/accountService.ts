@@ -29,28 +29,31 @@ export const saveAccount = async (account: Partial<Account>) => {
 
   if (id) {
     // --- MODE EDIT ---
-    // Logika ini sudah benar: hanya update data yang relevan.
     const updatePayload = {
       name: account.name,
       initial_balance: account.initial_balance,
-      type: account.type || 'generic',
+      type: account.type,
       target_amount: account.target_amount,
-      goal_reason: account.goal_reason
+      goal_reason: account.goal_reason,
+      // --- TAMBAHAN UNTUK ASET ---
+      asset_class: account.asset_class,
+      unit: account.unit
     };
     ({ error } = await supabase.from('accounts').update(updatePayload).eq('id', id));
 
   } else {
-    // --- PERBAIKAN FINAL (MODE BUAT BARU) ---
-    // Secara eksplisit membangun payload untuk insert dari objek `account`
-    // untuk memastikan semua field (termasuk 'type') terbawa.
+    // --- MODE BUAT BARU ---
     const insertPayload = {
       name: account.name,
       initial_balance: account.initial_balance,
-      type: account.type || 'generic',
+      type: account.type,
       target_amount: account.target_amount,
       goal_reason: account.goal_reason,
       household_id: account.household_id,
       user_id: account.user_id,
+      // --- TAMBAHAN UNTUK ASET ---
+      asset_class: account.asset_class,
+      unit: account.unit,
     };
     ({ error } = await supabase.from('accounts').insert(insertPayload));
   }

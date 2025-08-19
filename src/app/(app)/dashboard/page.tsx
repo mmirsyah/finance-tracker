@@ -1,176 +1,121 @@
 // src/app/(app)/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { ArrowDown, ArrowUp, Minus, TrendingUp, TrendingDown } from 'lucide-react';
-import { Card, Metric, Text, Flex } from '@tremor/react';
-import { format, subDays, differenceInDays } from 'date-fns';
-import { DateRangePicker } from '@/components/DateRangePicker';
+import { useState, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
 import { useAppData } from '@/contexts/AppDataContext';
-import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
-import RecentTransactions from '@/components/dashboard/RecentTransactions';
-import { getCustomPeriod } from '@/lib/periodUtils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DateRangePicker } from '@/components/DateRangePicker';
 import CashFlowChart from '@/components/dashboard/CashFlowChart';
 import SpendingByCategory from '@/components/dashboard/SpendingByCategory';
-
-interface SpendingDataPoint {
-  id: number;
-  name: string;
-  value: number;
-}
-
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return 'Rp 0';
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-};
-
-interface MetricCardProps {
-  title: string;
-  icon: React.ElementType;
-  iconColor: string;
-  currentValue: number;
-  previousValue: number;
-  isPositiveGood?: boolean;
-}
-
-const MetricCard = ({ title, icon: Icon, iconColor, currentValue, previousValue, isPositiveGood = true }: MetricCardProps) => {
-  const diff = previousValue === 0 
-    ? (currentValue !== 0 ? 100 : 0)
-    : ((currentValue - previousValue) / Math.abs(previousValue)) * 100;
-  
-  const isPositive = diff >= 0;
-  const isNeutral = Math.abs(diff) < 0.1 || (currentValue === 0 && previousValue === 0);
-
-  let trendIcon; let trendColor;
-
-  if (isNeutral) { trendIcon = Minus; trendColor = 'text-gray-500';
-  } else if (isPositive) { trendIcon = TrendingUp; trendColor = isPositiveGood ? 'text-green-500' : 'text-red-500';
-  } else { trendIcon = TrendingDown; trendColor = isPositiveGood ? 'text-red-500' : 'text-green-500'; }
-
-  const TrendIndicator = trendIcon;
-
-  return (
-    <Card>
-      <Flex justifyContent="start" alignItems="center" className="space-x-4">
-        <div className={`p-3 rounded-full ${iconColor}`}><Icon className="w-6 h-6 text-white" /></div>
-        <div><Text>{title}</Text><Metric>{formatCurrency(currentValue)}</Metric></div>
-      </Flex>
-      <Flex justifyContent="end" alignItems="center" className="mt-4 space-x-2">
-        <TrendIndicator className={`w-4 h-4 ${trendColor}`} /><Text className={trendColor}>{isNeutral ? 'No change' : `${diff.toFixed(1)}% vs previous period`}</Text>
-      </Flex>
-    </Card>
-  );
-};
-
+import RecentTransactions from '@/components/dashboard/RecentTransactions';
+import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
+import OnboardingGuide from '@/components/OnboardingGuide';
+import SummaryDisplay from '@/components/SummaryDisplay';
+import useSWR from 'swr';
+import { formatCurrency } from '@/lib/utils';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { getComparisonMetrics } from '@/lib/reportService';
+import { getCustomPeriod } from '@/lib/periodUtils';
 
 export default function DashboardPage() {
-  const { user, isLoading: isAppDataLoading, dataVersion, householdId } = useAppData();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [date, setDate] = useState<DateRange | undefined>(undefined);
-  const [periodStartDay, setPeriodStartDay] = useState<number>(1);
-  const [comparisonData, setComparisonData] = useState({ current_income: 0, current_spending: 0, previous_income: 0, previous_spending: 0 });
-  
-  const [spendingData, setSpendingData] = useState<SpendingDataPoint[]>([]);
+    const { accounts, categories, assets, isLoading, householdId, profile } = useAppData();
+    
+    const [date, setDate] = useState<DateRange | undefined>(undefined);
 
-  useEffect(() => {
-    const fetchProfileAndSetDate = async () => {
-      if(user) {
-        const { data: profile } = await supabase.from('profiles').select('period_start_day').eq('id', user.id).single();
-        const startDay = profile?.period_start_day || 1;
-        setPeriodStartDay(startDay);
-        setDate(getCustomPeriod(startDay));
-      }
-    };
-    fetchProfileAndSetDate();
-  }, [user]);
-
-  const { startDate, endDate, previousStartDate, previousEndDate } = useMemo(() => {
-    const defaultPeriod = getCustomPeriod(periodStartDay);
-    const from = date?.from || defaultPeriod.from;
-    const to = date?.to || defaultPeriod.to;
-    const periodLength = differenceInDays(to, from);
-    const prevStart = subDays(from, periodLength + 1);
-    const prevEnd = subDays(to, periodLength + 1);
-    return {
-      startDate: format(from, 'yyyy-MM-dd'),
-      endDate: format(to, 'yyyy-MM-dd'),
-      previousStartDate: format(prevStart, 'yyyy-MM-dd'),
-      previousEndDate: format(prevEnd, 'yyyy-MM-dd'),
-    };
-  }, [date, periodStartDay]);
-
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      if (!user || !householdId || !date?.from) return;
-      setLoading(true);
-      try {
-        const [ comparisonResult, spendingResult ] = await Promise.all([
-          supabase.rpc('get_comparison_metrics', { p_household_id: householdId, p_current_start_date: startDate, p_current_end_date: endDate, p_previous_start_date: previousStartDate, p_previous_end_date: previousEndDate }),
-          supabase.rpc('get_spending_by_parent_category', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
-        ]);
-
-        if (comparisonResult.error) throw new Error(`Comparison Error: ${comparisonResult.error.message}`);
-        if (spendingResult.error) throw new Error(`Spending Error: ${spendingResult.error.message}`);
-
-        if (Array.isArray(comparisonResult.data) && comparisonResult.data.length > 0) { setComparisonData(comparisonResult.data[0]); }
-
-        if (Array.isArray(spendingResult.data)) {
-          const formattedSpending = spendingResult.data.map(item => ({
-            id: item.category_id,
-            name: item.category_name,
-            value: item.total_spent,
-          }));
-          setSpendingData(formattedSpending);
+    useEffect(() => {
+        if (profile) {
+            setDate(getCustomPeriod(profile.period_start_day || 1));
         }
+    }, [profile]);
 
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-        setError(`Failed to load dashboard: ${errorMessage}`);
-      } finally { setLoading(false); }
-    };
-    initializeDashboard();
-  }, [user, householdId, startDate, endDate, previousStartDate, previousEndDate, dataVersion, date]);
+    const hasAccounts = accounts && accounts.length > 0;
+    const hasCategories = categories && categories.length > 0;
+    
+    // --- PERBAIKAN: Hapus SWR hook untuk budgetSummary yang tidak digunakan ---
+    // const { data: budgetSummary } = useSWR(
+    //     (householdId && date?.from && date?.to) ? ['overallBudgetSummary', householdId, date] : null,
+    //     () => getOverallBudgetSummary(householdId!, date!.from!, date!.to!)
+    // );
 
-  if (isAppDataLoading || loading || !date) return <DashboardSkeleton />;
-  if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
+    const { data: comparisonMetrics } = useSWR(
+      (householdId && date?.from && date?.to) ? ['comparisonMetrics', householdId, date] : null,
+      () => {
+        const currentStartDate = date!.from!;
+        const currentEndDate = date!.to!;
+        const diff = currentEndDate.getTime() - currentStartDate.getTime();
+        const previousStartDate = new Date(currentStartDate.getTime() - diff - (24 * 60 * 60 * 1000));
+        const previousEndDate = new Date(currentStartDate.getTime() - (24 * 60 * 60 * 1000));
+        
+        return getComparisonMetrics(householdId!, currentStartDate, currentEndDate, previousStartDate, previousEndDate);
+      }
+    );
 
-  const netCashFlow = comparisonData.current_income - comparisonData.current_spending;
-  const previousNetCashFlow = comparisonData.previous_income - comparisonData.previous_spending;
+    if (isLoading || !date) {
+        return <DashboardSkeleton />;
+    }
 
-  const renderDateRangeText = () => {
-    if (date?.from && date?.to) {
-      if (format(date.from, 'yyyy-MM-dd') === format(date.to, 'yyyy-MM-dd')) return `Summary for ${format(date.from, 'd MMMM yyyy')}`;
-      return `Summary for ${format(date.from, 'd MMM')} to ${format(date.to, 'd MMM yyyy')}`;
-    } return `Summary for current period`;
-  };
-  
-  return (
-    <div className="p-4 sm:p-6">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-        <div><h1 className="text-3xl font-bold text-gray-800">Dashboard</h1><Text>{renderDateRangeText()}</Text></div>
-        <div><DateRangePicker date={date} setDate={setDate} /></div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard title="Total Income" icon={ArrowUp} iconColor="bg-green-500" currentValue={comparisonData.current_income} previousValue={comparisonData.previous_income} isPositiveGood={true} />
-        <MetricCard title="Total Spending" icon={ArrowDown} iconColor="bg-red-500" currentValue={comparisonData.current_spending} previousValue={comparisonData.previous_spending} isPositiveGood={false} />
-        <MetricCard title="Net Cash Flow" icon={Minus} iconColor={netCashFlow >= 0 ? "bg-blue-500" : "bg-orange-500"} currentValue={netCashFlow} previousValue={previousNetCashFlow} isPositiveGood={true} />
-      </div>
-      
-      {/* --- PERBAIKAN UTAMA PADA LAYOUT DI SINI --- */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3">
-            <CashFlowChart startDate={startDate} endDate={endDate} />
+    if (!hasAccounts || !hasCategories) {
+        return <OnboardingGuide hasAccounts={hasAccounts} hasCategories={hasCategories} />;
+    }
+
+    const totalAssetValue = assets.reduce((sum, asset) => sum + asset.current_value, 0);
+    const totalAccountBalance = accounts
+      .filter(acc => acc.type === 'generic' || acc.type === 'goal')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0);
+    const netWorth = totalAssetValue + totalAccountBalance;
+
+    const incomeChange = comparisonMetrics && comparisonMetrics.previous_income > 0 ? ((comparisonMetrics.current_income - comparisonMetrics.previous_income) / comparisonMetrics.previous_income) * 100 : 0;
+    const spendingChange = comparisonMetrics && comparisonMetrics.previous_spending > 0 ? ((comparisonMetrics.current_spending - comparisonMetrics.previous_spending) / comparisonMetrics.previous_spending) * 100 : 0;
+
+    return (
+        <div className="p-6 space-y-6">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                <h1 className="text-3xl font-bold">Dashboard</h1>
+                <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <SummaryDisplay label="Kekayaan Bersih" amount={netWorth} description="Total saldo akun & nilai aset" />
+                <SummaryDisplay label="Total Nilai Aset" amount={totalAssetValue} description={`${assets.length} aset dilacak`} />
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Pemasukan Bulan Ini</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-2xl font-bold">{formatCurrency(comparisonMetrics?.current_income)}</p>
+                        <p className={`text-xs flex items-center ${incomeChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {incomeChange > 0.1 ? <TrendingUp className="mr-1 h-4 w-4"/> : incomeChange < -0.1 ? <TrendingDown className="mr-1 h-4 w-4"/> : <Minus className="mr-1 h-4 w-4"/>}
+                            {incomeChange.toFixed(1)}% vs periode sebelumnya
+                        </p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Pengeluaran Bulan Ini</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-2xl font-bold">{formatCurrency(comparisonMetrics?.current_spending)}</p>
+                        <p className={`text-xs flex items-center ${spendingChange > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                           {spendingChange > 0.1 ? <TrendingUp className="mr-1 h-4 w-4"/> : (spendingChange < -0.1 ? <TrendingDown className="mr-1 h-4 w-4"/> : <Minus className="mr-1 h-4 w-4"/>)}
+                            {spendingChange.toFixed(1)}% vs periode sebelumnya
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <CashFlowChart dateRange={date} />
+                </div>
+                <div className="lg:col-span-1">
+                    <SpendingByCategory dateRange={date} />
+                </div>
+            </div>
+
+            <div>
+                <RecentTransactions />
+            </div>
         </div>
-        <div className="lg:col-span-2">
-            <SpendingByCategory data={spendingData} />
-        </div>
-        <div className="lg:col-span-1">
-            <RecentTransactions />
-        </div>
-      </div>
-    </div>
-  );
+    );
 }

@@ -17,9 +17,8 @@ import { Button } from '@/components/ui/button';
 import { cn, formatCurrency } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { format, parseISO } from 'date-fns';
-import { GoalCompletionModal } from '@/components/modals/GoalCompletionModal'; // <-- Import modal baru
+import { GoalCompletionModal } from '@/components/modals/GoalCompletionModal'; 
 
-// --- KOMPONEN BARU UNTUK PROYEKSI ---
 const GoalProjection = ({ accountId }: { accountId: string }) => {
     const [projection, setProjection] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +51,7 @@ const GoalProjection = ({ accountId }: { accountId: string }) => {
         );
     }
     
-    return null; // Tidak menampilkan apa-apa jika tidak ada proyeksi
+    return null; 
 };
 
 const GoalAccountCard = ({ account, onEdit, onDelete, onCelebrate }: { account: Account, onEdit: (acc: Account) => void, onDelete: (acc: Account) => void, onCelebrate: (acc: Account) => void }) => {
@@ -92,11 +91,11 @@ const GoalAccountCard = ({ account, onEdit, onDelete, onCelebrate }: { account: 
             </CardContent>
             <CardFooter className="flex justify-between items-center mt-auto pt-4 border-t">
                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(account)}><Trash2 className="h-4 w-4 text-red-500"/></Button>
-                    <Button variant="outline" size="sm" onClick={() => onEdit(account)}>Edit</Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onDelete(account)}><Trash2 className="h-4 w-4 text-red-500"/></Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => onEdit(account)}>Edit</Button>
                 </div>
                 {isAchieved && (
-                    <Button size="sm" onClick={() => onCelebrate(account)} className="bg-green-600 hover:bg-green-700">
+                    <Button type="button" size="sm" onClick={() => onCelebrate(account)} className="bg-green-600 hover:bg-green-700">
                         Rayakan!
                     </Button>
                 )}
@@ -116,7 +115,6 @@ export default function AccountsView() {
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
-  // --- STATE BARU UNTUK MODAL PERAYAAN ---
   const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
   const [goalToCelebrate, setGoalToCelebrate] = useState<Account | null>(null);
 
@@ -124,9 +122,13 @@ export default function AccountsView() {
     const goals: Account[] = [];
     const generics: Account[] = [];
     accounts.forEach(acc => {
+      // --- PERBAIKAN: Menyembunyikan akun virtual ---
+      if (acc.name === 'Modal Awal Aset') {
+        return; // Lewati akun ini
+      }
       if (acc.type === 'goal') {
         goals.push(acc);
-      } else {
+      } else if (acc.type === 'generic') {
         generics.push(acc);
       }
     });
@@ -140,29 +142,60 @@ export default function AccountsView() {
     }
   }, [searchParams, router]);
   
-  const handleSaveAccount = (payload: Partial<Account>) => {
-    if (!user || !householdId) return toast.error('User session not found.');
+  const handleSaveAccount = (payload: Partial<Account> & { initial_quantity?: number; total_cost?: number }) => {
+    if (!user || !householdId) {
+      toast.error('User session not found.');
+      return;
+    }
 
-    const accountData: Partial<Account> = {
-      ...payload,
-      household_id: householdId,
-      user_id: user.id,
+    const isNewAsset = payload.type === 'asset' && !payload.id;
+
+    const saveAction = async () => {
+      if (isNewAsset) {
+        const { error } = await supabase.rpc('create_asset_with_initial_balance', {
+          p_household_id: householdId,
+          p_user_id: user.id,
+          p_asset_name: payload.name,
+          p_asset_class: payload.asset_class,
+          p_unit: payload.unit,
+          p_initial_quantity: payload.initial_quantity || 0,
+          p_total_cost: payload.total_cost || 0
+        });
+        if (error) throw new Error(error.message);
+      } else {
+        const accountData: Partial<Account> = { ...payload, household_id: householdId, user_id: user.id };
+        await accountService.saveAccount(accountData);
+      }
     };
     
-    const promise = accountService.saveAccount(accountData)
-      .then(() => { refetchData(); });
-
-    toast.promise(promise, {
-      loading: 'Menyimpan akun...',
-      success: 'Akun berhasil disimpan!',
+    toast.promise(saveAction(), {
+      loading: 'Menyimpan...',
+      success: () => {
+        refetchData();
+        setIsModalOpen(false);
+        setEditingAccount(null);
+        if (isNewAsset) {
+          router.push('/assets');
+          return 'Aset berhasil dibuat!';
+        }
+        return 'Akun berhasil disimpan!';
+      },
       error: (err: Error) => `Gagal menyimpan: ${err.message}`,
     });
-
-    setIsModalOpen(false);
-    setEditingAccount(null);
   };
 
   const handleDeleteAccount = async (account: Account) => {
+    if (account.type === 'asset') {
+        const { count, error } = await supabase
+            .from('asset_transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('asset_account_id', account.id);
+        if (error) return toast.error(`Error checking asset transactions: ${error.message}`);
+        if ((count || 0) > 0) {
+            return toast.error("Tidak bisa menghapus aset yang masih memiliki riwayat transaksi beli/jual.");
+        }
+    }
+
     const { count, error } = await supabase
       .from('transactions')
       .select('id', { count: 'exact', head: true })
@@ -202,7 +235,6 @@ export default function AccountsView() {
   const handleAddNew = () => { setEditingAccount(null); setIsModalOpen(true); };
   const handleEdit = (account: Account) => { setEditingAccount(account); setIsModalOpen(true); };
 
-  // --- FUNGSI BARU UNTUK PERAYAAN ---
   const handleCelebrate = (goal: Account) => {
     setGoalToCelebrate(goal);
     setIsCelebrationModalOpen(true);
@@ -250,8 +282,8 @@ export default function AccountsView() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex justify-end gap-4">
-                                        <button onClick={() => handleEdit(acc)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeleteAccount(acc)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                        <button type="button" onClick={() => handleEdit(acc)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
+                                        <button type="button" onClick={() => handleDeleteAccount(acc)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
                                         </div>
                                     </td>
                                     </tr>
@@ -282,10 +314,20 @@ export default function AccountsView() {
         )}
       </div>
 
-      <AccountModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveAccount} account={editingAccount} />
-      <ReassignAccountModal isOpen={isReassignModalOpen} onClose={() => setIsReassignModalOpen(false)} onReassign={handleReassignAndDelete} accountToDelete={accountToDelete} allAccounts={accounts} />
+      <AccountModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveAccount} 
+        account={editingAccount} 
+      />
+      <ReassignAccountModal 
+        isOpen={isReassignModalOpen} 
+        onClose={() => setIsReassignModalOpen(false)} 
+        onReassign={handleReassignAndDelete} 
+        accountToDelete={accountToDelete} 
+        allAccounts={accounts.filter(acc => acc.type !== 'asset')}
+      />
       
-      {/* --- RENDER MODAL PERAYAAN --- */}
       <GoalCompletionModal 
         isOpen={isCelebrationModalOpen} 
         onClose={() => setIsCelebrationModalOpen(false)}

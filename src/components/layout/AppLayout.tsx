@@ -1,7 +1,7 @@
 // src/components/layout/AppLayout.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react'; // <-- Tambahkan useMemo
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -38,6 +38,12 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const [formToAccountId, setFormToAccountId] = useState('');
   const [formNote, setFormNote] = useState('');
   const [formDate, setFormDate] = useState('');
+
+  // --- PERBAIKAN DI SINI: Filter akun sebelum diberikan ke modal ---
+  const filteredAccountsForModal = useMemo(() => {
+    return accounts.filter(acc => acc.name !== 'Modal Awal Aset');
+  }, [accounts]);
+  // --- AKHIR PERBAIKAN ---
 
   const handleOpenModalForCreate = useCallback(() => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsTransactionModalOpen(true); }, []);
   const handleOpenModalForEdit = useCallback((transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsTransactionModalOpen(true); }, []);
@@ -94,8 +100,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
                 <Plus size={28} />
               </Button>
           </div>
-
-          {/* --- PERBAIKAN UTAMA DI SINI --- */}
+          
           <TransactionModal 
             isOpen={isTransactionModalOpen} 
             onClose={() => setIsTransactionModalOpen(false)} 
@@ -108,9 +113,10 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             accountId={formAccountId} setAccountId={setFormAccountId} 
             toAccountId={formToAccountId} setToAccountId={setFormToAccountId} 
             note={formNote} setNote={setFormNote} 
-            date={formDate} setDate={setFormDate} // <- `setDate` sekarang diisi dengan `setFormDate`
+            date={formDate} setDate={setFormDate}
             categories={categories} 
-            accounts={accounts} 
+            // --- PERBAIKAN: Gunakan daftar akun yang sudah difilter ---
+            accounts={filteredAccountsForModal} 
           />
           <ImportTransactionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
         </div>

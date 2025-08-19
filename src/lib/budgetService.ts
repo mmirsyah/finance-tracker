@@ -2,6 +2,7 @@
 
 import { supabase } from './supabase';
 import { BudgetAllocation, BudgetSummary, OverallBudgetSummary, CategorySpendingHistory } from '@/types';
+import { format } from 'date-fns';
 
 /**
  * Mengambil ringkasan budget dari server.
@@ -87,11 +88,12 @@ export const deleteAllocation = async (
 /**
  * Mengambil ringkasan budget keseluruhan.
  */
-export const getOverallBudgetSummary = async (household_id: string, start_date: string, end_date: string): Promise<OverallBudgetSummary | null> => {
+// --- PERBAIKAN DI SINI: Mengubah tipe argumen dari string ke Date ---
+export const getOverallBudgetSummary = async (household_id: string, start_date: Date, end_date: Date): Promise<OverallBudgetSummary | null> => {
   const { data, error } = await supabase.rpc('get_overall_budget_summary', {
     p_household_id: household_id,
-    p_start_date: start_date,
-    p_end_date: end_date,
+    p_start_date: format(start_date, 'yyyy-MM-dd'),
+    p_end_date: format(end_date, 'yyyy-MM-dd'),
   });
 
   if (error) {

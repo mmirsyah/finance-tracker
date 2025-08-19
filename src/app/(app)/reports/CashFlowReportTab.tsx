@@ -2,91 +2,93 @@
 "use client";
 
 import { useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
-import { Card, Metric, Text, Title, BarChart } from '@tremor/react';
-import { cn, formatCurrency } from '@/lib/utils';
-import { ReportData } from './ReportsView';
-import FilteredTransactionList from './FilteredTransactionList';
-import ReportSummaryCard from './ReportSummaryCard';
-import { DateRange } from 'react-day-picker';
-import { useAppData } from '@/contexts/AppDataContext';
-import { getCustomPeriod } from '@/lib/periodUtils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { AreaChart, BarChart } from '@tremor/react';
+import { formatCurrency } from '@/lib/utils';
+import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
+import SummaryDisplay from '@/components/SummaryDisplay';
 
-interface Props {
-    data: ReportData | null;
+// Tipe data yang diharapkan dari 'data' prop
+type CashFlowData = {
+    period: string;
+    pemasukan: number;
+    pengeluaran: number;
+    saldo_akhir: number; // Menambahkan saldo_akhir
+};
+
+type ReportData = {
+    cashFlow: CashFlowData[];
+} | null;
+
+interface CashFlowReportTabProps {
+    data: ReportData;
+    isLoading: boolean;
 }
 
-const SummaryCard = ({ title, value, color }: { title: string, value: string | number, color?: string }) => (
-    <Card>
-      <Text>{title}</Text>
-      <Metric className={cn(color)}>{value}</Metric>
-    </Card>
-);
-
-export default function CashFlowReportTab({ data }: Props) {
-    const { profile } = useAppData();
-
-    const dateRange: DateRange = useMemo(() => {
-        if (data && data.cashFlow.length > 0) {
-            const firstDay = parseISO(data.cashFlow[0].period);
-            const lastDay = parseISO(data.cashFlow[data.cashFlow.length - 1].period);
-            return { from: firstDay, to: lastDay };
+export default function CashFlowReportTab({ data, isLoading }: CashFlowReportTabProps) {
+    const processedData = useMemo(() => {
+        if (!data || !data.cashFlow || data.cashFlow.length === 0) {
+            return null;
         }
-        return getCustomPeriod(profile?.period_start_day || 1);
-    }, [data, profile]);
 
-    const netCashFlow = useMemo(() => {
-        if (!data?.summary) return 0;
-        return data.summary.total_income - data.summary.total_expense;
+        const openingBalance = data.cashFlow[0].saldo_akhir - data.cashFlow[0].pemasukan + data.cashFlow[0].pengeluaran;
+        const closingBalance = data.cashFlow[data.cashFlow.length - 1].saldo_akhir;
+        const totalIncome = data.cashFlow.reduce((sum, item) => sum + item.pemasukan, 0);
+        const totalExpense = data.cashFlow.reduce((sum, item) => sum + item.pengeluaran, 0);
+        const netCashFlow = totalIncome - totalExpense;
+
+        const formattedChartData = data.cashFlow.map(cf => ({
+            period: new Date(cf.period).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' }),
+            'Pemasukan': cf.pemasukan,
+            'Pengeluaran': cf.pengeluaran,
+            'Total Kas': cf.saldo_akhir,
+        }));
+        
+        return {
+            openingBalance,
+            closingBalance,
+            totalIncome,
+            totalExpense,
+            netCashFlow,
+            formattedChartData,
+        };
     }, [data]);
 
-    const savingsRate = useMemo(() => {
-        if (!data?.summary || !data.summary.total_income) return 0;
-        return (netCashFlow / data.summary.total_income) * 100;
-    }, [data, netCashFlow]);
+    if (isLoading) {
+        return <ReportSkeleton />;
+    }
 
-    const cashFlowForChart = useMemo(() => {
-        if (!data?.cashFlow) return [];
-        // Mengganti nama kategori agar sesuai dengan bahasa Inggris
-        return data.cashFlow.map(item => ({
-            date: format(parseISO(item.period), 'd MMM'),
-            Income: item.Pemasukan,
-            Spending: item.Pengeluaran
-        }));
-    }, [data?.cashFlow]);
+    if (!processedData) {
+        return <div className="text-center py-16 text-gray-500">Pilih rentang tanggal untuk menampilkan laporan arus kas.</div>;
+    }
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-                <Card>
-                    <Title>Cash Flow Graph</Title>
-                    <BarChart
-                        className="mt-6 h-80"
-                        data={cashFlowForChart}
-                        index="date"
-                        categories={["Income", "Spending"]}
-                        colors={["green", "red"]}
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <SummaryDisplay label="Saldo Awal Periode" amount={processedData.openingBalance} />
+                <SummaryDisplay label="Total Pemasukan" amount={processedData.totalIncome} />
+                <SummaryDisplay label="Total Pengeluaran" amount={processedData.totalExpense} />
+                <SummaryDisplay label="Saldo Akhir Periode" amount={processedData.closingBalance} />
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Grafik Arus Kas & Saldo Total</CardTitle>
+                    <CardDescription>Visualisasi pergerakan dana dan saldo akhir kas Anda dari waktu ke waktu.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <AreaChart
+                        className="h-80"
+                        data={processedData.formattedChartData}
+                        index="period"
+                        categories={['Pemasukan', 'Pengeluaran', 'Total Kas']}
+                        colors={['emerald', 'rose', 'blue']}
                         valueFormatter={formatCurrency}
-                        yAxisWidth={60}
-                        noDataText="No data for this period."
+                        yAxisWidth={80}
+                        showAnimation={true}
                     />
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <SummaryCard title="Total Income" value={formatCurrency(data?.summary.total_income || 0)} color="text-green-600" />
-                    <SummaryCard title="Total Spending" value={formatCurrency(data?.summary.total_expense || 0)} color="text-red-600" />
-                    <SummaryCard title="Net Cash Flow" value={formatCurrency(netCashFlow)} color={netCashFlow >= 0 ? "text-blue-600" : "text-orange-600"} />
-                    <SummaryCard title="Savings Rate" value={`${savingsRate.toFixed(1)}%`} color={savingsRate >= 0 ? "text-emerald-600" : "text-amber-600"} />
-                </div>
-
-                <FilteredTransactionList 
-                    startDate={format(dateRange.from!, 'yyyy-MM-dd')}
-                    endDate={format(dateRange.to!, 'yyyy-MM-dd')}
-                />
-            </div>
-            <div className="lg:col-span-1">
-                <ReportSummaryCard data={data} />
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

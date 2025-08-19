@@ -68,10 +68,14 @@ export interface Account {
   household_id: string;
   initial_balance: number;
   balance?: number;
-  type: 'generic' | 'goal'; 
+  // --- PERUBAHAN: Mengganti tipe dari string menjadi ENUM yang lebih spesifik ---
+  type: 'generic' | 'goal' | 'asset'; 
   target_amount?: number | null;
   goal_reason?: string | null;
   achieved_at?: string | null;
+  // --- TAMBAHAN: Kolom baru untuk Aset ---
+  asset_class?: string | null;
+  unit?: string | null;
 }
 
 export interface Transaction {
@@ -92,6 +96,45 @@ export interface Transaction {
   to_account?: { name: string };
   [key: string]: unknown;
 }
+
+// --- TAMBAHAN BARU: Tipe data untuk fitur Aset ---
+export interface Asset {
+    id: number;
+    created_at: string;
+    household_id: string;
+    account_id: string;
+    name: string;
+    unit: string | null;
+    asset_class: string | null;
+}
+
+export interface AssetTransaction {
+    id: number;
+    created_at: string;
+    asset_account_id: string; // Merujuk ke Account ID
+    transaction_type: 'buy' | 'sell';
+    quantity: number;
+    price_per_unit: number;
+    transaction_date: string;
+    household_id: string;
+    related_transaction_id?: string | null;
+}
+
+export interface AssetSummary {
+    account_id: string;
+    name: string;
+    asset_class: string | null;
+    unit: string | null;
+    total_quantity: number;
+    average_cost_basis: number;
+    total_cost: number;
+    current_price: number;
+    current_value: number;
+    unrealized_pnl: number;
+    unrealized_pnl_percent: number;
+}
+// --- AKHIR TAMBAHAN ---
+
 
 export type RecentTransaction = {
   id: string;
@@ -114,12 +157,10 @@ export type TransactionSummary = {
   last_transaction_date: string;
 };
 
-// --- TAMBAHAN BARU DI SINI ---
 export type SpendingItem = { 
   name: string; 
   value: number; 
 };
-// --- AKHIR TAMBAHAN ---
 
 export type TransactionGroup = {
   date: string;

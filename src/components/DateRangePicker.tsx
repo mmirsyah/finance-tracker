@@ -1,5 +1,4 @@
 // src/components/DateRangePicker.tsx
-
 "use client"
 
 import * as React from "react"
@@ -7,21 +6,29 @@ import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
-import { cn } from "@/lib/utils" // Kita akan buat file ini di langkah berikutnya
-import { Button } from "@/components/ui/button" // Kita akan buat file ini juga
-import { Calendar } from "@/components/ui/calendar" // Dan ini
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover" // Dan ini
+} from "@/components/ui/popover"
 
+// --- PERBAIKAN TIPE PROPS ---
 interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
-  date: DateRange | undefined;
-  setDate: (date: DateRange | undefined) => void;
+  onUpdate: (payload: { range: DateRange | undefined }) => void;
+  initialDate?: DateRange;
 }
 
-export function DateRangePicker({ className, date, setDate }: DateRangePickerProps) {
+export function DateRangePicker({ className, onUpdate, initialDate }: DateRangePickerProps) {
+  const [date, setDate] = React.useState<DateRange | undefined>(initialDate);
+
+  const handleSelect = (selectedDate: DateRange | undefined) => {
+    setDate(selectedDate);
+    onUpdate({ range: selectedDate });
+  }
+
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
@@ -45,7 +52,7 @@ export function DateRangePicker({ className, date, setDate }: DateRangePickerPro
                 format(date.from, "LLL dd, y")
               )
             ) : (
-              <span>Pick a date</span>
+              <span>Pilih rentang tanggal</span>
             )}
           </Button>
         </PopoverTrigger>
@@ -55,7 +62,7 @@ export function DateRangePicker({ className, date, setDate }: DateRangePickerPro
             mode="range"
             defaultMonth={date?.from}
             selected={date}
-            onSelect={setDate}
+            onSelect={handleSelect}
             numberOfMonths={2}
           />
         </PopoverContent>

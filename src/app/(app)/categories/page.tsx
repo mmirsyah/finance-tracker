@@ -2,161 +2,194 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Category } from '@/types';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import Link from 'next/link';
-import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { useAppData } from '@/contexts/AppDataContext';
-import * as categoryService from '@/lib/categoryService';
+import { Category } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Plus, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import CategoryModal from '@/components/modals/CategoryModal';
 import ReassignCategoryModal from '@/components/modals/ReassignCategoryModal';
+import { toast } from 'sonner';
+import * as categoryService from '@/lib/categoryService';
+import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import TableSkeleton from '@/components/skeletons/TableSkeleton';
 
-const CategoryRow = ({ category, level, onEdit, onDelete }: { category: Category & { children?: Category[] }; level: number; onEdit: (cat: Category) => void; onDelete: (cat: Category) => void; }) => (
-  <>
-    <tr>
-      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" style={{ paddingLeft: `${1.5 + level * 1.5}rem` }}>
-        {level > 0 && <span className="mr-2 text-gray-400">└─</span>}
-        <Link href={`/categories/${category.id}`} className="text-blue-600 hover:text-blue-800 hover:underline">{category.name}</Link>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${category.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          {category.type}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <div className="flex justify-end gap-4">
-          <button onClick={() => onEdit(category)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
-          <button onClick={() => onDelete(category)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
-        </div>
-      </td>
-    </tr>
-    {category.children && category.children.map(child => (
-      <CategoryRow key={child.id} category={child} level={level + 1} onEdit={onEdit} onDelete={onDelete} />
-    ))}
-  </>
-);
+const CategoryRow = ({ category, onEdit, onDelete, onNavigate }: { category: Category & { children?: Category[] }, onEdit: (cat: Category) => void, onDelete: (cat: Category) => void, onNavigate: (id: number) => void }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+            <div className="flex items-center justify-between p-3 hover:bg-gray-50">
+                <div className="flex items-center gap-2">
+                    {category.children && category.children.length > 0 && (
+                        <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                <span className="sr-only">Toggle</span>
+                            </Button>
+                        </CollapsibleTrigger>
+                    )}
+                    <button onClick={() => onNavigate(category.id)} className={cn("text-left", !(category.children && category.children.length > 0) && "ml-12")}>
+                      <p className="font-medium">{category.name}</p>
+                    </button>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(category)}><Edit className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(category)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                </div>
+            </div>
+            {category.children && category.children.length > 0 && (
+                <CollapsibleContent>
+                    <div className="pl-12 border-l ml-6">
+                        {category.children.map(child => (
+                           <div key={child.id} className="flex items-center justify-between p-3 hover:bg-gray-50 border-b last:border-b-0">
+                               <button onClick={() => onNavigate(child.id)} className="text-left">
+                                  <p className="font-medium text-gray-700">{child.name}</p>
+                               </button>
+                               <div className="flex items-center gap-2">
+                                   <Button variant="ghost" size="icon" onClick={() => onEdit(child)}><Edit className="h-4 w-4" /></Button>
+                                   <Button variant="ghost" size="icon" onClick={() => onDelete(child)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                               </div>
+                           </div>
+                        ))}
+                    </div>
+                </CollapsibleContent>
+            )}
+        </Collapsible>
+    )
+}
 
 export default function CategoriesPage() {
-  const { categories: allCategories, isLoading: isAppDataLoading, user, householdId, refetchData } = useAppData();
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
-  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
-
-  const categoryTree = useMemo(() => {
-    const map: Record<number, Category & { children: Category[] }> = {};
-    const roots: (Category & { children: Category[] })[] = [];
-    allCategories.forEach((cat) => { map[cat.id] = { ...cat, children: [] }; });
-    allCategories.forEach((cat) => {
-      if (cat.parent_id && map[cat.parent_id]) {
-        map[cat.parent_id].children.push(map[cat.id]);
-      } else {
-        roots.push(map[cat.id]);
-      }
-    });
-    roots.sort((a, b) => {
-      if (a.type !== b.type) { return a.type === 'income' ? -1 : 1; }
-      return a.name.localeCompare(b.name);
-    });
-    return roots;
-  }, [allCategories]);
-
-  const handleSaveCategory = async (payload: Partial<Category>) => {
-    if (!user || !householdId) {
-      toast.error('User session not found.');
-      return;
-    }
-
-    const promise = () => categoryService.saveCategory(payload, user.id!, householdId);
-
-    toast.promise(promise, {
-      loading: 'Menyimpan kategori...',
-      success: () => {
-        refetchData();
-        setIsModalOpen(false);
-        setEditingCategory(null);
-        return 'Kategori berhasil disimpan!';
-      },
-      error: (err: Error) => `Gagal menyimpan: ${err.message}`,
-    });
-  };
-
-  const handleDeleteCategory = async (category: Category) => {
-    const { count, error } = await supabase
-      .from('transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('category', category.id);
-
-    if (error) return toast.error(`Error checking transactions: ${error.message}`);
+    const router = useRouter();
+    const { categories, refetchData, isLoading, user, householdId } = useAppData();
     
-    if ((count || 0) > 0) {
-      setCategoryToDelete(category);
-      setIsReassignModalOpen(true);
-    } else {
-      if (confirm(`Are you sure you want to delete the category "${category.name}"? This cannot be undone.`)) {
-        const promise = () => categoryService.deleteCategory(category.id);
-        toast.promise(promise, {
-          loading: 'Menghapus kategori...',
-          success: () => {
-            refetchData();
-            return 'Kategori berhasil dihapus!';
-          },
-          error: (err: Error) => `Gagal menghapus: ${err.message}`,
-        });
-      }
-    }
-  };
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
+    const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+    const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
-  const handleReassignAndDelele = async (oldCatId: number, newCatId: number) => {
-    const promise = () => categoryService.reassignAndDeleleCategory(oldCatId, newCatId);
-    toast.promise(promise, {
-      loading: 'Memindahkan transaksi dan menghapus...',
-      success: () => {
-        refetchData();
+    const { parentCategories, categoryTree } = useMemo(() => {
+        const parentCats = categories.filter(c => c.parent_id === null);
+        const childMap = categories.reduce((acc, cat) => {
+            if(cat.parent_id) {
+                if(!acc[cat.parent_id]) acc[cat.parent_id] = [];
+                acc[cat.parent_id].push(cat);
+            }
+            return acc;
+        }, {} as Record<number, Category[]>);
+
+        const tree = parentCats.map(p => ({
+            ...p,
+            children: childMap[p.id] || []
+        }));
+
+        return { parentCategories: parentCats, categoryTree: tree };
+    }, [categories]);
+
+    const handleSaveCategory = async (payload: Partial<Category>) => {
+        if (!user || !householdId) return toast.error("User session not found.");
+        const promise = categoryService.saveCategory({ ...payload, user_id: user.id, household_id: householdId })
+            .then(() => {
+                refetchData();
+                setIsModalOpen(false);
+            });
+        
+        toast.promise(promise, {
+            loading: 'Menyimpan kategori...',
+            success: 'Kategori berhasil disimpan!',
+            error: (err: Error) => `Gagal: ${err.message}`
+        });
+    };
+
+    const handleDeleteCategory = async (category: Category) => {
+        const { count, error } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('category', category.id);
+        
+        if (error) return toast.error(`Error: ${error.message}`);
+        
+        if ((count || 0) > 0) {
+            setCategoryToDelete(category);
+            setIsReassignModalOpen(true);
+        } else {
+            if (confirm(`Anda yakin ingin menghapus kategori "${category.name}"?`)) {
+                const promise = categoryService.deleteCategory(category.id).then(refetchData);
+                toast.promise(promise, {
+                    loading: 'Menghapus...',
+                    success: 'Kategori berhasil dihapus!',
+                    error: (err: Error) => `Gagal: ${err.message}`
+                });
+            }
+        }
+    };
+    
+    const handleReassignAndDelete = (toCategoryId: number) => {
+        if (!categoryToDelete) return;
+        // --- PERBAIKAN: Menggunakan nama fungsi yang benar ---
+        const promise = categoryService.reassignAndDeleteCategory(categoryToDelete.id, toCategoryId).then(refetchData);
+        toast.promise(promise, {
+            loading: 'Memindahkan & menghapus...',
+            success: 'Kategori berhasil dihapus!',
+            error: (err: Error) => `Gagal: ${err.message}`
+        });
         setIsReassignModalOpen(false);
         setCategoryToDelete(null);
-        return 'Kategori berhasil dihapus!';
-      },
-      error: (err: Error) => err.message,
-    });
-  };
+    };
 
-  const handleAddNew = () => { setEditingCategory(null); setIsModalOpen(true); };
-  const handleEdit = (category: Category) => { setEditingCategory(category); setIsModalOpen(true); };
-  
-  return (
-    <div className="p-6">
-      <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Manage Categories</h1>
-        <button onClick={handleAddNew} disabled={isAppDataLoading} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
-          <Plus size={20} /> Add New
-        </button>
-      </div>
-      {isAppDataLoading ? (
-        <TableSkeleton />
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {categoryTree.map((cat) => (
-                <CategoryRow key={cat.id} category={cat} level={0} onEdit={handleEdit} onDelete={handleDeleteCategory} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <CategoryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCategory} category={editingCategory} parentCategories={allCategories.filter((c) => !c.parent_id)} />
-      <ReassignCategoryModal isOpen={isReassignModalOpen} onClose={() => setIsReassignModalOpen(false)} onReassign={handleReassignAndDelele} categoryToDelete={categoryToDelete} allCategories={allCategories} />
-    </div>
-  );
+    if (isLoading) {
+        return <div className="p-6"><TableSkeleton /></div>;
+    }
+
+    return (
+        <>
+            <div className="p-6">
+                 <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
+                    <h1 className="text-3xl font-bold">Manage Categories</h1>
+                    <Button onClick={() => { setEditingCategory(null); setIsModalOpen(true); }} className="flex items-center gap-2">
+                        <Plus size={20} /> Add New
+                    </Button>
+                </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Kategori</CardTitle>
+                        <CardDescription>Atur kategori pengeluaran dan pemasukan Anda di sini.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="border rounded-md">
+                           {categoryTree.map(category => (
+                               <CategoryRow 
+                                   key={category.id}
+                                   category={category}
+                                   onEdit={(cat) => { setEditingCategory(cat); setIsModalOpen(true); }}
+                                   onDelete={handleDeleteCategory}
+                                   onNavigate={(id) => router.push(`/categories/${id}`)}
+                               />
+                           ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            
+            <CategoryModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSave={handleSaveCategory}
+                category={editingCategory}
+                parentCategories={parentCategories}
+            />
+            
+            <ReassignCategoryModal 
+                isOpen={isReassignModalOpen}
+                onClose={() => setIsReassignModalOpen(false)}
+                onReassign={handleReassignAndDelete}
+                categoryToDelete={categoryToDelete}
+                allCategories={categories}
+            />
+        </>
+    );
 }

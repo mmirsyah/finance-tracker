@@ -62,11 +62,9 @@ export default function TransactionsPage() {
     fetchProfileAndSetDate();
   };
 
-  // Pemicu fetch ulang sekarang adalah 'dataVersion' dari context
   const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion: dataVersion }),
     [filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, dataVersion]);
 
-  // Setiap kali dataVersion berubah, set list ke loading
   useEffect(() => {
     setIsListLoading(true);
   }, [dataVersion]);
@@ -78,8 +76,10 @@ export default function TransactionsPage() {
       <div className="p-4 sm:p-6 w-full h-full">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 order-2 lg:order-1">
+            {/* --- PERBAIKAN DI SINI --- */}
             <TransactionToolbar
-              dateRange={date} setDateRange={setDate}
+              dateRange={date} 
+              onDateChange={setDate} // Menggunakan onDateChange
               filterType={filterType} setFilterType={setFilterType}
               filterCategory={filterCategory} setFilterCategory={setFilterCategory}
               filterAccount={filterAccount} setFilterAccount={setFilterAccount}

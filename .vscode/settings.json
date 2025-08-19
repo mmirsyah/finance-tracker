@@ -1,2 +1,18 @@
 {
+  // 1. Aktifkan Deno hanya untuk folder functions
+  "deno.enablePaths": [
+    "./supabase/functions"
+  ],
+
+  // 2. Beri tahu Deno di mana file konfigurasinya
+  "deno.config": "./supabase/deno.jsonc",
+
+  // 3. Aktifkan fitur linting dan unstable Deno
+  "deno.lint": true,
+  "deno.unstable": true,
+
+  // 4. Atur formatter default untuk file di dalam folder Deno
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
 }

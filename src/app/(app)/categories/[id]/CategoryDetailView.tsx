@@ -1,160 +1,169 @@
 // src/app/(app)/categories/[id]/CategoryDetailView.tsx
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Category, Transaction } from '@/types';
-// --- PERBAIKAN: Hapus 'Edit' dari import ---
-import { ArrowLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { AreaChart, Card, DonutChart, Flex, Metric, Text, Title } from '@tremor/react';
-import { format, startOfMonth } from 'date-fns';
-import { DateRangePicker } from '@/components/DateRangePicker';
+import useSWR from 'swr';
 import { DateRange } from 'react-day-picker';
+import { addDays } from 'date-fns';
+import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Category } from '@/types';
+import { getCategoryAnalytics } from '@/lib/categoryService';
 import { useAppData } from '@/contexts/AppDataContext';
-import { getCustomPeriod } from '@/lib/periodUtils';
-import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { DateRangePicker } from '@/components/DateRangePicker';
+import CategoryModal from '@/components/modals/CategoryModal';
 import { toast } from 'sonner';
-// --- PERBAIKAN: Hapus import 'Button' ---
+import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
+import { formatCurrency } from '@/lib/utils';
+import { DonutChart } from '@tremor/react';
 
-type AnalyticsData = {
-  current_period_total: number;
-  previous_period_total: number;
-  period_average: number;
-  percentage_of_total: number;
-  sub_category_spending: { name: string; value: number }[];
-};
-
+// --- PERBAIKAN: Menghapus initialTransactions dari props ---
 interface CategoryDetailViewProps {
-  initialCategory: Category & { parent?: { name: string } | null };
-  initialTransactions: Transaction[];
-  initialAnalytics: AnalyticsData;
+  initialCategory: Category;
 }
 
-const StatCard = ({ title, metric, diff, diffType }: { title: string, metric: string, diff: number, diffType: 'positive' | 'negative' | 'neutral' }) => {
-  const Icon = diffType === 'positive' ? TrendingUp : diffType === 'negative' ? TrendingDown : Minus;
-  const color = diffType === 'positive' ? 'emerald' : diffType === 'negative' ? 'red' : 'gray';
-  return (
+const StatCard = ({ title, value, change, changeType }: { title: string, value: string, change?: string, changeType?: 'increase' | 'decrease' | 'neutral' }) => (
     <Card>
-      <Text>{title}</Text>
-      <Flex justifyContent="start" alignItems="baseline" className="space-x-3 truncate">
-        <Metric>{metric}</Metric>
-      </Flex>
-      <Flex justifyContent="start" className="space-x-2 mt-2">
-        <Icon className={`w-4 h-4 text-${color}-500`} />
-        <Text className={`text-${color}-500`}>
-          {diff.toFixed(1)}% vs previous period
-        </Text>
-      </Flex>
+        <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{value}</div>
+            {change && (
+                <p className={`text-xs ${changeType === 'increase' ? 'text-red-500' : 'text-green-500'}`}>
+                    {change} vs periode sebelumnya
+                </p>
+            )}
+        </CardContent>
     </Card>
+);
+
+export default function CategoryDetailView({ initialCategory }: CategoryDetailViewProps) {
+  const router = useRouter();
+  const { householdId, refetchData, categories } = useAppData();
+  
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -29),
+    to: new Date(),
+  });
+
+  const { data, isLoading } = useSWR(
+    (householdId && date?.from && date?.to) ? ['categoryAnalytics', initialCategory.id, date] : null,
+    () => getCategoryAnalytics(householdId!, initialCategory.id, date!.from!, date!.to!)
   );
-};
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const handleSaveCategory = () => {
+    toast.success("Kategori berhasil diperbarui!");
+    refetchData();
+    setIsModalOpen(false);
+  };
+  
+  const handleDeleteCategory = () => {
+    toast.success("Kategori berhasil dihapus!");
+    router.push('/categories');
+    refetchData();
+  };
 
-export default function CategoryDetailView({ initialCategory, initialTransactions, initialAnalytics }: CategoryDetailViewProps) {
-    const router = useRouter();
-    const { householdId, profile } = useAppData();
-    const [category] = useState<Category | null>(initialCategory);
-    const [allTransactions] = useState<Transaction[]>(initialTransactions);
-    const [analytics, setAnalytics] = useState<AnalyticsData>(initialAnalytics);
-    const [date, setDate] = useState<DateRange | undefined>();
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) {
+      return current > 0 ? "+100%" : "0%";
+    }
+    const change = ((current - previous) / previous) * 100;
+    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
+  
+  const parentCategories = useMemo(() => {
+    return categories.filter(c => c.parent_id === null && c.id !== initialCategory.id);
+  }, [categories, initialCategory.id]);
 
-    useEffect(() => {
-        if (profile && !date) {
-          setDate(getCustomPeriod(profile.period_start_day || 1));
-        }
-    }, [profile, date]);
-
-    useEffect(() => {
-        if (!householdId || !category || !date?.from || !date?.to) return;
-        
-        const fetchNewAnalytics = async () => {
-            const { data, error } = await supabase.rpc('get_category_analytics', {
-                p_household_id: householdId,
-                p_category_id: category.id,
-                p_start_date: format(date.from!, 'yyyy-MM-dd'),
-                p_end_date: format(date.to!, 'yyyy-MM-dd'),
-            });
-            if (error) {
-                toast.error("Gagal memuat data analitik baru.");
-            } else {
-                setAnalytics(data);
-            }
-        };
-        fetchNewAnalytics();
-    }, [date, category, householdId]);
-    
-    const { chartData, displayedTransactions, hasChildren } = useMemo(() => {
-        const dateFilteredTransactions = allTransactions.filter(t => {
-            if (!date?.from || !date?.to) return true;
-            const txDate = new Date(t.date);
-            return txDate >= date.from && txDate <= date.to;
-        });
-
-        const aggregation: { [key: string]: number } = {};
-        dateFilteredTransactions.forEach(t => {
-            const monthKey = format(startOfMonth(new Date(t.date)), 'MMM yyyy');
-            if (!aggregation[monthKey]) { aggregation[monthKey] = 0; }
-            aggregation[monthKey] += t.amount;
-        });
-
-        const sortedChartData = Object.entries(aggregation)
-            .map(([period, total]) => ({ period, Total: total }))
-            .sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime());
-        
-        const childCategories = analytics.sub_category_spending && analytics.sub_category_spending.length > 1;
-        
-        return { chartData: sortedChartData, displayedTransactions: dateFilteredTransactions, hasChildren: childCategories };
-    }, [allTransactions, date, analytics]);
-
-    if (!category) { return <div className="p-6">Category not found.</div>; }
-    
-    const diff = analytics.previous_period_total === 0 ? (analytics.current_period_total > 0 ? 100 : 0) : ((analytics.current_period_total - analytics.previous_period_total) / analytics.previous_period_total) * 100;
-    const diffType = diff > 0.1 ? 'negative' : diff < -0.1 ? 'positive' : 'neutral';
-
-    return (
-        <div className="p-4 sm:p-6">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+  if (isLoading) {
+    return <ReportSkeleton />;
+  }
+  
+  const changeType = (data && data.current_period_total > data.previous_period_total) ? 'increase' : 'decrease';
+  
+  return (
+    <>
+      <div className="p-4 sm:p-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6">
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" onClick={() => router.push('/categories')}><ArrowLeft className="h-4 w-4" /></Button>
                 <div>
-                    <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline mb-2"><ArrowLeft size={16} />Back to Categories</button>
-                    <h1 className="text-3xl font-bold">{category.name}</h1>
-                    {initialCategory.parent && (
-                        <Text>Sub-category of <span className="font-semibold">{initialCategory.parent.name}</span></Text>
-                    )}
+                    <h1 className="text-3xl font-bold">{initialCategory.name}</h1>
+                    <p className="text-muted-foreground">Analisis detail untuk kategori ini.</p>
                 </div>
-                <DateRangePicker date={date} setDate={setDate} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <StatCard title="Total Spending" metric={formatCurrency(analytics.current_period_total)} diff={diff} diffType={diffType} />
-                <Card><Text>Monthly Average (6 Mo.)</Text><Metric>{formatCurrency(analytics.period_average)}</Metric></Card>
-                <Card><Text>% of Total Spending</Text><Metric>{analytics.percentage_of_total.toFixed(1)}%</Metric></Card>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-                <Card className="lg:col-span-3">
-                    <Title>Spending Trend</Title>
-                    <AreaChart className="h-72 mt-4" data={chartData} index="period" categories={['Total']} colors={['blue']} yAxisWidth={60} valueFormatter={formatCurrency} noDataText="No data for this period." />
-                </Card>
-                <Card className="lg:col-span-2">
-                    <Title>Sub-category Breakdown</Title>
-                    {hasChildren ? (
-                        <DonutChart className="h-72 mt-4" data={analytics.sub_category_spending} category="value" index="name" valueFormatter={formatCurrency} colors={['blue', 'cyan', 'indigo', 'violet', 'fuchsia']} />
-                    ) : (
-                        <div className="flex h-72 items-center justify-center text-center"><Text className="text-muted-foreground">No sub-categories with spending in this period.</Text></div>
-                    )}
-                </Card>
-            </div>
-
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-4 border-b flex justify-between items-center"><h3 className="text-lg font-semibold">Transactions</h3>
-                </div>
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th></tr></thead>
-                    <tbody className="bg-white divide-y divide-gray-200">{displayedTransactions.map((t) => (<tr key={t.id}><td className="px-6 py-4 text-sm text-gray-600">{new Date(t.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td><td className="px-6 py-4 text-sm text-gray-800 font-medium">{t.accounts?.name || 'N/A'}</td><td className="px-6 py-4 text-sm text-gray-500">{t.note || '-'}</td><td className={`px-6 py-4 text-sm font-semibold text-right text-red-600`}>{formatCurrency(t.amount)}</td></tr>))}</tbody>
-                </table>
-                {displayedTransactions.length === 0 && (<p className="p-6 text-center text-gray-500">No transactions found for this period.</p>)}
+            <div className="flex gap-2 self-start md:self-center">
+                <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
+                <Button variant="outline" onClick={() => setIsModalOpen(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>
+                <Button variant="destructive" onClick={handleDeleteCategory}><Trash2 className="mr-2 h-4 w-4"/> Hapus</Button>
             </div>
         </div>
-    );
+
+        {data ? (
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard 
+                        title="Total Pengeluaran" 
+                        value={formatCurrency(data.current_period_total)}
+                        change={calculateChange(data.current_period_total, data.previous_period_total)}
+                        changeType={changeType}
+                    />
+                    <StatCard 
+                        title="Rata-rata 6 Bulan" 
+                        value={formatCurrency(data.period_average)}
+                    />
+                    <StatCard 
+                        title="% dari Total" 
+                        value={`${data.percentage_of_total.toFixed(1)}%`}
+                    />
+                    <StatCard 
+                        title="Pengeluaran Periode Lalu" 
+                        value={formatCurrency(data.previous_period_total)}
+                    />
+                </div>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Rincian Sub-kategori</CardTitle>
+                        <CardDescription>
+                            Distribusi pengeluaran di dalam kategori {initialCategory.name} pada periode yang dipilih.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex items-center justify-center">
+                        {data.sub_category_spending.length > 0 ? (
+                            <DonutChart
+                                data={data.sub_category_spending}
+                                category="value"
+                                index="name"
+                                valueFormatter={formatCurrency}
+                                className="h-80"
+                            />
+                        ) : (
+                            <div className="h-80 flex items-center justify-center text-muted-foreground">
+                                Tidak ada rincian sub-kategori untuk periode ini.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        ) : (
+            <div className="text-center py-16 text-gray-500">
+                Pilih rentang tanggal untuk melihat data analisis.
+            </div>
+        )}
+      </div>
+
+      <CategoryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveCategory}
+        category={initialCategory}
+        parentCategories={parentCategories}
+      />
+    </>
+  );
 }
