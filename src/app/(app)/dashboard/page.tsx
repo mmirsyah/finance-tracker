@@ -32,17 +32,12 @@ export default function DashboardPage() {
     const hasAccounts = accounts && accounts.length > 0;
     const hasCategories = categories && categories.length > 0;
     
-    // --- PERBAIKAN: Hapus SWR hook untuk budgetSummary yang tidak digunakan ---
-    // const { data: budgetSummary } = useSWR(
-    //     (householdId && date?.from && date?.to) ? ['overallBudgetSummary', householdId, date] : null,
-    //     () => getOverallBudgetSummary(householdId!, date!.from!, date!.to!)
-    // );
-
     const { data: comparisonMetrics } = useSWR(
       (householdId && date?.from && date?.to) ? ['comparisonMetrics', householdId, date] : null,
       () => {
-        const currentStartDate = date!.from!;
-        const currentEndDate = date!.to!;
+        if (!date?.from || !date.to) return null;
+        const currentStartDate = date.from;
+        const currentEndDate = date.to;
         const diff = currentEndDate.getTime() - currentStartDate.getTime();
         const previousStartDate = new Date(currentStartDate.getTime() - diff - (24 * 60 * 60 * 1000));
         const previousEndDate = new Date(currentStartDate.getTime() - (24 * 60 * 60 * 1000));
@@ -60,10 +55,10 @@ export default function DashboardPage() {
     }
 
     const totalAssetValue = assets.reduce((sum, asset) => sum + asset.current_value, 0);
-    const totalAccountBalance = accounts
-      .filter(acc => acc.type === 'generic' || acc.type === 'goal')
+    
+    const totalAvailableCash = accounts
+      .filter(acc => acc.type === 'generic' && acc.name !== 'Modal Awal Aset') 
       .reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    const netWorth = totalAssetValue + totalAccountBalance;
 
     const incomeChange = comparisonMetrics && comparisonMetrics.previous_income > 0 ? ((comparisonMetrics.current_income - comparisonMetrics.previous_income) / comparisonMetrics.previous_income) * 100 : 0;
     const spendingChange = comparisonMetrics && comparisonMetrics.previous_spending > 0 ? ((comparisonMetrics.current_spending - comparisonMetrics.previous_spending) / comparisonMetrics.previous_spending) * 100 : 0;
@@ -75,30 +70,31 @@ export default function DashboardPage() {
                 <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
             </div>
 
+            {/* --- PERBAIKAN DESKRIPSI DI SINI --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <SummaryDisplay label="Kekayaan Bersih" amount={netWorth} description="Total saldo akun & nilai aset" />
-                <SummaryDisplay label="Total Nilai Aset" amount={totalAssetValue} description={`${assets.length} aset dilacak`} />
+                <SummaryDisplay label="Total Available Cash" amount={totalAvailableCash} description="Total cash in general accounts" />
+                <SummaryDisplay label="Total Asset Value" amount={totalAssetValue} description={`${assets.length} assets tracked`} />
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Pemasukan Bulan Ini</CardTitle>
+                        <CardTitle className="text-sm font-medium">Income This Period</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">{formatCurrency(comparisonMetrics?.current_income)}</p>
                         <p className={`text-xs flex items-center ${incomeChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {incomeChange > 0.1 ? <TrendingUp className="mr-1 h-4 w-4"/> : incomeChange < -0.1 ? <TrendingDown className="mr-1 h-4 w-4"/> : <Minus className="mr-1 h-4 w-4"/>}
-                            {incomeChange.toFixed(1)}% vs periode sebelumnya
+                            {incomeChange.toFixed(1)}% vs previous period
                         </p>
                     </CardContent>
                 </Card>
                  <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Pengeluaran Bulan Ini</CardTitle>
+                        <CardTitle className="text-sm font-medium">Spending This Period</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">{formatCurrency(comparisonMetrics?.current_spending)}</p>
                         <p className={`text-xs flex items-center ${spendingChange > 0 ? 'text-red-600' : 'text-green-600'}`}>
                            {spendingChange > 0.1 ? <TrendingUp className="mr-1 h-4 w-4"/> : (spendingChange < -0.1 ? <TrendingDown className="mr-1 h-4 w-4"/> : <Minus className="mr-1 h-4 w-4"/>)}
-                            {spendingChange.toFixed(1)}% vs periode sebelumnya
+                            {spendingChange.toFixed(1)}% vs previous period
                         </p>
                     </CardContent>
                 </Card>

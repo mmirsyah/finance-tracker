@@ -25,29 +25,27 @@ export const getTransactionSummary = async (householdId: string, dateRange: Date
     return (data && data.length > 0 ? data[0] : null) as TransactionSummary | null;
 }
 
+
 export const getReportData = async (householdId: string, startDate: string, endDate: string) => {
   const [
     summaryRes,
-    cashFlowRes, // <-- Ini akan memanggil fungsi baru
+    cashFlowRes,
     topTransactionsRes,
     spendingByCategoryRes,
     detailedSummaryRes
   ] = await Promise.all([
     supabase.rpc('get_report_summary_metrics', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
-    // --- PERBAIKAN: Panggil fungsi RPC yang baru ---
     supabase.rpc('get_cash_flow_and_balance_report', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
     supabase.rpc('get_top_transactions_report', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
     supabase.rpc('get_spending_by_category', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate }),
     supabase.rpc('get_transaction_summary', { p_household_id: householdId, p_start_date: startDate, p_end_date: endDate })
   ]);
 
-  // Error handling
   if (summaryRes.error) throw new Error(`Summary Error: ${summaryRes.error.message}`);
   if (cashFlowRes.error) throw new Error(`Cash Flow Error: ${cashFlowRes.error.message}`);
   if (topTransactionsRes.error) throw new Error(`Top Transactions Error: ${topTransactionsRes.error.message}`);
   if (spendingByCategoryRes.error) throw new Error(`Spending by Category Error: ${spendingByCategoryRes.error.message}`);
   if (detailedSummaryRes.error) throw new Error(`Detailed Summary Error: ${detailedSummaryRes.error.message}`);
-
 
   return {
     summary: summaryRes.data[0],
@@ -65,9 +63,7 @@ export const getTransactionsForExport = async (householdId: string, startDate: s
     p_end_date: endDate,
   });
 
-  if (error) {
-    throw new Error(`Export Error: ${error.message}`);
-  }
+  if (error) { throw new Error(`Export Error: ${error.message}`); }
   return data;
 };
 
@@ -87,3 +83,20 @@ export const getComparisonMetrics = async (householdId: string, currentStartDate
     
     return data[0];
 }
+
+// --- FUNGSI BARU UNTUK DASHBOARD CHART ---
+export const getDashboardCashFlow = async (householdId: string, dateRange: DateRange) => {
+    if (!dateRange.from || !dateRange.to) return [];
+    
+    const { data, error } = await supabase.rpc('get_dashboard_cash_flow', {
+        p_household_id: householdId,
+        p_start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        p_end_date: format(dateRange.to, 'yyyy-MM-dd')
+    });
+    
+    if (error) {
+        console.error("Dashboard cash flow error:", error);
+        throw new Error(error.message);
+    }
+    return data;
+};
