@@ -6,7 +6,6 @@ import { BarChart, LineChart } from "@tremor/react";
 
 // Tipe untuk props komponen ComboChart
 interface ComboChartProps {
-  // --- PERBAIKAN: Menggunakan tipe yang lebih spesifik daripada 'any' ---
   data: Record<string, any>[];
   index: string;
   barCategories: string[];
@@ -30,28 +29,33 @@ export function ComboChart({
 
   return (
     <div className={`relative ${className}`}>
-      <LineChart
+      {/* Lapisan 1: Bar Chart (grafik utama yang menggambar semua sumbu) */}
+      <BarChart
         data={data}
         index={index}
-        categories={lineCategories}
-        colors={lineColors}
+        categories={barCategories}
+        colors={barColors}
         valueFormatter={valueFormatter}
         yAxisWidth={80}
         showAnimation={true}
-        showLegend={false}
+        stack={true}
+        showLegend={true}
       />
+      {/* Lapisan 2: Line Chart (ditumpuk di atas, hanya menggambar garis) */}
       <div className="absolute inset-0">
-        <BarChart
+        <LineChart
           data={data}
           index={index}
-          categories={barCategories}
-          colors={barColors}
+          categories={lineCategories}
+          colors={lineColors}
           valueFormatter={valueFormatter}
-          yAxisWidth={80}
+          // --- PERBAIKAN DI SINI ---
+          showYAxis={false}       // Sembunyikan sumbu Y
+          showXAxis={false}       // Sembunyikan sumbu X
+          yAxisWidth={80}         // Tetap set agar lebarnya sama persis
           showAnimation={true}
-          stack={true}
-          showGridLines={false}
-          showLegend={true}
+          showLegend={false}      // Legenda sudah ada dari BarChart
+          showGridLines={false}   // Hindari grid ganda
         />
       </div>
     </div>
