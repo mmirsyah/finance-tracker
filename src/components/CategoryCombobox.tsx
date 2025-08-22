@@ -20,38 +20,37 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Category } from "@/types";
+import { useAppData } from "@/contexts/AppDataContext"; // Import context
 
 interface CategoryComboboxProps {
-  allCategories: Category[];
-  value: string; // The selected category ID (as a string for the form)
+  allCategories: Category[]; // Ini akan menjadi daftar yang sudah difilter
+  value: string;
   onChange: (value: string) => void;
 }
 
 export function CategoryCombobox({ allCategories, value, onChange }: CategoryComboboxProps) {
+  const { categories: globalCategories } = useAppData(); // Ambil daftar lengkap
   const [open, setOpen] = React.useState(false);
 
-  // --- LOGIKA BARU UNTUK MENGELOMPOKKAN KATEGORI (TERMASUK INDUK) ---
   const categoryOptions = React.useMemo(() => {
     const grouped: { [key: string]: Category[] } = {};
     const parents = allCategories.filter(c => !c.parent_id);
     const children = allCategories.filter(c => c.parent_id);
 
     parents.forEach(parent => {
-      // Tambahkan kategori induk itu sendiri sebagai pilihan pertama di grupnya
       if (!grouped[parent.name]) {
         grouped[parent.name] = [];
       }
       grouped[parent.name].push(parent);
-
-      // Tambahkan anak-anaknya
       const parentChildren = children.filter(c => c.parent_id === parent.id);
       grouped[parent.name].push(...parentChildren);
     });
-
     return grouped;
   }, [allCategories]);
 
-  const selectedCategoryName = allCategories.find(c => c.id.toString() === value)?.name || "Select category...";
+  // Logika baru: Cari nama dari daftar global untuk memastikan kategori arsip tetap tampil
+  const selectedCategoryName = 
+    globalCategories.find(c => c.id.toString() === value)?.name || "Pilih kategori...";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,8 +67,8 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Search category..." />
-          <CommandEmpty>No category found.</CommandEmpty>
+          <CommandInput placeholder="Cari kategori..." />
+          <CommandEmpty>Kategori tidak ditemukan.</CommandEmpty>
           <CommandList>
             {Object.entries(categoryOptions).map(([groupName, categoriesInGroup]) => (
               <CommandGroup key={groupName} heading={groupName}>

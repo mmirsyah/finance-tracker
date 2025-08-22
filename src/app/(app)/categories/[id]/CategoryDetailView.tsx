@@ -6,11 +6,11 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { DateRange } from 'react-day-picker';
 import { addDays } from 'date-fns';
-import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Category } from '@/types';
-import { getCategoryAnalytics } from '@/lib/categoryService';
+import { getCategoryAnalytics, saveCategory, setCategoryArchiveStatus } from '@/lib/categoryService';
 import { useAppData } from '@/contexts/AppDataContext';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import CategoryModal from '@/components/modals/CategoryModal';
@@ -18,8 +18,8 @@ import { toast } from 'sonner';
 import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
 import { formatCurrency } from '@/lib/utils';
 import { DonutChart } from '@tremor/react';
+import { supabase } from '@/lib/supabase';
 
-// --- PERBAIKAN: Menghapus initialTransactions dari props ---
 interface CategoryDetailViewProps {
   initialCategory: Category;
 }
@@ -42,7 +42,7 @@ const StatCard = ({ title, value, change, changeType }: { title: string, value: 
 
 export default function CategoryDetailView({ initialCategory }: CategoryDetailViewProps) {
   const router = useRouter();
-  const { householdId, refetchData, categories } = useAppData();
+  const { householdId, refetchData, categories, user } = useAppData();
   
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -29),
@@ -56,16 +56,45 @@ export default function CategoryDetailView({ initialCategory }: CategoryDetailVi
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  const handleSaveCategory = () => {
-    toast.success("Kategori berhasil diperbarui!");
-    refetchData();
-    setIsModalOpen(false);
+  // --- PERBAIKAN LOGIKA SAVE ---
+  const handleSaveCategory = async (payload: Partial<Category>) => {
+    if (!user || !householdId) return toast.error("User session not found.");
+    const promise = saveCategory({ ...payload, user_id: user.id, household_id: householdId })
+        .then(() => {
+            refetchData();
+            setIsModalOpen(false);
+            // Penting: Refresh halaman untuk mendapatkan data `initialCategory` yang baru
+            router.refresh(); 
+        });
+    
+    toast.promise(promise, {
+        loading: 'Memperbarui kategori...',
+        success: 'Kategori berhasil diperbarui!',
+        error: (err: Error) => `Gagal: ${err.message}`
+    });
   };
   
-  const handleDeleteCategory = () => {
-    toast.success("Kategori berhasil dihapus!");
-    router.push('/categories');
-    refetchData();
+  // --- PERBAIKAN LOGIKA DELETE MENJADI ARCHIVE ---
+  const handleArchiveCategory = async () => {
+    // Cek apakah ini kategori induk yang punya anak
+    const hasChildren = categories.some(c => c.parent_id === initialCategory.id);
+    if (hasChildren) {
+        toast.error("Tidak bisa mengarsipkan kategori induk yang masih memiliki sub-kategori.");
+        return;
+    }
+
+    if (confirm(`Anda yakin ingin mengarsipkan kategori "${initialCategory.name}"?`)) {
+        const promise = setCategoryArchiveStatus(initialCategory.id, true).then(() => {
+            refetchData();
+            router.push('/categories');
+        });
+
+        toast.promise(promise, {
+            loading: 'Mengarsipkan kategori...',
+            success: 'Kategori berhasil diarsipkan!',
+            error: (err: Error) => `Gagal: ${err.message}`
+        });
+    }
   };
 
   const calculateChange = (current: number, previous: number) => {
@@ -77,7 +106,7 @@ export default function CategoryDetailView({ initialCategory }: CategoryDetailVi
   };
   
   const parentCategories = useMemo(() => {
-    return categories.filter(c => c.parent_id === null && c.id !== initialCategory.id);
+    return categories.filter(c => c.parent_id === null && c.id !== initialCategory.id && !c.is_archived);
   }, [categories, initialCategory.id]);
 
   if (isLoading) {
@@ -100,7 +129,7 @@ export default function CategoryDetailView({ initialCategory }: CategoryDetailVi
             <div className="flex gap-2 self-start md:self-center">
                 <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
                 <Button variant="outline" onClick={() => setIsModalOpen(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>
-                <Button variant="destructive" onClick={handleDeleteCategory}><Trash2 className="mr-2 h-4 w-4"/> Hapus</Button>
+                <Button variant="destructive" onClick={handleArchiveCategory}><Archive className="mr-2 h-4 w-4"/> Arsipkan</Button>
             </div>
         </div>
 
@@ -134,7 +163,7 @@ export default function CategoryDetailView({ initialCategory }: CategoryDetailVi
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex items-center justify-center">
-                        {data.sub_category_spending.length > 0 ? (
+                        {data.sub_category_spending && data.sub_category_spending.length > 0 ? (
                             <DonutChart
                                 data={data.sub_category_spending}
                                 category="value"

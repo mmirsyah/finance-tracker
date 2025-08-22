@@ -6,7 +6,8 @@ import { BarChart, LineChart } from "@tremor/react";
 
 // Tipe untuk props komponen ComboChart
 interface ComboChartProps {
-  data: Record<string, any>[];
+  // --- PERBAIKAN: Mengganti 'any' dengan tipe yang lebih spesifik ---
+  data: Record<string, string | number>[];
   index: string;
   barCategories: string[];
   lineCategories: string[];

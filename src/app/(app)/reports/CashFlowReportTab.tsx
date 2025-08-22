@@ -3,7 +3,8 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AreaChart, BarChart } from '@tremor/react';
+// PERBAIKAN: Menghapus 'BarChart' yang tidak digunakan
+import { AreaChart } from '@tremor/react';
 import { formatCurrency } from '@/lib/utils';
 import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
 import SummaryDisplay from '@/components/SummaryDisplay';

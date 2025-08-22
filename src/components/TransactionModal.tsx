@@ -48,7 +48,32 @@ export default function TransactionModal({
     }
   }, [accountId, isOpen]);
 
-  const relevantCategories = useMemo(() => categories.filter(c => c.type === type), [categories, type]);
+  const relevantCategories = useMemo(() => {
+    const categoriesForType = categories.filter(c => c.type === type);
+
+    // Untuk form pembuatan baru, hanya tampilkan kategori aktif
+    if (!editId) {
+      // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
+      return categoriesForType.filter(c => !c.is_archived);
+    }
+    
+    // Untuk form edit, cari kategori yang sedang dipakai oleh transaksi ini
+    const currentCategoryForTx = categoriesForType.find(c => c.id.toString() === category);
+    
+    // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
+    const activeCategories = categoriesForType.filter(c => !c.is_archived);
+
+    // Jika kategori yang dipakai ternyata sudah diarsipkan...
+    // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
+    if (currentCategoryForTx && currentCategoryForTx.is_archived) {
+      // ...tambahkan kategori arsip tersebut ke daftar agar tetap bisa dipilih/dilihat
+      return [...activeCategories, currentCategoryForTx].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Jika tidak, tampilkan saja kategori aktif
+    return activeCategories;
+  }, [categories, type, editId, category]);
+
 
   if (!isOpen) { return null; }
 
@@ -88,7 +113,6 @@ export default function TransactionModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              {/* --- PERBAIKAN DI SINI --- */}
               <select 
                 value={type} 
                 onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); setAccountId(''); setToAccountId(''); }} 
@@ -170,7 +194,6 @@ export default function TransactionModal({
                 required 
               />
             </div>
-            {/* --- PERBAIKAN SELESAI --- */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
               <textarea 

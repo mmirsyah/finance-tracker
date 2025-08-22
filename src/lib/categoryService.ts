@@ -1,6 +1,7 @@
 // src/lib/categoryService.ts
 import { supabase } from './supabase';
-import { Category, CategorySpendingHistory } from '@/types';
+// --- PERBAIKAN: Hapus impor 'CategorySpendingHistory' yang tidak digunakan ---
+import { Category } from '@/types';
 import { format } from 'date-fns';
 
 export const saveCategory = async (category: Partial<Category>) => {
@@ -24,24 +25,19 @@ export const deleteCategory = async (id: number) => {
     }
 }
 
-export const reassignTransactionsToCategory = async (fromCategoryId: number, toCategoryId: number) => {
-    const { error } = await supabase.rpc('reassign_transactions_to_category', {
-        from_category_id: fromCategoryId,
-        to_category_id: toCategoryId
-    });
+export const setCategoryArchiveStatus = async (categoryId: number, archiveStatus: boolean) => {
+    const { error } = await supabase
+        .from('categories')
+        .update({ is_archived: archiveStatus })
+        .eq('id', categoryId);
+
     if (error) {
-        console.error("Error reassigning transactions:", error);
+        console.error("Error updating category archive status:", error);
         throw error;
     }
-}
+};
 
-// --- FUNGSI BARU DITAMBAHKAN DI SINI ---
-export const reassignAndDeleteCategory = async (fromCategoryId: number, toCategoryId: number) => {
-    await reassignTransactionsToCategory(fromCategoryId, toCategoryId);
-    await deleteCategory(fromCategoryId);
-}
-// --- AKHIR PENAMBAHAN ---
-
+// --- FUNGSI YANG DIKEMBALIKAN ---
 export const getCategoryAnalytics = async (householdId: string, categoryId: number, from: Date, to: Date) => {
     const { data, error } = await supabase.rpc('get_category_analytics', {
         p_household_id: householdId,
@@ -55,19 +51,4 @@ export const getCategoryAnalytics = async (householdId: string, categoryId: numb
         throw error;
     }
     return data;
-}
-
-export const getCategorySpendingHistory = async (householdId: string, categoryId: number, referenceDate: Date, periodStartDay: number | null): Promise<CategorySpendingHistory | null> => {
-    const { data, error } = await supabase.rpc('get_category_spending_history', {
-        p_household_id: householdId,
-        p_category_id: categoryId,
-        p_reference_date: format(referenceDate, 'yyyy-MM-dd'),
-        p_period_start_day: periodStartDay
-    });
-
-    if (error) {
-        console.error('Error fetching category spending history:', error);
-        throw error;
-    }
-    return data?.[0] || null;
 }

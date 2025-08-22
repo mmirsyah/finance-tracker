@@ -2,7 +2,8 @@
 
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-export type SupabaseRealtimePayload<T extends { [key: string]: unknown; }> = RealtimePostgresChangesPayload<T>;
+// --- PERBAIKAN: Mengganti 'any' dengan 'Record<string, unknown>' untuk tipe yang lebih aman ---
+export type SupabaseRealtimePayload<T extends { [key: string]: Record<string, unknown>; }> = RealtimePostgresChangesPayload<T>;
 
 export interface Household {
   id: string;
@@ -17,13 +18,6 @@ export interface Profile {
   period_start_day: number | null;
 }
 
-export interface Budget {
-  id: number;
-  name: string;
-  household_id: string;
-  categories?: Category[];
-}
-
 export interface Category {
   id: number;
   name: string;
@@ -31,35 +25,45 @@ export interface Category {
   user_id: string;
   household_id: string;
   parent_id: number | null;
+  is_archived: boolean;
+  is_rollover: boolean;
   children?: Category[];
 }
 
-export interface BudgetAllocation {
-  id: number;
+// --- TIPE BUDGET BARU ---
+export interface BudgetAssignment {
+  id?: number;
   household_id: string;
-  period: string; // Format: 'YYYY-MM-DD'
-  budget_id: number;
-  category_id: number | null;
-  amount: number;
-  created_at: string;
+  category_id: number;
+  month: string; // YYYY-MM-DD
+  assigned_amount: number;
+  is_flex_budget?: boolean;
 }
 
-export interface BudgetCategorySummary {
+export interface BudgetCategoryData {
   id: number;
-  name:string;
-  allocated: number;
-  spent: number;
+  name: string;
+  rollover: number;
+  assigned: number;
+  activity: number;
+  available: number;
   is_rollover: boolean;
-  rollover_amount: number;
 }
 
-export interface BudgetSummary {
-  plan_id: number;
-  plan_name: string;
-  total_allocated: number;
-  total_spent: number;
-  categories: BudgetCategorySummary[];
+export interface BudgetParentCategoryData extends BudgetCategoryData {
+  unallocated_balance: number;
+  is_flex_budget: boolean; // <-- TAMBAHKAN INI
+  children: (BudgetCategoryData & { is_rollover: boolean })[];
 }
+
+export interface BudgetPageData {
+  income: number;
+  budgeted: number;
+  activity: number;
+  categories: (BudgetParentCategoryData | (BudgetCategoryData & { children: [], is_rollover: boolean, is_flex_budget: boolean, unallocated_balance: number }))[];
+}
+// --- AKHIR TIPE BUDGET BARU ---
+
 
 export interface Account {
   id: string;
@@ -68,12 +72,10 @@ export interface Account {
   household_id: string;
   initial_balance: number;
   balance?: number;
-  // --- PERUBAHAN: Mengganti tipe dari string menjadi ENUM yang lebih spesifik ---
   type: 'generic' | 'goal' | 'asset'; 
   target_amount?: number | null;
   goal_reason?: string | null;
   achieved_at?: string | null;
-  // --- TAMBAHAN: Kolom baru untuk Aset ---
   asset_class?: string | null;
   unit?: string | null;
 }
@@ -97,7 +99,6 @@ export interface Transaction {
   [key: string]: unknown;
 }
 
-// --- TAMBAHAN BARU: Tipe data untuk fitur Aset ---
 export interface Asset {
     id: number;
     created_at: string;
@@ -111,7 +112,7 @@ export interface Asset {
 export interface AssetTransaction {
     id: number;
     created_at: string;
-    asset_account_id: string; // Merujuk ke Account ID
+    asset_account_id: string;
     transaction_type: 'buy' | 'sell';
     quantity: number;
     price_per_unit: number;
@@ -133,7 +134,6 @@ export interface AssetSummary {
     unrealized_pnl: number;
     unrealized_pnl_percent: number;
 }
-// --- AKHIR TAMBAHAN ---
 
 
 export type RecentTransaction = {
@@ -168,19 +168,15 @@ export type TransactionGroup = {
   transactions: Transaction[];
 };
 
-export interface OverallBudgetSummary {
-  total_income: number;
-  total_budgeted: number;
-  total_spent: number;
-}
-
 export interface MonthlyBreakdown {
     month: string;
     Pengeluaran: number;
 }
 
 export interface CategorySpendingHistory {
-    spent_last_period: number;
+    current_period_total: number;
+    previous_period_total: number;
     period_average: number;
-    period_breakdown: MonthlyBreakdown[];
+    percentage_of_total: number;
+    sub_category_spending: SpendingItem[];
 }

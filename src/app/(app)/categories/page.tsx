@@ -6,29 +6,43 @@ import { useRouter } from 'next/navigation';
 import { useAppData } from '@/contexts/AppDataContext';
 import { Category } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Edit, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import CategoryModal from '@/components/modals/CategoryModal';
-import ReassignCategoryModal from '@/components/modals/ReassignCategoryModal';
 import { toast } from 'sonner';
 import * as categoryService from '@/lib/categoryService';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import TableSkeleton from '@/components/skeletons/TableSkeleton';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
-const CategoryRow = ({ category, onEdit, onDelete, onNavigate }: { category: Category & { children?: Category[] }, onEdit: (cat: Category) => void, onDelete: (cat: Category) => void, onNavigate: (id: number) => void }) => {
+const CategoryRow = ({ 
+    category, 
+    onEdit, 
+    onArchive, 
+    onDelete, 
+    onNavigate 
+}: { 
+    category: Category & { children?: Category[] }, 
+    onEdit: (cat: Category) => void, 
+    onArchive: (cat: Category) => void, 
+    onDelete: (cat: Category) => void,
+    onNavigate: (id: number) => void 
+}) => {
     const [isOpen, setIsOpen] = useState(false);
+    // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
+    const isArchived = category.is_archived;
 
     return (
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50">
+            <div className={cn("flex items-center justify-between p-3 hover:bg-gray-50", isArchived && "bg-gray-100 opacity-60")}>
                 <div className="flex items-center gap-2">
                     {category.children && category.children.length > 0 && (
                         <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                <span className="sr-only">Toggle</span>
                             </Button>
                         </CollapsibleTrigger>
                     )}
@@ -37,21 +51,39 @@ const CategoryRow = ({ category, onEdit, onDelete, onNavigate }: { category: Cat
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(category)}><Edit className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(category)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                    {isArchived ? (
+                        <Button variant="ghost" size="sm" onClick={() => onArchive(category)}>
+                            <ArchiveRestore className="h-4 w-4 mr-2"/> Pulihkan
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="ghost" size="icon" onClick={() => onEdit(category)}><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => (category.parent_id ? onArchive(category) : onDelete(category))}>
+                                {category.parent_id ? <Archive className="h-4 w-4 text-yellow-600" /> : <Trash2 className="h-4 w-4 text-red-500" />}
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
             {category.children && category.children.length > 0 && (
                 <CollapsibleContent>
                     <div className="pl-12 border-l ml-6">
                         {category.children.map(child => (
-                           <div key={child.id} className="flex items-center justify-between p-3 hover:bg-gray-50 border-b last:border-b-0">
+                           <div key={child.id} className={cn("flex items-center justify-between p-3 hover:bg-gray-50 border-b last:border-b-0", child.is_archived && "bg-gray-100 opacity-60")}>
                                <button onClick={() => onNavigate(child.id)} className="text-left">
                                   <p className="font-medium text-gray-700">{child.name}</p>
                                </button>
                                <div className="flex items-center gap-2">
-                                   <Button variant="ghost" size="icon" onClick={() => onEdit(child)}><Edit className="h-4 w-4" /></Button>
-                                   <Button variant="ghost" size="icon" onClick={() => onDelete(child)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                   {child.is_archived ? (
+                                        <Button variant="ghost" size="sm" onClick={() => onArchive(child)}>
+                                            <ArchiveRestore className="h-4 w-4 mr-2"/> Pulihkan
+                                        </Button>
+                                   ) : (
+                                    <>
+                                       <Button variant="ghost" size="icon" onClick={() => onEdit(child)}><Edit className="h-4 w-4" /></Button>
+                                       <Button variant="ghost" size="icon" onClick={() => onArchive(child)}><Archive className="h-4 w-4 text-yellow-600" /></Button>
+                                    </>
+                                   )}
                                </div>
                            </div>
                         ))}
@@ -68,12 +100,13 @@ export default function CategoriesPage() {
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
-    const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
-    const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     const { parentCategories, categoryTree } = useMemo(() => {
-        const parentCats = categories.filter(c => c.parent_id === null);
-        const childMap = categories.reduce((acc, cat) => {
+        const activeCategories = showArchived ? categories : categories.filter(c => !c.is_archived);
+
+        const parentCats = activeCategories.filter(c => c.parent_id === null);
+        const childMap = activeCategories.reduce((acc, cat) => {
             if(cat.parent_id) {
                 if(!acc[cat.parent_id]) acc[cat.parent_id] = [];
                 acc[cat.parent_id].push(cat);
@@ -83,11 +116,11 @@ export default function CategoriesPage() {
 
         const tree = parentCats.map(p => ({
             ...p,
-            children: childMap[p.id] || []
+            children: childMap[p.id]?.sort((a,b) => a.name.localeCompare(b.name)) || []
         }));
 
         return { parentCategories: parentCats, categoryTree: tree };
-    }, [categories]);
+    }, [categories, showArchived]);
 
     const handleSaveCategory = async (payload: Partial<Category>) => {
         if (!user || !householdId) return toast.error("User session not found.");
@@ -104,41 +137,40 @@ export default function CategoriesPage() {
         });
     };
 
-    const handleDeleteCategory = async (category: Category) => {
-        const { count, error } = await supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .eq('category', category.id);
+    const handleArchiveToggle = async (category: Category) => {
+        // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
+        const newStatus = !category.is_archived;
+        const actionText = newStatus ? 'Mengarsipkan' : 'Memulihkan';
         
-        if (error) return toast.error(`Error: ${error.message}`);
-        
-        if ((count || 0) > 0) {
-            setCategoryToDelete(category);
-            setIsReassignModalOpen(true);
-        } else {
-            if (confirm(`Anda yakin ingin menghapus kategori "${category.name}"?`)) {
-                const promise = categoryService.deleteCategory(category.id).then(refetchData);
-                toast.promise(promise, {
-                    loading: 'Menghapus...',
-                    success: 'Kategori berhasil dihapus!',
-                    error: (err: Error) => `Gagal: ${err.message}`
-                });
-            }
-        }
-    };
-    
-    const handleReassignAndDelete = (toCategoryId: number) => {
-        if (!categoryToDelete) return;
-        // --- PERBAIKAN: Menggunakan nama fungsi yang benar ---
-        const promise = categoryService.reassignAndDeleteCategory(categoryToDelete.id, toCategoryId).then(refetchData);
+        const promise = categoryService.setCategoryArchiveStatus(category.id, newStatus).then(refetchData);
+
         toast.promise(promise, {
-            loading: 'Memindahkan & menghapus...',
-            success: 'Kategori berhasil dihapus!',
+            loading: `${actionText} kategori...`,
+            success: `Kategori "${category.name}" berhasil di${newStatus ? 'arsipkan' : 'pulihkan'}!`,
             error: (err: Error) => `Gagal: ${err.message}`
         });
-        setIsReassignModalOpen(false);
-        setCategoryToDelete(null);
     };
+    
+    const handleDeleteParentCategory = async (category: Category) => {
+        if (category.children && category.children.length > 0) {
+            return toast.error("Tidak bisa menghapus kategori induk. Harap arsipkan atau hapus semua sub-kategorinya terlebih dahulu.");
+        }
+        
+        const { count } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('category', category.id);
+        if ((count || 0) > 0) {
+            return toast.error("Kategori ini memiliki transaksi. Harap arsipkan saja jika sudah tidak digunakan.");
+        }
+
+        if (confirm(`Anda yakin ingin menghapus permanen kategori "${category.name}"? Aksi ini tidak bisa dibatalkan.`)) {
+            const promise = categoryService.deleteCategory(category.id).then(refetchData);
+            toast.promise(promise, {
+                loading: 'Menghapus...',
+                success: 'Kategori berhasil dihapus!',
+                error: (err: Error) => `Gagal: ${err.message}`
+            });
+        }
+    };
+
 
     if (isLoading) {
         return <div className="p-6"><TableSkeleton /></div>;
@@ -156,8 +188,16 @@ export default function CategoriesPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Daftar Kategori</CardTitle>
-                        <CardDescription>Atur kategori pengeluaran dan pemasukan Anda di sini.</CardDescription>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardTitle>Daftar Kategori</CardTitle>
+                                <CardDescription>Atur kategori pengeluaran dan pemasukan Anda di sini.</CardDescription>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch id="show-archived" checked={showArchived} onCheckedChange={setShowArchived} />
+                                <Label htmlFor="show-archived">Tampilkan Arsip</Label>
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="border rounded-md">
@@ -166,10 +206,16 @@ export default function CategoriesPage() {
                                    key={category.id}
                                    category={category}
                                    onEdit={(cat) => { setEditingCategory(cat); setIsModalOpen(true); }}
-                                   onDelete={handleDeleteCategory}
+                                   onArchive={handleArchiveToggle}
+                                   onDelete={handleDeleteParentCategory}
                                    onNavigate={(id) => router.push(`/categories/${id}`)}
                                />
                            ))}
+                           {categoryTree.length === 0 && (
+                                <p className="p-8 text-center text-gray-500">
+                                    {showArchived ? "Tidak ada kategori yang diarsipkan." : "Belum ada kategori aktif."}
+                                </p>
+                           )}
                         </div>
                     </CardContent>
                 </Card>
@@ -180,15 +226,7 @@ export default function CategoriesPage() {
                 onClose={() => setIsModalOpen(false)}
                 onSave={handleSaveCategory}
                 category={editingCategory}
-                parentCategories={parentCategories}
-            />
-            
-            <ReassignCategoryModal 
-                isOpen={isReassignModalOpen}
-                onClose={() => setIsReassignModalOpen(false)}
-                onReassign={handleReassignAndDelete}
-                categoryToDelete={categoryToDelete}
-                allCategories={categories}
+                parentCategories={parentCategories.filter(c => !c.is_archived)}
             />
         </>
     );

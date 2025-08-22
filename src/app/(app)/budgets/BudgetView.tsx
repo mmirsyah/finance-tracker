@@ -1,264 +1,211 @@
 // src/app/(app)/budgets/BudgetView.tsx
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppData } from '@/contexts/AppDataContext';
-import { Button } from '@/components/ui/button';
-import { BudgetPlanModal } from '@/components/budget/BudgetPlanModal';
 import { toast } from 'sonner';
-import { saveBudgetPlanWithCategories, deleteBudgetPlan } from '@/lib/budgetPlanService';
-import { Budget, BudgetAllocation, BudgetSummary, OverallBudgetSummary } from '@/types';
-import { BudgetPlanCard } from '@/components/budget/BudgetPlanCard';
-import { getBudgetSummary, saveAllocation, getAllocationsByPeriod, getOverallBudgetSummary } from '@/lib/budgetService';
-import { format, addMonths, subMonths } from 'date-fns';
-import { getCustomPeriod } from '@/lib/periodUtils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
+import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
+import { BudgetPageData } from '@/types';
+import { format, addMonths, subMonths, startOfMonth } from 'date-fns';
+import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
+import { BudgetHeader } from '@/components/budget/BudgetHeader';
+import { BudgetTable } from '@/components/budget/BudgetTable';
 import { BudgetPeriodNavigator } from '@/components/budget/BudgetPeriodNavigator';
+import { getCustomPeriod } from '@/lib/periodUtils';
+import { id as indonesiaLocale } from 'date-fns/locale';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn, formatCurrency } from '@/lib/utils';
 
-type PendingAllocationData = {
-    mode: 'total' | 'category';
-    allocations: Record<string, number | undefined>;
+const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: number | null }) => {
+    if (isLoading || amount === null) {
+        return (
+            <Card className="w-full md:w-auto">
+                <CardHeader className="p-3">
+                    <CardTitle className="text-sm font-semibold text-center text-gray-600">Ready to Assign</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                    <div className="h-9 w-40 bg-gray-200 rounded-md animate-pulse mt-1 mx-auto"></div>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (amount > 0) {
+        return (
+            <Card className="w-full md:w-auto bg-green-50 border-green-200 shadow-md">
+                 <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
+                    <Wallet className="w-5 h-5 text-green-700"/>
+                    <CardTitle className="text-sm font-semibold text-green-800">Dana Perlu Dialokasikan</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0 text-center">
+                    <p className="text-3xl font-bold text-green-600">{formatCurrency(amount)}</p>
+                    <p className="text-xs text-green-700/80 mt-1">Ayo beri setiap rupiah tugas!</p>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (amount < 0) {
+        return (
+            <Card className="w-full md:w-auto bg-red-50 border-red-200 shadow-md">
+                <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
+                    <AlertTriangle className="w-5 h-5 text-red-700"/>
+                    <CardTitle className="text-sm font-semibold text-red-800">Anggaran Melebihi Dana</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0 text-center">
+                    <p className="text-3xl font-bold text-red-600">{formatCurrency(amount)}</p>
+                    <p className="text-xs text-red-700/80 mt-1">Kurangi alokasi di salah satu kategori.</p>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    return (
+        <Card className="w-full md:w-auto bg-blue-50 border-blue-200 shadow-md">
+            <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
+                <CheckCircle2 className="w-5 h-5 text-blue-700"/>
+                <CardTitle className="text-sm font-semibold text-blue-800">Kerja Bagus!</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 text-center">
+                <p className="text-3xl font-bold text-blue-600">{formatCurrency(0)}</p>
+                <p className="text-xs text-blue-700/80 mt-1">Semua dana telah dialokasikan.</p>
+            </CardContent>
+        </Card>
+    );
 };
 
-const BudgetView = () => {
-  const { householdId, categories, dataVersion, profile } = useAppData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const [budgetSummaries, setBudgetSummaries] = useState<BudgetSummary[]>([]);
-  const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
-  const [overallSummary, setOverallSummary] = useState<OverallBudgetSummary | null>(null);
+const BudgetView = () => {
+  // PERBAIKAN: Menghapus 'refetchData' yang tidak digunakan
+  const { householdId, dataVersion, profile, isLoading: isAppDataLoading } = useAppData();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [budgetData, setBudgetData] = useState<BudgetPageData | null>(null);
+  const [readyToAssign, setReadyToAssign] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [editingPlan, setEditingPlan] = useState<Budget | null>(null);
-  const [planToDelete, setPlanToDelete] = useState<BudgetSummary | null>(null);
-
-  // --- PERBAIKAN: useMemo sekarang mengembalikan objek Date juga ---
-  const { periodForSave, periodStartDate, periodEndDate, periodStartDateObj, periodEndDateObj, periodDisplayText } = useMemo(() => {
-    if (!profile) {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return {
-            periodForSave: format(now, 'yyyy-MM-01'),
-            periodStartDate: format(startOfMonth, 'yyyy-MM-dd'),
-            periodEndDate: format(endOfMonth, 'yyyy-MM-dd'),
-            periodStartDateObj: startOfMonth,
-            periodEndDateObj: endOfMonth,
-            periodDisplayText: format(now, 'MMMM yyyy'),
-        };
-    }
-    const startDay = profile.period_start_day || 1;
+  const { periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
+    const startDay = profile?.period_start_day || 1;
     const period = getCustomPeriod(startDay, currentDate);
-    const displayText = `${format(period.from, 'd MMM')} - ${format(period.to, 'd MMM yyyy')}`;
-    
-    return {
-        periodForSave: format(period.from, 'yyyy-MM-01'),
-        periodStartDate: format(period.from, 'yyyy-MM-dd'),
-        periodEndDate: format(period.to, 'yyyy-MM-dd'),
-        periodStartDateObj: period.from,
-        periodEndDateObj: period.to,
-        periodDisplayText: displayText,
-    };
+    const displayText = `${format(period.from, 'd MMM', { locale: indonesiaLocale })} - ${format(period.to, 'd MMM yyyy', { locale: indonesiaLocale })}`;
+    return { periodStartDate: period.from, periodEndDate: period.to, periodDisplayText: displayText };
   }, [profile, currentDate]);
 
-  const fetchBudgetDashboards = useCallback(async () => {
-    if (householdId) {
-      setIsLoading(true);
-      try {
-        const [summaryData, allocationData, overallSummaryData] = await Promise.all([
-          // getBudgetSummary masih menggunakan string
-          getBudgetSummary(householdId, periodStartDate, periodEndDate),
-          getAllocationsByPeriod(householdId, periodForSave),
-          // --- PERBAIKAN: Gunakan objek Date ---
-          getOverallBudgetSummary(householdId, periodStartDateObj, periodEndDateObj)
-        ]);
-        setBudgetSummaries(summaryData || []);
-        setAllocations(allocationData);
-        setOverallSummary(overallSummaryData);
-      } catch (error) {
-        let errorMessage = "Gagal memuat data ringkasan anggaran.";
-        if (error instanceof Error) { errorMessage += `: ${error.message}`; }
-        toast.error(errorMessage);
-        console.error("Error detail:", error);
-      } finally {
-        setIsLoading(false);
-      }
+  const fetchAllBudgetData = useCallback(async () => {
+    if (!householdId) return;
+    setIsLoading(true);
+    try {
+      const [budgetDataRes, readyToAssignRes] = await Promise.all([
+        getBudgetDataForPeriod(householdId, periodStartDate, periodEndDate),
+        getReadyToAssign(householdId)
+      ]);
+      setBudgetData(budgetDataRes);
+      setReadyToAssign(readyToAssignRes);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Gagal memuat data anggaran.";
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-  }, [householdId, periodStartDate, periodEndDate, periodForSave, periodStartDateObj, periodEndDateObj]);
+  }, [householdId, periodStartDate, periodEndDate]);
 
   useEffect(() => {
-    fetchBudgetDashboards();
-  }, [fetchBudgetDashboards, dataVersion]);
+    if (profile) {
+      fetchAllBudgetData();
+    }
+  }, [fetchAllBudgetData, dataVersion, profile]);
 
   const handlePeriodChange = (direction: 'next' | 'prev') => {
-    setCurrentDate(current => {
-      const currentPeriod = getCustomPeriod(profile?.period_start_day || 1, current);
-      const baseDate = currentPeriod.from;
-      return direction === 'next' ? addMonths(baseDate, 1) : subMonths(baseDate, 1);
+    // PERBAIKAN: Ganti 'current' menjadi '_current' untuk menandakan tidak dipakai
+    setCurrentDate(_current => direction === 'next' ? addMonths(periodStartDate, 1) : subMonths(periodStartDate, 1));
+  };
+
+  const handleAssignmentChange = async (categoryId: number, newAmount: number) => {
+    if (!householdId || !budgetData || readyToAssign === null) return;
+    
+    const oldBudgetData = JSON.parse(JSON.stringify(budgetData));
+    const oldReadyToAssign = readyToAssign;
+
+    let totalAssignedChange = 0;
+    
+    let oldAmount = 0;
+    budgetData.categories.forEach(cat => {
+        // PERBAIKAN: Menghapus @ts-ignore
+        if(cat.id === categoryId) oldAmount = cat.assigned;
+        if(cat.children) {
+            // PERBAIKAN: Menghapus @ts-ignore
+            const child = cat.children.find(c => c.id === categoryId);
+            if (child) oldAmount = child.assigned;
+        }
     });
-  };
+    totalAssignedChange = newAmount - oldAmount;
+    
+    setBudgetData(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            budgeted: prev.budgeted + totalAssignedChange,
+        }
+    });
+    setReadyToAssign(prev => prev !== null ? prev - totalAssignedChange : null);
 
-  const handleSaveChanges = async (planId: number, data: PendingAllocationData) => {
-    if (!householdId) return;
-    const { mode, allocations: pendingAllocs } = data;
-    const isTotalMode = mode === 'total';
-    const previouslySavedMode = allocations.some(a => a.budget_id === planId && a.category_id === null) ? 'total' : 'category';
     try {
-        if (mode !== previouslySavedMode) {
-            const modeToClear = isTotalMode ? 'category' : 'total';
-            await clearAllocationsForMode(planId, modeToClear);
-        }
-        const promises: Promise<void>[] = [];
-        if (isTotalMode) {
-            for (const key in pendingAllocs) {
-                const amount = pendingAllocs[key] || 0;
-                if (key.startsWith('total-')) {
-                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: null, amount }));
-                } else if (key.startsWith('cat-')) {
-                    const categoryId = parseInt(key.replace('cat-', ''), 10);
-                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: categoryId, amount }));
-                }
-            }
-        } else {
-            for (const key in pendingAllocs) {
-                if (key.startsWith('cat-')) {
-                    const categoryId = parseInt(key.replace('cat-', ''), 10);
-                    const amount = pendingAllocs[key] || 0;
-                    promises.push(saveAllocation({ household_id: householdId, period: periodForSave, budget_id: planId, category_id: categoryId, amount }));
-                }
-            }
-        }
-        await Promise.all(promises);
-        toast.success("Perubahan alokasi berhasil disimpan!");
-        fetchBudgetDashboards();
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        toast.error(`Gagal menyimpan perubahan: ${errorMessage}`);
+      await saveBudgetAssignment({
+        household_id: householdId,
+        category_id: categoryId,
+        month: format(startOfMonth(periodStartDate), 'yyyy-MM-dd'),
+        assigned_amount: newAmount,
+      });
+      toast.success("Anggaran disimpan!");
+      fetchAllBudgetData();
+    } catch (error) { // PERBAIKAN: 'error' sekarang digunakan
+      toast.error(`Gagal menyimpan: ${(error as Error).message}`);
+      setBudgetData(oldBudgetData);
+      setReadyToAssign(oldReadyToAssign);
     }
   };
 
-  const clearAllocationsForMode = async (planId: number, modeToClear: 'total' | 'category') => {
-      if (!householdId) return;
-      let query = supabase.from('budget_allocations').delete().eq('household_id', householdId).eq('period', periodForSave).eq('budget_id', planId);
-      if (modeToClear === 'total') {
-          query = query.is('category_id', null);
-      } else {
-          query = query.not('category_id', 'is', null);
-      }
-      const { error } = await query;
-      if (error) throw error;
-  };
-
-  const handleOpenCreateModal = () => { setEditingPlan(null); setIsModalOpen(true); };
-
-  const handleOpenEditModal = async (planSummary: BudgetSummary) => {
-    const { data: planToEdit, error } = await supabase.from('budgets').select(`*, categories ( * )`).eq('id', planSummary.plan_id).single();
-    if (error) { toast.error(`Gagal memuat detail rencana: ${error.message}`); return; }
-    if (planToEdit) { setEditingPlan(planToEdit as Budget); setIsModalOpen(true); }
-    else { toast.error("Rencana anggaran tidak ditemukan."); }
-  };
-
-  const handleSavePlan = async (id: number | null, name: string, categoryIds: number[]) => {
-    if (!householdId) { toast.error("Household tidak ditemukan."); return; }
-    const promise = saveBudgetPlanWithCategories(id, name, householdId, categoryIds).then(() => { fetchBudgetDashboards() });
-    toast.promise(promise, { loading: 'Menyimpan rencana...', success: `Rencana anggaran "${name}" berhasil disimpan!`, error: (err: Error) => `Gagal menyimpan: ${err.message}` });
-  };
-
-  const handleDeletePlan = async () => {
-    if (!planToDelete) return;
-    try {
-        await deleteBudgetPlan(planToDelete.plan_id);
-        toast.success(`"${planToDelete.plan_name}" berhasil dihapus.`);
-        setPlanToDelete(null);
-        fetchBudgetDashboards();
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        toast.error(`Gagal menghapus: ${errorMessage}`);
-    }
-  };
-
-  if (isLoading && !overallSummary) {
-    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data anggaran Anda...</p></div>)
+  if (isAppDataLoading || !profile) {
+    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
   }
+
+  const remainingBudgetForPeriod = (budgetData?.budgeted ?? 0) - (budgetData?.activity ?? 0);
 
   return (
     <>
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-800">Ringkasan Anggaran</h1>
-          <BudgetPeriodNavigator 
-            periodText={periodDisplayText}
-            onPrev={() => handlePeriodChange('prev')}
-            onNext={() => handlePeriodChange('next')}
-          />
-        </div>
-        
-        <BudgetSummaryCards summary={overallSummary} />
-
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 pt-4 border-t">
-            <h2 className="text-xl font-bold text-gray-800">Rencana Anggaran</h2>
-            <Button onClick={handleOpenCreateModal} className="w-full md:w-auto">
-                Buat Rencana Baru
-            </Button>
+            <div>
+                <h1 className="text-2xl font-bold text-gray-800">Anggaran</h1>
+                <p className="text-muted-foreground">Alokasikan dana Anda untuk setiap kategori pengeluaran.</p>
+            </div>
+            <ReadyToAssignCard isLoading={isLoading} amount={readyToAssign} />
+            <BudgetPeriodNavigator 
+                periodText={periodDisplayText}
+                onPrev={() => handlePeriodChange('prev')}
+                onNext={() => handlePeriodChange('next')}
+            />
         </div>
 
-        <div className="relative">
-            {isLoading && (
-                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                </div>
-            )}
-            {budgetSummaries.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-                    {budgetSummaries.map(summary => (
-                        <BudgetPlanCard
-                            key={summary.plan_id}
-                            planSummary={summary}
-                            allocations={allocations.filter(a => a.budget_id === summary.plan_id)}
-                            onSaveChanges={(data) => handleSaveChanges(summary.plan_id, data)}
-                            onEdit={() => handleOpenEditModal(summary)}
-                            onDelete={() => setPlanToDelete(summary)}
-                            onRefresh={fetchBudgetDashboards}
-                            currentDate={currentDate}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                    <h3 className="text-xl font-semibold text-gray-700">Belum Ada Rencana Anggaran</h3>
-                    <p className="text-muted-foreground mt-2">Tidak ada data anggaran untuk periode ini.</p>
-                </div>
-            )}
-        </div>
+        <BudgetHeader 
+            totalIncome={budgetData?.income ?? 0}
+            totalBudgeted={budgetData?.budgeted ?? 0}
+            totalActivity={budgetData?.activity ?? 0}
+            remainingBudget={remainingBudgetForPeriod} 
+            isLoading={isLoading}
+        />
+
+        {isLoading && !budgetData ? (
+             <div className="flex justify-center items-center h-64 bg-white rounded-lg shadow-sm border"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
+        ) : (
+            <BudgetTable
+                // PERBAIKAN: Menghapus @ts-ignore
+                data={budgetData?.categories || []}
+                onAssignmentChange={handleAssignmentChange}
+                onRefresh={fetchAllBudgetData}
+                currentPeriodStart={periodStartDate}
+            />
+        )}
       </div>
-
-      <BudgetPlanModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSavePlan}
-        editingPlan={editingPlan}
-        allCategories={categories.filter(c => c.type === 'expense')}
-      />
-
-      <Dialog open={!!planToDelete} onOpenChange={() => setPlanToDelete(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Anda yakin ingin menghapus?</DialogTitle>
-                <DialogDescription>
-                    Aksi ini akan menghapus Rencana Anggaran &quot;{planToDelete?.plan_name}&quot; beserta semua alokasi dananya secara permanen.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setPlanToDelete(null)}>Batal</Button>
-                <Button variant="destructive" onClick={handleDeletePlan}>Ya, Hapus</Button>
-            </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
