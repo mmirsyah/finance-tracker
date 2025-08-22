@@ -14,7 +14,7 @@ import { BudgetPeriodNavigator } from '@/components/budget/BudgetPeriodNavigator
 import { getCustomPeriod } from '@/lib/periodUtils';
 import { id as indonesiaLocale } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: number | null }) => {
     if (isLoading || amount === null) {

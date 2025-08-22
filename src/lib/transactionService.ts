@@ -1,6 +1,7 @@
 // src/lib/transactionService.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Transaction } from '@/types';
+import { supabase } from './supabase'; // Pastikan supabase diimpor
 
 // Gunakan tipe turunan yang lebih spesifik, hilangkan 'any'
 type TransactionPayload = Omit<Transaction, 'id' | 'categories' | 'accounts' | 'to_account' | 'sequence_number' | 'household_id'> & { household_id: string };
@@ -68,4 +69,23 @@ export const getExpensesByPeriod = async (
   }
 
   return data || [];
+};
+
+/**
+ * ====================================================================
+ * FUNGSI BARU: Untuk mengubah kategori transaksi secara massal
+ * ====================================================================
+ */
+export const bulkUpdateCategory = async (transactionIds: string[], newCategoryId: number) => {
+    const { data, error } = await supabase.rpc('bulk_update_transaction_category', {
+        transaction_ids: transactionIds,
+        new_category_id: newCategoryId
+    });
+
+    if (error) {
+        console.error("Error in bulk update RPC:", error);
+        throw new Error(error.message);
+    }
+
+    return data; // Mengembalikan jumlah yang diupdate
 };

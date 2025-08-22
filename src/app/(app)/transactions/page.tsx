@@ -13,15 +13,25 @@ import TransactionListSkeleton from '@/components/skeletons/TransactionListSkele
 import { supabase } from '@/lib/supabase';
 import { getCustomPeriod } from '@/lib/periodUtils';
 
+// Import komponen baru
+import BulkActionToolbar from '@/components/transaction/BulkActionToolbar';
+import BulkReassignCategoryModal from '@/components/modals/BulkReassignCategoryModal';
+import * as transactionService from '@/lib/transactionService';
+import { toast } from 'sonner';
+
 export default function TransactionsPage() {
   const router = useRouter();
-  const { accounts, categories, isLoading: isAppDataLoading, user, dataVersion, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
+  const { accounts, categories, isLoading: isAppDataLoading, user, dataVersion, refetchData, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
   const [isListLoading, setIsListLoading] = useState(true);
 
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [filterType, setFilterType] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterAccount, setFilterAccount] = useState<string>('');
+
+  // State baru untuk aksi massal
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
   useEffect(() => {
     if (user && !date) {
@@ -67,44 +77,81 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     setIsListLoading(true);
-  }, [dataVersion]);
+  }, [filters]);
+
+  const handleBulkReassign = async (newCategoryId: number) => {
+    const promise = transactionService.bulkUpdateCategory(Array.from(selectedIds), newCategoryId)
+      .then((updatedCount) => {
+        toast.success(`${updatedCount} transaksi berhasil diperbarui.`);
+        refetchData(); // Memuat ulang semua data aplikasi
+        setSelectedIds(new Set()); // Mengosongkan pilihan
+        setIsReassignModalOpen(false); // Menutup modal
+      });
+
+    toast.promise(promise, {
+      loading: 'Memperbarui transaksi...',
+      error: (err: Error) => `Gagal memperbarui: ${err.message}`,
+    });
+  };
 
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
   if (!user) { return null; }
 
   return (
-      <div className="p-4 sm:p-6 w-full h-full">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 order-2 lg:order-1">
-            {/* --- PERBAIKAN DI SINI --- */}
-            <TransactionToolbar
-              dateRange={date} 
-              onDateChange={setDate} // Menggunakan onDateChange
-              filterType={filterType} setFilterType={setFilterType}
-              filterCategory={filterCategory} setFilterCategory={setFilterCategory}
-              filterAccount={filterAccount} setFilterAccount={setFilterAccount}
-              categories={categories}
-              accounts={accounts}
-              onResetFilters={onResetFilters}
-              onOpenImportModal={handleOpenImportModal}
-            />
-            {isListLoading && <TransactionListSkeleton />}
-            <div style={{ display: isListLoading ? 'none' : 'block' }}>
-              <TransactionList
-                startEdit={handleOpenModalForEdit}
-                filters={filters}
-                onDataLoaded={handleDataLoaded}
+      <>
+        <div className="p-4 sm:p-6 w-full h-full">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 order-2 lg:order-1 space-y-4">
+              <TransactionToolbar
+                dateRange={date} 
+                onDateChange={setDate}
+                filterType={filterType} setFilterType={setFilterType}
+                filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+                filterAccount={filterAccount} setFilterAccount={setFilterAccount}
+                categories={categories}
+                accounts={accounts}
+                onResetFilters={onResetFilters}
+                onOpenImportModal={handleOpenImportModal}
               />
+
+              {/* Toolbar Aksi Massal */}
+              {selectedIds.size > 0 && (
+                <BulkActionToolbar 
+                  selectedCount={selectedIds.size}
+                  onClear={() => setSelectedIds(new Set())}
+                  onReassignCategory={() => setIsReassignModalOpen(true)}
+                />
+              )}
+              
+              {isListLoading && <TransactionListSkeleton />}
+              <div style={{ display: isListLoading ? 'none' : 'block' }}>
+                <TransactionList
+                  startEdit={handleOpenModalForEdit}
+                  filters={filters}
+                  onDataLoaded={handleDataLoaded}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
+                />
+              </div>
+            </div>
+
+            <div className="order-1 lg:order-2">
+                <TransactionSummary
+                    startDate={filterStartDate}
+                    endDate={filterEndDate}
+                />
             </div>
           </div>
-
-          <div className="order-1 lg:order-2">
-              <TransactionSummary
-                  startDate={filterStartDate}
-                  endDate={filterEndDate}
-              />
-          </div>
         </div>
-      </div>
+
+        {/* Modal untuk Aksi Massal */}
+        <BulkReassignCategoryModal
+            isOpen={isReassignModalOpen}
+            onClose={() => setIsReassignModalOpen(false)}
+            onSave={handleBulkReassign}
+            transactionCount={selectedIds.size}
+            categories={categories}
+        />
+      </>
   )
 }

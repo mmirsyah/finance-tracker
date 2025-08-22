@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { MoreVertical, Edit, Trash2, ArrowRight, Loader2 } from 'lucide-react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const PAGE_SIZE = 20;
 
@@ -22,6 +23,8 @@ interface TransactionListProps {
         transactionVersion: number;
     };
     onDataLoaded: () => void;
+    selectedIds: Set<string>;
+    onSelectionChange: (newSelectedIds: Set<string>) => void;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -43,7 +46,7 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-export default function TransactionList({ startEdit, filters, onDataLoaded }: TransactionListProps) {
+export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -96,15 +99,15 @@ export default function TransactionList({ startEdit, filters, onDataLoaded }: Tr
     if (pageNum === 0) onDataLoaded();
     setIsLoading(false);
   }, [householdId, filters, onDataLoaded]);
-
-  // Effect untuk memuat data ketika filter berubah
+  
+  // Effect untuk me-reset state saat filter berubah
   useEffect(() => {
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
-    // setTimeout untuk memastikan state loading di parent sempat ter-update
+    onSelectionChange(new Set()); 
     setTimeout(() => fetchTransactions(0, true), 0);
-  }, [filters, fetchTransactions]);
+  }, [filters, fetchTransactions, onSelectionChange]); // <-- DEPENDENCY DIPERBAIKI DI SINI
 
   // Effect untuk infinite scroll
   useEffect(() => {
@@ -134,7 +137,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded }: Tr
       const promise = async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
         if (error) { throw error; }
-        // Sekarang panggil refetchData dari context, bukan callback prop
         refetchData();
       };
 
@@ -146,6 +148,26 @@ export default function TransactionList({ startEdit, filters, onDataLoaded }: Tr
 
       setActiveMenu(null);
     }
+  };
+  
+  const handleRowSelect = (transactionId: string) => {
+    const newSelectedIds = new Set(selectedIds);
+    if (newSelectedIds.has(transactionId)) {
+      newSelectedIds.delete(transactionId);
+    } else {
+      newSelectedIds.add(transactionId);
+    }
+    onSelectionChange(newSelectedIds);
+  };
+
+  const handleGroupSelect = (transactionIds: string[], select: boolean) => {
+    const newSelectedIds = new Set(selectedIds);
+    if (select) {
+      transactionIds.forEach(id => newSelectedIds.add(id));
+    } else {
+      transactionIds.forEach(id => newSelectedIds.delete(id));
+    }
+    onSelectionChange(newSelectedIds);
   };
 
   useEffect(() => {
@@ -164,34 +186,52 @@ export default function TransactionList({ startEdit, filters, onDataLoaded }: Tr
 
   return (
     <div className="space-y-4">
-      {groupedTransactions.map(group => (
-        <div key={group.date} className="bg-white rounded-lg shadow">
-          <header className="flex justify-between items-center p-3 bg-gray-50 border-b">
-            <h3 className="font-semibold text-gray-700">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-            <span className={`font-bold text-sm ${group.subtotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(group.subtotal)}</span>
-          </header>
-          <ul className="divide-y divide-gray-200">
-            {group.transactions.map(t => (
-              <li key={t.id} className="flex items-center p-3 hover:bg-gray-50">
-                {renderTransactionDetails(t)}
-                <div className="flex items-center gap-4">
-                  {t.type !== 'transfer' && (<span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full hidden md:block">{t.accounts?.name || 'No Account'}</span>)}
-                  <p className={`font-bold text-right w-32 ${getAmountColor(t.type)}`}>{t.type === 'income' ? '+' : ''} {formatCurrency(t.amount)}</p>
-                  <div className="relative">
-                    <button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>
-                    {activeMenu === t.id && (
-                      <div ref={menuRef} className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border">
-                        <button onClick={() => { startEdit(t); setActiveMenu(null); }} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit size={14} /> Edit</button>
-                        <button onClick={() => handleDelete(t.id)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"><Trash2 size={14} /> Delete</button>
-                      </div>
-                    )}
+      {groupedTransactions.map(group => {
+        const groupTransactionIds = group.transactions.map(t => t.id);
+        const areAllInGroupSelected = groupTransactionIds.every(id => selectedIds.has(id));
+
+        return (
+          <div key={group.date} className="bg-white rounded-lg shadow">
+            <header className="flex justify-between items-center p-3 bg-gray-50 border-b">
+              <div className="flex items-center gap-3">
+                <Checkbox 
+                  checked={areAllInGroupSelected}
+                  onCheckedChange={(checked) => handleGroupSelect(groupTransactionIds, !!checked)}
+                  aria-label={`Select all transactions for ${group.date}`}
+                />
+                <h3 className="font-semibold text-gray-700">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+              </div>
+              <span className={`font-bold text-sm ${group.subtotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(group.subtotal)}</span>
+            </header>
+            <ul className="divide-y divide-gray-200">
+              {group.transactions.map(t => (
+                <li key={t.id} className="flex items-center p-3 hover:bg-gray-50">
+                  <Checkbox
+                    checked={selectedIds.has(t.id)}
+                    onCheckedChange={() => handleRowSelect(t.id)}
+                    aria-label={`Select transaction ${t.id}`}
+                    className="mr-4"
+                  />
+                  {renderTransactionDetails(t)}
+                  <div className="flex items-center gap-4">
+                    {t.type !== 'transfer' && (<span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full hidden md:block">{t.accounts?.name || 'No Account'}</span>)}
+                    <p className={`font-bold text-right w-32 ${getAmountColor(t.type)}`}>{t.type === 'income' ? '+' : ''} {formatCurrency(t.amount)}</p>
+                    <div className="relative">
+                      <button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>
+                      {activeMenu === t.id && (
+                        <div ref={menuRef} className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border">
+                          <button onClick={() => { startEdit(t); setActiveMenu(null); }} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit size={14} /> Edit</button>
+                          <button onClick={() => handleDelete(t.id)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"><Trash2 size={14} /> Delete</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })}
 
       <div ref={loaderRef} className="flex justify-center items-center p-4 h-10">
         {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-gray-500" />}

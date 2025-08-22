@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { updateCategoryRolloverStatus, toggleFlexBudgetStatus } from '@/lib/budgetService';
 import { useAppData } from '@/contexts/AppDataContext';
 // PERBAIKAN: Menghapus 'formatDate' dan 'startOfMonth' dari impor
-import { format as formatDate } from 'date-fns';
+//import { format as formatDate } from 'date-fns';
 
 interface BudgetTableProps {
   data: (BudgetParentCategoryData | (BudgetCategoryData & { children: [], is_rollover: boolean, is_flex_budget: boolean, unallocated_balance: number }))[];

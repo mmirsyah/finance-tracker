@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
 import { formatCurrency } from '@/lib/utils';
 import { DonutChart } from '@tremor/react';
-import { supabase } from '@/lib/supabase';
+//import { supabase } from '@/lib/supabase';
 
 interface CategoryDetailViewProps {
   initialCategory: Category;
