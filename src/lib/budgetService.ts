@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import { BudgetPageData, BudgetAssignment, BudgetHistoryData } from '@/types';
 import { format } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
-import { BudgetSummaryItem } from '@/types';
+import { BudgetSummaryItem, BudgetCategoryListItem } from '@/types';
 
 /**
  * Mengambil seluruh data yang dibutuhkan untuk halaman budget pada rentang tanggal tertentu.
@@ -127,7 +127,7 @@ export const getBudgetSummary = async (
 ): Promise<BudgetSummaryItem[]> => {
   const supabase = createClient();
   const { data, error } = await supabase.rpc('get_quick_budget_overview', {
-    p_month: period,
+    p_ref_date: period,
   });
 
   if (error) {
@@ -136,4 +136,88 @@ export const getBudgetSummary = async (
   }
 
   return data as BudgetSummaryItem[];
+};
+
+export const getBudgetPriorities = async (): Promise<number[]> => {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('user_budget_priorities')
+    .select('category_id')
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error fetching budget priorities:', error);
+    return [];
+  }
+
+  return data.map(item => item.category_id);
+};
+
+/**
+ * Menetapkan sebuah kategori sebagai prioritas untuk pengguna saat ini.
+ */
+export const setBudgetPriority = async (categoryId: number) => {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+   if (!user) throw new Error('User not authenticated');
+
+  // Kita perlu household_id untuk RLS
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('household_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.household_id) throw new Error('Household not found');
+
+  const { error } = await supabase
+    .from('user_budget_priorities')
+    .insert({
+      user_id: user.id,
+      category_id: categoryId,
+      household_id: profile.household_id,
+    });
+
+  if (error) {
+    console.error('Error setting budget priority:', error);
+    throw error;
+  }
+};
+
+/**
+ * Menghapus prioritas sebuah kategori untuk pengguna saat ini.
+ */
+export const removeBudgetPriority = async (categoryId: number) => {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { error } = await supabase
+    .from('user_budget_priorities')
+    .delete()
+    .match({ user_id: user.id, category_id: categoryId });
+
+  if (error) {
+    console.error('Error removing budget priority:', error);
+    throw error;
+  }
+};
+
+export const getAllBudgetCategoriesForPeriod = async (
+  period: string
+): Promise<BudgetCategoryListItem[]> => {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_all_budget_categories_for_period', {
+    p_ref_date: period,
+  });
+
+  if (error) {
+    console.error('Error fetching all budget categories:', error.message);
+    throw new Error('Failed to fetch budget categories.');
+  }
+
+  return data as BudgetCategoryListItem[];
 };

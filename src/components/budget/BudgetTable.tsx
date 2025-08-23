@@ -6,7 +6,7 @@ import { BudgetParentCategoryData, BudgetCategoryData, BudgetHistoryData } from 
 import { formatCurrency, cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Loader2, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Repeat, Star } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -14,7 +14,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { BarChart } from '@tremor/react';
 import { toast } from 'sonner';
-import { updateCategoryRolloverStatus, toggleFlexBudgetStatus, getCategorySpendingHistory } from '@/lib/budgetService';
+import { 
+    updateCategoryRolloverStatus, 
+    toggleFlexBudgetStatus, 
+    getCategorySpendingHistory,
+    getBudgetPriorities,
+    setBudgetPriority,
+    removeBudgetPriority
+} from '@/lib/budgetService';
 import { useAppData } from '@/contexts/AppDataContext';
 
 interface BudgetTableProps {
@@ -32,7 +39,6 @@ const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChang
     useEffect(() => {
         if (!householdId) return;
         
-        // Data di-fetch saat komponen pertama kali di-mount dalam popover.
         getCategorySpendingHistory(householdId, category.id, currentPeriodStart)
             .then(data => {
                 setHistory(data);
@@ -48,7 +54,7 @@ const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChang
     
     const handleApply = (amount: number) => {
         onApply(amount);
-        onOpenChange(false); // Menutup popover setelah aksi
+        onOpenChange(false);
     };
 
     return (
@@ -56,9 +62,9 @@ const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChang
             <div className="space-y-4">
                 <p className="text-sm font-semibold text-center border-b pb-2">Bantuan Anggaran</p>
                 {isLoading ? (
-                     <div className="flex justify-center items-center h-48">
-                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    </div>
+                        <div className="flex justify-center items-center h-48">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        </div>
                 ) : history && history.monthly_history ? (
                     <div className="space-y-4">
                         <BarChart
@@ -72,14 +78,14 @@ const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChang
                             className="h-32 mt-2"
                         />
                         <div className="space-y-2 text-sm border-t pt-3">
-                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Rata-rata 3 Bln Terakhir</span>
-                                <span className="font-semibold">{formatCurrency(history.three_month_avg)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Pengeluaran Bulan Lalu</span>
-                                <span className="font-semibold">{formatCurrency(history.last_month_spending)}</span>
-                            </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">Rata-rata 3 Bln Terakhir</span>
+                                    <span className="font-semibold">{formatCurrency(history.three_month_avg)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">Pengeluaran Bulan Lalu</span>
+                                    <span className="font-semibold">{formatCurrency(history.last_month_spending)}</span>
+                                </div>
                         </div>
                         <div className="flex gap-2 pt-2">
                             <Button size="sm" variant="outline" className="flex-1" onClick={() => handleApply(history.last_month_spending)}>
@@ -109,6 +115,8 @@ const CategoryRow = ({
     isStandalone = false,
     isChild = false,
     isCollapsibleOpen = false,
+    isPriority,
+    onTogglePriority,
 }: { 
     category: BudgetCategoryData | BudgetParentCategoryData; 
     onAssignmentChange: (categoryId: number, newAmount: number) => void;
@@ -118,6 +126,8 @@ const CategoryRow = ({
     isStandalone?: boolean;
     isChild?: boolean;
     isCollapsibleOpen?: boolean;
+    isPriority: boolean;
+    onTogglePriority: (categoryId: number) => void;
 }) => {
     const { householdId } = useAppData();
     const [inputValue, setInputValue] = useState<string>(category.assigned > 0 ? String(category.assigned) : '');
@@ -197,15 +207,31 @@ const CategoryRow = ({
 
     return (
         <div className={cn("grid grid-cols-12 gap-x-4 items-center py-2 px-3", 
-          isParent ? "font-semibold bg-gray-50/75" : "border-t", 
-          isStandalone && "font-medium"
+            isParent ? "font-semibold bg-gray-50/75" : "border-t", 
+            isStandalone && "font-medium"
         )}>
             <div className="col-span-4 flex items-center gap-2 truncate">
-                {isChild && <div className="w-8 flex-shrink-0"></div>}
+                <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                             <button onClick={() => onTogglePriority(category.id)} className="p-1 -ml-1 flex-shrink-0">
+                                <Star
+                                className={cn(
+                                    'w-4 h-4 text-gray-300 transition-all hover:text-yellow-400',
+                                    isPriority && 'text-yellow-400 fill-yellow-400'
+                                )}
+                                />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>{isPriority ? 'Hapus dari Prioritas' : 'Jadikan Prioritas'}</p></TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                {isChild && <div className="w-4 flex-shrink-0"></div>}
                 {isParent && (
                     <CollapsibleTrigger asChild>
                         <button className="flex items-center gap-2 flex-shrink-0">
-                          {isCollapsibleOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            {isCollapsibleOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </button>
                     </CollapsibleTrigger>
                 )}
@@ -221,8 +247,8 @@ const CategoryRow = ({
                                     checked={isFlexMode}
                                     onCheckedChange={handleToggleFlex}
                                 />
-                            )}
-                            </div>
+                                )}
+                                </div>
                             </TooltipTrigger>
                             <TooltipContent><p>Aktifkan &quot;Flex Budget&quot; untuk grup ini</p></TooltipContent>
                         </Tooltip>
@@ -246,21 +272,21 @@ const CategoryRow = ({
             </div>
 
             <div className="col-span-2">
-                 <Popover open={isAssistantOpen} onOpenChange={setIsAssistantOpen}>
-                    <PopoverTrigger asChild>
-                        <Input 
-                            id={`budget-input-${category.id}`}
-                            type="number"
-                            placeholder="0"
-                            value={inputValue}
-                            onChange={handleInputChange}
-                            onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
-                            disabled={isInputDisabled}
-                            className={cn("h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
-                        />
-                    </PopoverTrigger>
-                    {isAssistantOpen && <BudgetingAssistant category={category} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
-                 </Popover>
+                    <Popover open={isAssistantOpen} onOpenChange={setIsAssistantOpen}>
+                        <PopoverTrigger asChild>
+                            <Input 
+                                id={`budget-input-${category.id}`}
+                                type="number"
+                                placeholder="0"
+                                value={inputValue}
+                                onChange={handleInputChange}
+                                onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
+                                disabled={isInputDisabled}
+                                className={cn("h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
+                            />
+                        </PopoverTrigger>
+                        {isAssistantOpen && <BudgetingAssistant category={category as BudgetCategoryData} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
+                    </Popover>
             </div>
             
             <div className="col-span-2 text-right text-sm">{activityDisplay}</div>
@@ -268,16 +294,16 @@ const CategoryRow = ({
             <div className={cn("col-span-1 text-right font-medium", availableColor)}>
                 {formatCurrency(category.available)}
                 {isParent && isFlexMode && unallocatedBalance !== undefined && (
-                     <TooltipProvider delayDuration={100}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <p className={cn("text-xs font-normal cursor-help", unallocatedColor)}>
-                                    (Flex: {formatCurrency(unallocatedBalance)})
-                                </p>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Sisa dana fleksibel untuk sub-kategori.</p></TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <p className={cn("text-xs font-normal cursor-help", unallocatedColor)}>
+                                        (Flex: {formatCurrency(unallocatedBalance)})
+                                    </p>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Sisa dana fleksibel untuk sub-kategori.</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                 )}
             </div>
 
@@ -293,6 +319,15 @@ const CategoryRow = ({
 
 export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriodStart }: BudgetTableProps) => {
     const [openCategories, setOpenCategories] = useState<Record<number, boolean>>({});
+    const [priorities, setPriorities] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        const fetchPriorities = async () => {
+            const priorityIds = await getBudgetPriorities();
+            setPriorities(new Set(priorityIds));
+        };
+        fetchPriorities();
+    }, []);
 
     useEffect(() => {
         const initialOpenState: Record<number, boolean> = {};
@@ -309,6 +344,26 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
 
     const toggleCategory = (id: number) => {
         setOpenCategories(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const handleTogglePriority = async (categoryId: number) => {
+        const isPriority = priorities.has(categoryId);
+        const newPriorities = new Set(priorities);
+
+        try {
+            if (isPriority) {
+                await removeBudgetPriority(categoryId);
+                newPriorities.delete(categoryId);
+                toast.info('Prioritas dihapus.');
+            } else {
+                await setBudgetPriority(categoryId);
+                newPriorities.add(categoryId);
+                toast.success('Prioritas ditambahkan.');
+            }
+            setPriorities(newPriorities);
+        } catch { // <-- PERBAIKAN: Hapus parameter 'error' yang tidak dipakai
+            toast.error('Gagal memperbarui prioritas.');
+        }
     };
 
     if (!data) return <div className="text-center p-8 border rounded-lg">Memuat data anggaran...</div>
@@ -342,6 +397,8 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
                                 currentPeriodStart={currentPeriodStart} 
                                 isParent={true} 
                                 isCollapsibleOpen={openCategories[item.id] !== false}
+                                isPriority={priorities.has(item.id)}
+                                onTogglePriority={handleTogglePriority}
                             />
                             <CollapsibleContent>
                                 {parentCategory.children.map(childCat => (
@@ -352,6 +409,8 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
                                         onRefresh={onRefresh} 
                                         currentPeriodStart={currentPeriodStart}
                                         isChild={true}
+                                        isPriority={priorities.has(childCat.id)}
+                                        onTogglePriority={handleTogglePriority}
                                     />
                                 ))}
                             </CollapsibleContent>
@@ -364,6 +423,8 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
                             onRefresh={onRefresh} 
                             currentPeriodStart={currentPeriodStart} 
                             isStandalone={true} 
+                            isPriority={priorities.has(item.id)}
+                            onTogglePriority={handleTogglePriority}
                         />
                     )
                 })}

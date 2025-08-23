@@ -17,7 +17,7 @@ import { formatCurrency } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { getComparisonMetrics } from '@/lib/reportService';
 import { getCustomPeriod } from '@/lib/periodUtils';
-import { BudgetQuickView } from '@/components/dashboard/BudgetQuickView'; // <-- IMPORT BARU
+import BudgetQuickView from '@/components/dashboard/BudgetQuickView';
 
 export default function DashboardPage() {
     const { accounts, categories, assets, isLoading, householdId, profile } = useAppData();
@@ -100,14 +100,13 @@ export default function DashboardPage() {
                 </Card>
             </div>
             
-            {/* --- PENYESUAIAN STRUKTUR GRID & PENAMBAHAN KOMPONEN BARU --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <CashFlowChart dateRange={date} />
                 </div>
                 <div className="lg:col-span-1">
-                    {/* Komponen baru ditempatkan di sini */}
-                    <BudgetQuickView /> 
+                    {/* Mengirim state 'date' sebagai prop 'dateRange' */}
+                    <BudgetQuickView dateRange={date} /> 
                 </div>
             </div>
 

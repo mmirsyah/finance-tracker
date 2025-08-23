@@ -198,3 +198,8 @@ export interface BudgetSummaryItem {
   remaining_amount: number;
   progress_percentage: number;
 }
+
+export interface BudgetCategoryListItem {
+  category_id: number;
+  category_name: string;
+}

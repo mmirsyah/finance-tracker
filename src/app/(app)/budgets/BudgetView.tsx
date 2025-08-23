@@ -83,7 +83,6 @@ const BudgetView = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // --- PERBAIKAN: Mengembalikan ke tanggal saat ini (dinamis) ---
     if (profile && !currentDate) {
       setCurrentDate(new Date()); 
     }
@@ -123,7 +122,6 @@ const BudgetView = () => {
   }, [householdId, periodStartDate, periodEndDate, currentDate]);
 
   useEffect(() => {
-    // Hanya fetch jika tanggal sudah siap
     if (currentDate) {
         fetchAllBudgetData();
     }
@@ -161,18 +159,18 @@ const BudgetView = () => {
     setBudgetData(prev => {
         if (!prev) return null;
         const newCategories = JSON.parse(JSON.stringify(prev.categories));
-        let categoryFound = false;
+        // let categoryFound = false; <-- Dihapus
         for (const cat of newCategories) {
             if (cat.id === categoryId) {
                 cat.assigned = newAmount;
-                categoryFound = true;
+                // categoryFound = true; <-- Dihapus
                 break;
             }
             if (isParentCategory(cat) && cat.children && cat.children.length > 0) {
                 const child = cat.children.find((c: BudgetCategoryData) => c.id === categoryId);
                 if (child) {
                     child.assigned = newAmount;
-                    categoryFound = true;
+                    // categoryFound = true; <-- Dihapus
                     break;
                 }
             }
