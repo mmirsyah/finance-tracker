@@ -206,94 +206,100 @@ const CategoryRow = ({
     const unallocatedColor = unallocatedBalance !== undefined && unallocatedBalance >= 0 ? 'text-blue-600' : 'text-orange-600';
 
     return (
-        <div className={cn("grid grid-cols-12 gap-x-4 items-center py-2 px-3", 
+        <div className={cn("grid grid-cols-10 md:grid-cols-12 gap-x-2 md:gap-x-4 items-start py-3 px-3", 
             isParent ? "font-semibold bg-gray-50/75" : "border-t", 
             isStandalone && "font-medium"
         )}>
-            <div className="col-span-4 flex items-center gap-2 truncate">
-                <TooltipProvider delayDuration={100}>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                             <button onClick={() => onTogglePriority(category.id)} className="p-1 -ml-1 flex-shrink-0">
-                                <Star
-                                className={cn(
-                                    'w-4 h-4 text-gray-300 transition-all hover:text-yellow-400',
-                                    isPriority && 'text-yellow-400 fill-yellow-400'
-                                )}
-                                />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{isPriority ? 'Hapus dari Prioritas' : 'Jadikan Prioritas'}</p></TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-
-                {isChild && <div className="w-4 flex-shrink-0"></div>}
-                {isParent && (
-                    <CollapsibleTrigger asChild>
-                        <button className="flex items-center gap-2 flex-shrink-0">
-                            {isCollapsibleOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </button>
-                    </CollapsibleTrigger>
-                )}
-                {isParent && (
+            <div className="col-span-4 flex items-start gap-2">
+                <div className="flex flex-col items-center gap-2">
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <div className="flex-shrink-0">
-                                {isSwitching ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" /> 
-                                ):(
-                                <Switch
-                                    checked={isFlexMode}
-                                    onCheckedChange={handleToggleFlex}
-                                />
-                                )}
-                                </div>
+                                <button onClick={() => onTogglePriority(category.id)} className="p-1 -ml-1 flex-shrink-0">
+                                    <Star
+                                    className={cn(
+                                        'w-4 h-4 text-gray-300 transition-all hover:text-yellow-400',
+                                        isPriority && 'text-yellow-400 fill-yellow-400'
+                                    )}
+                                    />
+                                </button>
                             </TooltipTrigger>
-                            <TooltipContent><p>Aktifkan &quot;Flex Budget&quot; untuk grup ini</p></TooltipContent>
+                            <TooltipContent><p>{isPriority ? 'Hapus dari Prioritas' : 'Jadikan Prioritas'}</p></TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
-                )}
-                {(isChild || isStandalone) && isRolloverActive && (
-                    <TooltipProvider delayDuration={100}>
-                        <Tooltip>
-                            <TooltipTrigger>
-                                <Repeat className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                            </TooltipTrigger>
-                            <TooltipContent><p>Rollover aktif</p></TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                )}
-                <span className="truncate">{category.name}</span>
+
+                    {isParent && (
+                        <div className="flex items-center gap-2">
+                            <CollapsibleTrigger asChild>
+                                <button className="flex-shrink-0">
+                                    {isCollapsibleOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
+                            </CollapsibleTrigger>
+                            <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex-shrink-0">
+                                        {isSwitching ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" /> 
+                                        ):(
+                                        <Switch
+                                            checked={isFlexMode}
+                                            onCheckedChange={handleToggleFlex}
+                                        />
+                                        )}
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Aktifkan &quot;Flex Budget&quot; untuk grup ini</p></TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex-grow flex items-center gap-2 mt-0.5">
+                    {isChild && <div className="w-4 flex-shrink-0"></div>}
+                    {(isChild || isStandalone) && isRolloverActive && (
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <Repeat className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent><p>Rollover aktif</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
+                    <span>{category.name}</span>
+                </div>
             </div>
             
-            <div className="col-span-2 text-right text-sm text-gray-500 hidden md:block">
+            <div className="hidden md:block md:col-span-2 text-right text-sm text-gray-500">
                 {formatCurrency(category.rollover)}
             </div>
 
-            <div className="col-span-2">
-                    <Popover open={isAssistantOpen} onOpenChange={setIsAssistantOpen}>
-                        <PopoverTrigger asChild>
-                            <Input 
-                                id={`budget-input-${category.id}`}
-                                type="number"
-                                placeholder="0"
-                                value={inputValue}
-                                onChange={handleInputChange}
-                                onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
-                                disabled={isInputDisabled}
-                                className={cn("h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
-                            />
-                        </PopoverTrigger>
-                        {isAssistantOpen && <BudgetingAssistant category={category as BudgetCategoryData} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
-                    </Popover>
+            <div className="col-span-3 md:col-span-2">
+                <Popover open={isAssistantOpen} onOpenChange={setIsAssistantOpen}>
+                    <PopoverTrigger asChild>
+                        <Input 
+                            id={`budget-input-${category.id}`}
+                            type="number"
+                            placeholder="0"
+                            value={inputValue}
+                            onChange={handleInputChange}
+                            onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
+                            disabled={isInputDisabled}
+                            className={cn("h-10 md:h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
+                        />
+                    </PopoverTrigger>
+                    {isAssistantOpen && <BudgetingAssistant category={category as BudgetCategoryData} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
+                </Popover>
             </div>
             
-            <div className="col-span-2 text-right text-sm">{activityDisplay}</div>
+            <div className="hidden md:block md:col-span-2 text-right text-sm">{activityDisplay}</div>
             
-            <div className={cn("col-span-1 text-right font-medium", availableColor)}>
-                {formatCurrency(category.available)}
-                {isParent && isFlexMode && unallocatedBalance !== undefined && (
+            <div className="col-span-3 md:col-span-2 flex flex-col items-end md:grid md:grid-cols-2 md:items-center">
+                <div className={cn("md:col-span-1 text-right font-medium", availableColor)}>
+                    {formatCurrency(category.available)}
+                    {isParent && isFlexMode && unallocatedBalance !== undefined && (
                         <TooltipProvider delayDuration={100}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -304,14 +310,14 @@ const CategoryRow = ({
                                 <TooltipContent><p>Sisa dana fleksibel untuk sub-kategori.</p></TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
-                )}
-            </div>
-
-            <div className="col-span-1 flex justify-center">
-                { (isChild || isStandalone) && (
-                    isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> :
-                    <Switch checked={isRolloverActive} onCheckedChange={handleToggleRollover} />
-                )}
+                    )}
+                </div>
+                <div className="md:col-span-1 flex justify-center mt-1 md:mt-0">
+                    { (isChild || isStandalone) && (
+                        isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                        <Switch checked={isRolloverActive} onCheckedChange={handleToggleRollover} />
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -361,7 +367,7 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
                 toast.success('Prioritas ditambahkan.');
             }
             setPriorities(newPriorities);
-        } catch { // <-- PERBAIKAN: Hapus parameter 'error' yang tidak dipakai
+        } catch {
             toast.error('Gagal memperbarui prioritas.');
         }
     };
@@ -374,13 +380,17 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
 
     return (
         <div className="bg-white rounded-lg shadow-sm border">
-            <div className="grid grid-cols-12 gap-x-4 py-2 px-3 border-b bg-gray-50 text-xs font-bold text-gray-600 uppercase sticky top-[65px] z-10">
-                <div className="col-span-4 text-left">Kategori</div>
-                <div className="col-span-2 text-right hidden md:block">Sisa Bulan Lalu</div>
-                <div className="col-span-2 text-right">Dialokasikan</div>
-                <div className="col-span-2 text-right">Aktivitas</div>
-                <div className="col-span-1 text-right">Tersedia</div>
-                <div className="col-span-1 text-center">Rollover</div>
+            {/* === PERBAIKAN DIMULAI DI SINI: bg-gray-50 diubah menjadi bg-white === */}
+            <div className="grid grid-cols-10 md:grid-cols-12 gap-x-2 md:gap-x-4 py-2 px-3 border-b bg-white text-xs font-bold text-gray-600 uppercase sticky top-[65px] z-10">
+            {/* === PERBAIKAN BERAKHIR DI SINI === */}
+                <div className="col-span-4 md:col-span-4 text-left">Kategori</div>
+                <div className="hidden md:block md:col-span-2 text-right">Sisa Bulan Lalu</div>
+                <div className="col-span-3 md:col-span-2 text-right">Dialokasikan</div>
+                <div className="hidden md:block md:col-span-2 text-right">Aktivitas</div>
+                <div className="col-span-3 md:col-span-2 grid grid-cols-1 md:grid-cols-2">
+                    <span className="md:col-span-1 text-right">Tersedia</span>
+                    <span className="hidden md:block md:col-span-1 text-center">Rollover</span>
+                </div>
             </div>
 
             <div>

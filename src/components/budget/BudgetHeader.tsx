@@ -8,7 +8,7 @@ interface BudgetHeaderProps {
   totalBudgeted: number;
   totalActivity: number;
   totalIncome: number;
-  remainingBudget: number; // Prop diubah dari 'remaining'
+  remainingBudget: number;
   isLoading: boolean;
 }
 
@@ -28,16 +28,16 @@ const MetricCard = ({ title, value, color, isLoading }: { title: string, value: 
 };
 
 export const BudgetHeader = ({ totalBudgeted, totalActivity, totalIncome, remainingBudget, isLoading }: BudgetHeaderProps) => {
-  // Logika warna sekarang berdasarkan sisa anggaran
   const remainingColor = remainingBudget >= 0 ? 'text-blue-600' : 'text-red-600';
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    // === PERUBAHAN DIMULAI DI SINI ===
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard title="Total Pemasukan" value={totalIncome} color="text-green-600" isLoading={isLoading} />
         <MetricCard title="Total Anggaran" value={totalBudgeted} color="text-gray-900" isLoading={isLoading} />
         <MetricCard title="Total Pengeluaran" value={totalActivity} color="text-orange-500" isLoading={isLoading} />
-        {/* Kartu diganti menjadi "Sisa Anggaran" */}
         <MetricCard title="Sisa Anggaran" value={remainingBudget} color={remainingColor} isLoading={isLoading} />
     </div>
+    // === PERUBAHAN BERAKHIR DI SINI ===
   );
 };

@@ -208,6 +208,7 @@ const BudgetView = () => {
   return (
     <>
       <div className="space-y-6 p-4 md:p-6">
+        {/* === PERUBAHAN DIMULAI DI SINI === */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
                 <h1 className="text-2xl font-bold text-gray-800">Anggaran</h1>
@@ -220,6 +221,7 @@ const BudgetView = () => {
                 onNext={() => handlePeriodChange('next')}
             />
         </div>
+        {/* === PERUBAHAN BERAKHIR DI SINI === */}
 
         <BudgetHeader 
             totalIncome={budgetData?.total_income ?? 0}
