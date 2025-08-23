@@ -17,6 +17,7 @@ import { formatCurrency } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { getComparisonMetrics } from '@/lib/reportService';
 import { getCustomPeriod } from '@/lib/periodUtils';
+import { BudgetQuickView } from '@/components/dashboard/BudgetQuickView'; // <-- IMPORT BARU
 
 export default function DashboardPage() {
     const { accounts, categories, assets, isLoading, householdId, profile } = useAppData();
@@ -69,8 +70,7 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-bold">Dashboard</h1>
                 <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
             </div>
-
-            {/* --- PERBAIKAN DESKRIPSI DI SINI --- */}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <SummaryDisplay label="Total Available Cash" amount={totalAvailableCash} description="Total cash in general accounts" />
                 <SummaryDisplay label="Total Asset Value" amount={totalAssetValue} description={`${assets.length} assets tracked`} />
@@ -100,18 +100,26 @@ export default function DashboardPage() {
                 </Card>
             </div>
             
+            {/* --- PENYESUAIAN STRUKTUR GRID & PENAMBAHAN KOMPONEN BARU --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <CashFlowChart dateRange={date} />
+                </div>
+                <div className="lg:col-span-1">
+                    {/* Komponen baru ditempatkan di sini */}
+                    <BudgetQuickView /> 
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <RecentTransactions />
                 </div>
                 <div className="lg:col-span-1">
                     <SpendingByCategory dateRange={date} />
                 </div>
             </div>
 
-            <div>
-                <RecentTransactions />
-            </div>
         </div>
     );
 }

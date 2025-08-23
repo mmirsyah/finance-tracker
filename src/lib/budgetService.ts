@@ -3,6 +3,8 @@
 import { supabase } from './supabase';
 import { BudgetPageData, BudgetAssignment, BudgetHistoryData } from '@/types';
 import { format } from 'date-fns';
+import { createClient } from '@/utils/supabase/client';
+import { BudgetSummaryItem } from '@/types';
 
 /**
  * Mengambil seluruh data yang dibutuhkan untuk halaman budget pada rentang tanggal tertentu.
@@ -118,4 +120,20 @@ export const getCategorySpendingHistory = async (
     throw error;
   }
   return (data && data.length > 0 ? data[0] : null) as BudgetHistoryData | null;
+};
+
+export const getBudgetSummary = async (
+  period: string
+): Promise<BudgetSummaryItem[]> => {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_quick_budget_overview', {
+    p_month: period,
+  });
+
+  if (error) {
+    console.error('Error fetching budget summary:', error.message);
+    throw new Error('Failed to fetch budget summary.');
+  }
+
+  return data as BudgetSummaryItem[];
 };

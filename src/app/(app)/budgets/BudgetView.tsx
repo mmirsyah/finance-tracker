@@ -5,8 +5,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
-import { BudgetPageData } from '@/types';
-import { format, addMonths, subMonths, startOfMonth, setDate } from 'date-fns';
+import { BudgetPageData, BudgetParentCategoryData, BudgetCategoryData } from '@/types';
+import { format, addMonths, subMonths, startOfMonth } from 'date-fns';
 import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { BudgetHeader } from '@/components/budget/BudgetHeader';
 import { BudgetTable } from '@/components/budget/BudgetTable';
@@ -84,7 +84,7 @@ const BudgetView = () => {
 
   useEffect(() => {
     if (profile && !currentDate) {
-      setCurrentDate(new Date('2025-07-15')); // Set to a date with data for initial testing
+      setCurrentDate(new Date('2025-07-15'));
     }
   }, [profile, currentDate]);
 
@@ -138,13 +138,17 @@ const BudgetView = () => {
     const oldReadyToAssign = readyToAssign;
 
     let totalAssignedChange = 0;
-    
     let oldAmount = 0;
+
+    const isParentCategory = (cat: BudgetCategoryData | BudgetParentCategoryData): cat is BudgetParentCategoryData => {
+        return 'children' in cat && Array.isArray(cat.children);
+    };
+
     budgetData.categories.forEach(cat => {
         if(cat.id === categoryId) {
             oldAmount = cat.assigned;
-        } else if (cat.children && cat.children.length > 0) {
-            const child = (cat as any).children.find((c: any) => c.id === categoryId);
+        } else if (isParentCategory(cat) && cat.children.length > 0) {
+            const child = cat.children.find(c => c.id === categoryId);
             if (child) oldAmount = child.assigned;
         }
     });
@@ -153,18 +157,16 @@ const BudgetView = () => {
     setBudgetData(prev => {
         if (!prev) return null;
         const newCategories = JSON.parse(JSON.stringify(prev.categories));
-        let categoryFound = false;
+
         for (const cat of newCategories) {
             if (cat.id === categoryId) {
                 cat.assigned = newAmount;
-                categoryFound = true;
                 break;
             }
-            if (cat.children && cat.children.length > 0) {
-                const child = cat.children.find((c: any) => c.id === categoryId);
+            if (isParentCategory(cat) && cat.children.length > 0) {
+                const child = cat.children.find((c: BudgetCategoryData) => c.id === categoryId);
                 if (child) {
                     child.assigned = newAmount;
-                    categoryFound = true;
                     break;
                 }
             }
@@ -173,6 +175,7 @@ const BudgetView = () => {
         return {
             ...prev,
             categories: newCategories,
+            // --- PERBAIKAN DI SINI ---
             total_budgeted: (prev.total_budgeted || 0) + totalAssignedChange,
         }
     });
@@ -197,7 +200,6 @@ const BudgetView = () => {
     return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
   }
 
-  // Kalkulasi yang diperbaiki
   const remainingBudgetForPeriod = (budgetData?.total_budgeted ?? 0) - (budgetData?.total_activity ?? 0);
 
   return (
@@ -216,7 +218,6 @@ const BudgetView = () => {
             />
         </div>
 
-        {/* Menggunakan nama properti yang sudah diperbaiki */}
         <BudgetHeader 
             totalIncome={budgetData?.total_income ?? 0}
             totalBudgeted={budgetData?.total_budgeted ?? 0}

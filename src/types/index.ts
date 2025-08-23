@@ -189,3 +189,12 @@ export interface BudgetHistoryData {
   six_month_avg: number;
   monthly_history: { month: string; Pengeluaran: number }[];
 }
+
+export interface BudgetSummaryItem {
+  category_id: number;
+  category_name: string;
+  assigned_amount: number;
+  spent_amount: number;
+  remaining_amount: number;
+  progress_percentage: number;
+}
