@@ -180,3 +180,10 @@ export interface CategorySpendingHistory {
     percentage_of_total: number;
     sub_category_spending: SpendingItem[];
 }
+
+export interface BudgetHistoryData {
+  last_month_spending: number;
+  three_month_avg: number;
+  six_month_avg: number;
+  monthly_history: { month: string; Pengeluaran: number }[];
+}

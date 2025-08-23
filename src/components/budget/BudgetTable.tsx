@@ -2,20 +2,20 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { BudgetParentCategoryData, BudgetCategoryData } from '@/types';
+import { BudgetParentCategoryData, BudgetCategoryData, BudgetHistoryData } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-// PERBAIKAN: Menghapus 'Zap' dari impor
 import { ChevronDown, ChevronRight, Loader2, Repeat } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { BarChart } from '@tremor/react';
 import { toast } from 'sonner';
-import { updateCategoryRolloverStatus, toggleFlexBudgetStatus } from '@/lib/budgetService';
+import { updateCategoryRolloverStatus, toggleFlexBudgetStatus, getCategorySpendingHistory } from '@/lib/budgetService';
 import { useAppData } from '@/contexts/AppDataContext';
-// PERBAIKAN: Menghapus 'formatDate' dan 'startOfMonth' dari impor
-//import { format as formatDate } from 'date-fns';
 
 interface BudgetTableProps {
   data: (BudgetParentCategoryData | (BudgetCategoryData & { children: [], is_rollover: boolean, is_flex_budget: boolean, unallocated_balance: number }))[];
@@ -23,6 +23,82 @@ interface BudgetTableProps {
   onRefresh: () => void;
   currentPeriodStart: Date;
 }
+
+const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChange }: { category: BudgetCategoryData, onApply: (amount: number) => void, currentPeriodStart: Date, onOpenChange: (open: boolean) => void }) => {
+    const { householdId } = useAppData();
+    const [history, setHistory] = useState<BudgetHistoryData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!householdId) return;
+        
+        // Data di-fetch saat komponen pertama kali di-mount dalam popover.
+        getCategorySpendingHistory(householdId, category.id, currentPeriodStart)
+            .then(data => {
+                setHistory(data);
+            })
+            .catch(error => {
+                toast.error("Gagal memuat histori pengeluaran.");
+                console.error(error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    }, [householdId, category.id, currentPeriodStart]);
+    
+    const handleApply = (amount: number) => {
+        onApply(amount);
+        onOpenChange(false); // Menutup popover setelah aksi
+    };
+
+    return (
+        <PopoverContent className="w-80" align="start">
+            <div className="space-y-4">
+                <p className="text-sm font-semibold text-center border-b pb-2">Bantuan Anggaran</p>
+                {isLoading ? (
+                     <div className="flex justify-center items-center h-48">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                ) : history && history.monthly_history ? (
+                    <div className="space-y-4">
+                        <BarChart
+                            data={history.monthly_history}
+                            index="month"
+                            categories={["Pengeluaran"]}
+                            colors={["blue"]}
+                            valueFormatter={formatCurrency}
+                            yAxisWidth={60}
+                            showLegend={false}
+                            className="h-32 mt-2"
+                        />
+                        <div className="space-y-2 text-sm border-t pt-3">
+                             <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Rata-rata 3 Bln Terakhir</span>
+                                <span className="font-semibold">{formatCurrency(history.three_month_avg)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Pengeluaran Bulan Lalu</span>
+                                <span className="font-semibold">{formatCurrency(history.last_month_spending)}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <Button size="sm" variant="outline" className="flex-1" onClick={() => handleApply(history.last_month_spending)}>
+                                Pakai Bln Lalu
+                            </Button>
+                            <Button size="sm" variant="outline" className="flex-1" onClick={() => handleApply(history.three_month_avg)}>
+                                Pakai Rata-rata
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-center text-sm text-muted-foreground h-48 flex items-center justify-center">
+                        Tidak ada data histori pengeluaran untuk kategori ini.
+                    </p>
+                )}
+            </div>
+        </PopoverContent>
+    );
+};
 
 const CategoryRow = ({ 
     category, 
@@ -47,6 +123,7 @@ const CategoryRow = ({
     const [inputValue, setInputValue] = useState<string>(category.assigned > 0 ? String(category.assigned) : '');
     const [isSwitching, setIsSwitching] = useState(false);
     const [isRolloverActive, setIsRolloverActive] = useState(category.is_rollover);
+    const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
     useEffect(() => {
         setIsRolloverActive(category.is_rollover);
@@ -56,8 +133,10 @@ const CategoryRow = ({
     const isFlexMode = parentData?.is_flex_budget ?? false;
 
     useEffect(() => {
-        setInputValue(category.assigned > 0 ? String(category.assigned) : '');
-    }, [category.assigned]);
+        if (document.activeElement?.id !== `budget-input-${category.id}`) {
+            setInputValue(category.assigned > 0 ? String(category.assigned) : '');
+        }
+    }, [category.assigned, category.id]);
 
     const debouncedSave = useDebouncedCallback((value: number) => {
         onAssignmentChange(category.id, value);
@@ -74,10 +153,15 @@ const CategoryRow = ({
         }
     };
     
+    const handleApplyFromAssistant = (amount: number) => {
+        const roundedAmount = Math.ceil(amount / 1000) * 1000;
+        setInputValue(String(roundedAmount));
+        onAssignmentChange(category.id, roundedAmount);
+    };
+
     const handleToggleRollover = async (newStatus: boolean) => {
         setIsRolloverActive(newStatus);
         setIsSwitching(true);
-
         try {
             await updateCategoryRolloverStatus(category.id, newStatus);
             toast.success(`Rollover untuk "${category.name}" telah di-${newStatus ? 'aktifkan' : 'nonaktifkan'}.`);
@@ -116,10 +200,8 @@ const CategoryRow = ({
           isParent ? "font-semibold bg-gray-50/75" : "border-t", 
           isStandalone && "font-medium"
         )}>
-            {/* Kolom Kategori (col-span-4) */}
             <div className="col-span-4 flex items-center gap-2 truncate">
                 {isChild && <div className="w-8 flex-shrink-0"></div>}
-                
                 {isParent && (
                     <CollapsibleTrigger asChild>
                         <button className="flex items-center gap-2 flex-shrink-0">
@@ -127,7 +209,6 @@ const CategoryRow = ({
                         </button>
                     </CollapsibleTrigger>
                 )}
-                
                 {isParent && (
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
@@ -143,12 +224,10 @@ const CategoryRow = ({
                             )}
                             </div>
                             </TooltipTrigger>
-                            {/* PERBAIKAN: Mengganti " dengan &quot; */}
                             <TooltipContent><p>Aktifkan &quot;Flex Budget&quot; untuk grup ini</p></TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 )}
-                
                 {(isChild || isStandalone) && isRolloverActive && (
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
@@ -159,31 +238,33 @@ const CategoryRow = ({
                         </Tooltip>
                     </TooltipProvider>
                 )}
-
                 <span className="truncate">{category.name}</span>
             </div>
             
-            {/* Kolom Sisa Periode Lalu (col-span-2) */}
             <div className="col-span-2 text-right text-sm text-gray-500 hidden md:block">
                 {formatCurrency(category.rollover)}
             </div>
 
-            {/* Kolom Alokasi (col-span-2) */}
             <div className="col-span-2">
-                 <Input 
-                    type="number"
-                    placeholder="0"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    disabled={isInputDisabled}
-                    className={cn("h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
-                />
+                 <Popover open={isAssistantOpen} onOpenChange={setIsAssistantOpen}>
+                    <PopoverTrigger asChild>
+                        <Input 
+                            id={`budget-input-${category.id}`}
+                            type="number"
+                            placeholder="0"
+                            value={inputValue}
+                            onChange={handleInputChange}
+                            onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
+                            disabled={isInputDisabled}
+                            className={cn("h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
+                        />
+                    </PopoverTrigger>
+                    {isAssistantOpen && <BudgetingAssistant category={category} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
+                 </Popover>
             </div>
             
-            {/* Kolom Aktivitas (col-span-2) */}
             <div className="col-span-2 text-right text-sm">{activityDisplay}</div>
             
-            {/* Kolom Tersedia (col-span-1) */}
             <div className={cn("col-span-1 text-right font-medium", availableColor)}>
                 {formatCurrency(category.available)}
                 {isParent && isFlexMode && unallocatedBalance !== undefined && (
@@ -200,7 +281,6 @@ const CategoryRow = ({
                 )}
             </div>
 
-            {/* Kolom Rollover (col-span-1) */}
             <div className="col-span-1 flex justify-center">
                 { (isChild || isStandalone) && (
                     isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> :
@@ -218,8 +298,8 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
         const initialOpenState: Record<number, boolean> = {};
         if (data) {
             data.forEach(item => {
-                // PERBAIKAN: Menghapus @ts-ignore yang tidak perlu
-                if (item.children && item.children.length > 0) {
+                const parentItem = item as BudgetParentCategoryData;
+                if (parentItem.children && parentItem.children.length > 0) {
                     initialOpenState[item.id] = true;
                 }
             });
@@ -239,7 +319,6 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
 
     return (
         <div className="bg-white rounded-lg shadow-sm border">
-            {/* Header Table */}
             <div className="grid grid-cols-12 gap-x-4 py-2 px-3 border-b bg-gray-50 text-xs font-bold text-gray-600 uppercase sticky top-[65px] z-10">
                 <div className="col-span-4 text-left">Kategori</div>
                 <div className="col-span-2 text-right hidden md:block">Sisa Bulan Lalu</div>
@@ -249,7 +328,6 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
                 <div className="col-span-1 text-center">Rollover</div>
             </div>
 
-            {/* Body Table */}
             <div>
                 {data.map(item => {
                     const parentCategory = item as BudgetParentCategoryData;

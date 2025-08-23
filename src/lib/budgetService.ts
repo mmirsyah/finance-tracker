@@ -1,7 +1,7 @@
 // src/lib/budgetService.ts
 
 import { supabase } from './supabase';
-import { BudgetPageData, BudgetAssignment } from '@/types';
+import { BudgetPageData, BudgetAssignment, BudgetHistoryData } from '@/types';
 import { format } from 'date-fns';
 
 /**
@@ -93,4 +93,25 @@ export const toggleFlexBudgetStatus = async (
         console.error('Error toggling flex budget status:', error);
         throw error;
     }
+};
+
+/**
+ * FUNGSI BARU: Mengambil histori pengeluaran untuk sebuah kategori.
+ */
+export const getCategorySpendingHistory = async (
+  householdId: string,
+  categoryId: number,
+  currentPeriodStart: Date
+): Promise<BudgetHistoryData | null> => {
+  const { data, error } = await supabase.rpc('get_category_spending_history', {
+    p_household_id: householdId,
+    p_category_id: categoryId,
+    p_current_period_start: format(currentPeriodStart, 'yyyy-MM-dd'),
+  });
+
+  if (error) {
+    console.error('Error fetching category spending history:', error);
+    throw error;
+  }
+  return (data && data.length > 0 ? data[0] : null) as BudgetHistoryData | null;
 };
