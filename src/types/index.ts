@@ -52,17 +52,19 @@ export interface BudgetCategoryData {
 
 export interface BudgetParentCategoryData extends BudgetCategoryData {
   unallocated_balance: number;
-  is_flex_budget: boolean; // <-- TAMBAHKAN INI
+  is_flex_budget: boolean;
   children: (BudgetCategoryData & { is_rollover: boolean })[];
 }
 
+// --- PERBAIKAN DI SINI ---
+// Menyesuaikan tipe ini agar cocok dengan nama kolom yang dikembalikan oleh fungsi RPC 'get_budget_data'
 export interface BudgetPageData {
-  income: number;
-  budgeted: number;
-  activity: number;
+  total_income: number;
+  total_budgeted: number;
+  total_activity: number;
   categories: (BudgetParentCategoryData | (BudgetCategoryData & { children: [], is_rollover: boolean, is_flex_budget: boolean, unallocated_balance: number }))[];
 }
-// --- AKHIR TIPE BUDGET BARU ---
+// --- AKHIR PERBAIKAN TIPE BUDGET ---
 
 
 export interface Account {

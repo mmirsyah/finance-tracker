@@ -6,7 +6,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
 import { BudgetPageData } from '@/types';
-import { format, addMonths, subMonths, startOfMonth } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, setDate } from 'date-fns';
 import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { BudgetHeader } from '@/components/budget/BudgetHeader';
 import { BudgetTable } from '@/components/budget/BudgetTable';
@@ -76,22 +76,34 @@ const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: 
 
 
 const BudgetView = () => {
-  // PERBAIKAN: Menghapus 'refetchData' yang tidak digunakan
   const { householdId, dataVersion, profile, isLoading: isAppDataLoading } = useAppData();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [budgetData, setBudgetData] = useState<BudgetPageData | null>(null);
   const [readyToAssign, setReadyToAssign] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    if (profile && !currentDate) {
+      setCurrentDate(new Date('2025-07-15')); // Set to a date with data for initial testing
+    }
+  }, [profile, currentDate]);
+
   const { periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
-    const startDay = profile?.period_start_day || 1;
+    if (!profile || !currentDate) {
+      return { 
+        periodStartDate: new Date(), 
+        periodEndDate: new Date(), 
+        periodDisplayText: 'Memuat...' 
+      };
+    }
+    const startDay = profile.period_start_day || 1;
     const period = getCustomPeriod(startDay, currentDate);
     const displayText = `${format(period.from, 'd MMM', { locale: indonesiaLocale })} - ${format(period.to, 'd MMM yyyy', { locale: indonesiaLocale })}`;
     return { periodStartDate: period.from, periodEndDate: period.to, periodDisplayText: displayText };
   }, [profile, currentDate]);
 
   const fetchAllBudgetData = useCallback(async () => {
-    if (!householdId) return;
+    if (!householdId || !currentDate) return;
     setIsLoading(true);
     try {
       const [budgetDataRes, readyToAssignRes] = await Promise.all([
@@ -103,20 +115,20 @@ const BudgetView = () => {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Gagal memuat data anggaran.";
       toast.error(errorMessage);
+      setBudgetData(null);
     } finally {
       setIsLoading(false);
     }
-  }, [householdId, periodStartDate, periodEndDate]);
+  }, [householdId, periodStartDate, periodEndDate, currentDate]);
 
   useEffect(() => {
-    if (profile) {
-      fetchAllBudgetData();
-    }
-  }, [fetchAllBudgetData, dataVersion, profile]);
+    fetchAllBudgetData();
+  }, [fetchAllBudgetData, dataVersion]);
 
   const handlePeriodChange = (direction: 'next' | 'prev') => {
-    // PERBAIKAN: Ganti 'current' menjadi '_current' untuk menandakan tidak dipakai
-    setCurrentDate(_current => direction === 'next' ? addMonths(periodStartDate, 1) : subMonths(periodStartDate, 1));
+    if (!currentDate) return;
+    const newDate = direction === 'next' ? addMonths(periodStartDate, 1) : subMonths(periodStartDate, 1);
+    setCurrentDate(newDate);
   };
 
   const handleAssignmentChange = async (categoryId: number, newAmount: number) => {
@@ -129,11 +141,10 @@ const BudgetView = () => {
     
     let oldAmount = 0;
     budgetData.categories.forEach(cat => {
-        // PERBAIKAN: Menghapus @ts-ignore
-        if(cat.id === categoryId) oldAmount = cat.assigned;
-        if(cat.children) {
-            // PERBAIKAN: Menghapus @ts-ignore
-            const child = cat.children.find(c => c.id === categoryId);
+        if(cat.id === categoryId) {
+            oldAmount = cat.assigned;
+        } else if (cat.children && cat.children.length > 0) {
+            const child = (cat as any).children.find((c: any) => c.id === categoryId);
             if (child) oldAmount = child.assigned;
         }
     });
@@ -141,9 +152,28 @@ const BudgetView = () => {
     
     setBudgetData(prev => {
         if (!prev) return null;
+        const newCategories = JSON.parse(JSON.stringify(prev.categories));
+        let categoryFound = false;
+        for (const cat of newCategories) {
+            if (cat.id === categoryId) {
+                cat.assigned = newAmount;
+                categoryFound = true;
+                break;
+            }
+            if (cat.children && cat.children.length > 0) {
+                const child = cat.children.find((c: any) => c.id === categoryId);
+                if (child) {
+                    child.assigned = newAmount;
+                    categoryFound = true;
+                    break;
+                }
+            }
+        }
+
         return {
             ...prev,
-            budgeted: prev.budgeted + totalAssignedChange,
+            categories: newCategories,
+            total_budgeted: (prev.total_budgeted || 0) + totalAssignedChange,
         }
     });
     setReadyToAssign(prev => prev !== null ? prev - totalAssignedChange : null);
@@ -155,20 +185,20 @@ const BudgetView = () => {
         month: format(startOfMonth(periodStartDate), 'yyyy-MM-dd'),
         assigned_amount: newAmount,
       });
-      toast.success("Anggaran disimpan!");
-      fetchAllBudgetData();
-    } catch (error) { // PERBAIKAN: 'error' sekarang digunakan
+      await fetchAllBudgetData();
+    } catch (error) { 
       toast.error(`Gagal menyimpan: ${(error as Error).message}`);
       setBudgetData(oldBudgetData);
       setReadyToAssign(oldReadyToAssign);
     }
   };
 
-  if (isAppDataLoading || !profile) {
+  if (isAppDataLoading || !profile || !currentDate) {
     return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
   }
 
-  const remainingBudgetForPeriod = (budgetData?.budgeted ?? 0) - (budgetData?.activity ?? 0);
+  // Kalkulasi yang diperbaiki
+  const remainingBudgetForPeriod = (budgetData?.total_budgeted ?? 0) - (budgetData?.total_activity ?? 0);
 
   return (
     <>
@@ -186,19 +216,19 @@ const BudgetView = () => {
             />
         </div>
 
+        {/* Menggunakan nama properti yang sudah diperbaiki */}
         <BudgetHeader 
-            totalIncome={budgetData?.income ?? 0}
-            totalBudgeted={budgetData?.budgeted ?? 0}
-            totalActivity={budgetData?.activity ?? 0}
+            totalIncome={budgetData?.total_income ?? 0}
+            totalBudgeted={budgetData?.total_budgeted ?? 0}
+            totalActivity={budgetData?.total_activity ?? 0}
             remainingBudget={remainingBudgetForPeriod} 
             isLoading={isLoading}
         />
 
-        {isLoading && !budgetData ? (
+        {isLoading ? (
              <div className="flex justify-center items-center h-64 bg-white rounded-lg shadow-sm border"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
         ) : (
             <BudgetTable
-                // PERBAIKAN: Menghapus @ts-ignore
                 data={budgetData?.categories || []}
                 onAssignmentChange={handleAssignmentChange}
                 onRefresh={fetchAllBudgetData}
