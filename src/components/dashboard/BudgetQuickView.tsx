@@ -19,7 +19,6 @@ import {
 } from '@/lib/budgetService';
 import { BudgetSummaryItem, BudgetCategoryListItem } from '@/types';
 import { cn, formatCurrency } from '@/lib/utils';
-// PERBAIKAN: Hapus 'AlertTriangle' dari import
 import { Info, Star, PlusCircle } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
@@ -34,7 +33,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-
+import { format } from 'date-fns'; // <-- IMPORT BARU
 
 const BudgetQuickViewSkeleton = () => (
     <div className="space-y-4">
@@ -65,7 +64,8 @@ const AddPriorityPopover = ({
         if (isOpen && dateRange?.from) {
             setIsLoading(true);
             try {
-                const periodDate = dateRange.from.toISOString().split('T')[0];
+                // --- PERBAIKAN FORMAT TANGGAL ---
+                const periodDate = format(dateRange.from, 'yyyy-MM-dd');
                 const data = await getAllBudgetCategoriesForPeriod(periodDate);
                 setAllBudgets(data);
             } catch {
@@ -137,7 +137,8 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
     
     setIsLoading(true);
     try {
-      const periodDate = dateRange.from.toISOString().split('T')[0];
+      // --- PERBAIKAN FORMAT TANGGAL ---
+      const periodDate = format(dateRange.from, 'yyyy-MM-dd');
       const [summaryData, priorityIds] = await Promise.all([
         getBudgetSummary(periodDate),
         getBudgetPriorities()
