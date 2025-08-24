@@ -4,142 +4,242 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppData } from '@/contexts/AppDataContext';
-import { Card, Title, Text } from '@tremor/react';
-import { ArrowRightLeft, ArrowUp, ArrowDown, Edit } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowRightLeft, ArrowUp, ArrowDown, Edit, Clock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { RecentTransaction, Transaction } from '@/types';
 import { toast } from 'sonner';
-
-const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+import { formatCurrency } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const TransactionIcon = ({ type }: { type: string }) => {
-  if (type === 'income') return <ArrowUp className="w-5 h-5 text-green-500 bg-green-100 rounded-full p-1" />;
-  if (type === 'expense') return <ArrowDown className="w-5 h-5 text-red-500 bg-red-100 rounded-full p-1" />;
-  return <ArrowRightLeft className="w-5 h-5 text-gray-500 bg-gray-100 rounded-full p-1" />;
+  const iconClass = "w-5 h-5 rounded-full p-1";
+  if (type === 'income') return <ArrowUp className={`${iconClass} text-green-600 bg-green-100`} />;
+  if (type === 'expense') return <ArrowDown className={`${iconClass} text-red-600 bg-red-100`} />;
+  return <ArrowRightLeft className={`${iconClass} text-blue-600 bg-blue-100`} />;
 };
 
+const TransactionSkeleton = () => (
+  <div className="flex items-center space-x-4 py-3 animate-pulse">
+    <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+    <div className="flex-1 space-y-2">
+      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+    </div>
+    <div className="h-5 bg-gray-200 rounded w-20"></div>
+    <div className="w-8 h-8 bg-gray-200 rounded"></div>
+  </div>
+);
+
 export default function RecentTransactions() {
-  // --- PERUBAHAN: Mengambil householdId dari context ---
   const { user, householdId, dataVersion, handleOpenModalForEdit } = useAppData();
   const [transactions, setTransactions] = useState<RecentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRecent = async () => {
-      // --- PERUBAHAN: Pastikan householdId sudah ada sebelum fetch ---
       if (!user || !householdId) return;
-      setLoading(true);
       
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          id, date, type, amount, note,
-          categories ( name ),
-          accounts:account_id ( name )
-        `)
-        // --- PERBAIKAN UTAMA: Filter berdasarkan household_id, bukan user_id ---
-        .eq('household_id', householdId)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(5)
-        .returns<Transaction[]>();
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select(`
+            id, date, type, amount, note,
+            categories ( name ),
+            accounts:account_id ( name )
+          `)
+          .eq('household_id', householdId)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(5)
+          .returns<Transaction[]>();
 
-      if (error) {
-        console.error("Error fetching recent transactions:", error);
-      } else if (data) {
-        const mappedData = data.map(t => ({
-          id: t.id,
-          date: t.date,
-          type: t.type as 'expense' | 'income' | 'transfer',
-          amount: t.amount,
-          note: t.note,
-          category_name: t.categories?.name || (t.type === 'transfer' ? 'Transfer' : 'Uncategorized'),
-          account_name: t.accounts?.name || 'N/A'
-        }));
-        setTransactions(mappedData);
+        if (error) throw error;
+
+        if (data) {
+          const mappedData = data.map(t => ({
+            id: t.id,
+            date: t.date,
+            type: t.type as 'expense' | 'income' | 'transfer',
+            amount: t.amount,
+            note: t.note,
+            category_name: t.categories?.name || (t.type === 'transfer' ? 'Transfer' : 'Uncategorized'),
+            account_name: t.accounts?.name || 'N/A'
+          }));
+          setTransactions(mappedData);
+        }
+      } catch (err) {
+        console.error("Error fetching recent transactions:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load transactions');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchRecent();
-    // --- PERUBAHAN: Menambahkan householdId ke dependency array ---
   }, [user, householdId, dataVersion]);
 
   const handleEdit = async (transactionId: string) => {
-    const { data: fullTransaction, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', transactionId)
-      .single();
+    try {
+      const { data: fullTransaction, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', transactionId)
+        .single();
 
-    if (error || !fullTransaction) {
+      if (error || !fullTransaction) {
+        throw new Error('Failed to fetch transaction details');
+      }
+
+      handleOpenModalForEdit(fullTransaction);
+    } catch (err) {
       toast.error("Gagal mengambil detail transaksi untuk diedit.");
-      console.error("Edit error:", error);
-      return;
+      console.error("Edit error:", err);
     }
-
-    handleOpenModalForEdit(fullTransaction);
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Hari ini';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Kemarin';
+    } else {
+      return date.toLocaleDateString('id-ID', { 
+        day: 'numeric', 
+        month: 'short' 
+      });
+    }
+  };
+
+  // Loading state
   if (loading) {
     return (
       <Card>
-        <Title>Recent Transactions</Title>
-        <div className="mt-4 space-y-4">
-          {[...Array(5)].map((_, i) => ( // Tampilkan 5 skeleton item
-            <div key={i} className="flex items-center space-x-4 animate-pulse">
-              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </div>
-              <div className="h-5 bg-gray-200 rounded w-20"></div>
-            </div>
-          ))}
-        </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-blue-500" />
+            Transaksi Terbaru
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1">
+            {[...Array(5)].map((_, i) => (
+              <TransactionSkeleton key={i} />
+            ))}
+          </div>
+        </CardContent>
       </Card>
     );
   }
-  
+
+  // Error state
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-blue-500" />
+            Transaksi Terbaru
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8">
+            <AlertCircle className="h-8 w-8 text-red-500 mb-2" />
+            <p className="text-sm text-red-600 mb-1">Gagal memuat transaksi</p>
+            <p className="text-xs text-muted-foreground">Silakan refresh halaman</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state
+  if (transactions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-blue-500" />
+            Transaksi Terbaru
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-muted-foreground mb-2">Belum ada transaksi</p>
+            <p className="text-sm text-muted-foreground mb-4">Mulai dengan menambah transaksi pertama Anda</p>
+            <Button asChild size="sm">
+              <Link href="/transactions">Tambah Transaksi</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <Title>Recent Transactions</Title>
-      {transactions.length > 0 ? (
-        <ul className="mt-4 divide-y divide-gray-200">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Clock className="h-5 w-5 text-blue-500" />
+          Transaksi Terbaru
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
           {transactions.map((t) => (
-            <li key={t.id} className="py-3 flex items-center justify-between gap-2">
-              <div className="flex items-center space-x-4 flex-1 min-w-0">
+            <div key={t.id} className="flex items-center justify-between gap-2 py-3 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
+              <div className="flex items-center space-x-3 flex-1 min-w-0">
                 <TransactionIcon type={t.type} />
                 <div className="flex-1 min-w-0">
-                  <Text className="font-medium text-gray-800 truncate">
+                  <p className="font-medium text-gray-900 truncate text-sm">
                     {t.note || t.category_name}
-                  </Text>
-                  <Text className="text-sm text-gray-500 truncate">
-                    {t.account_name}
-                  </Text>
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="truncate">{t.account_name}</span>
+                    <span>•</span>
+                    <span>{formatDate(t.date)}</span>
+                  </div>
                 </div>
               </div>
-              <Text className={`font-semibold shrink-0 ml-2 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(t.amount)}
-              </Text>
-              <button
-                onClick={() => handleEdit(t.id)}
-                className="p-1 text-gray-400 hover:text-gray-700 rounded"
-                aria-label="Edit transaction"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-            </li>
+              <div className="flex items-center gap-2">
+                <span className={`font-semibold text-sm ${
+                  t.type === 'income' ? 'text-green-600' : 
+                  t.type === 'expense' ? 'text-red-600' : 'text-blue-600'
+                }`}>
+                  {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''}
+                  {formatCurrency(t.amount)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEdit(t.id)}
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700"
+                  aria-label="Edit transaction"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           ))}
-        </ul>
-      ) : (
-        <Text className="mt-4 text-center text-gray-500">No recent transactions found.</Text>
-      )}
-      <div className="mt-4 text-center">
-        <Link href="/transactions" className="text-sm font-semibold text-primary hover:underline">
-          View All Transactions
-        </Link>
-      </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/transactions">
+              Lihat Semua Transaksi
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   );
 }
