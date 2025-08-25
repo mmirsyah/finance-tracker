@@ -1,18 +1,16 @@
-// src/app/(app)/budgets/BudgetView.tsx
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
 import { BudgetPageData, BudgetParentCategoryData, BudgetCategoryData } from '@/types';
-import { format, addMonths, subMonths, startOfMonth } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
 import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { BudgetHeader } from '@/components/budget/BudgetHeader';
 import { BudgetTable } from '@/components/budget/BudgetTable';
-import { BudgetPeriodNavigator } from '@/components/budget/BudgetPeriodNavigator';
 import { getCustomPeriod } from '@/lib/periodUtils';
-import { id as indonesiaLocale } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
 
@@ -77,6 +75,7 @@ const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: 
 
 const BudgetView = () => {
   const { householdId, dataVersion, profile, isLoading: isAppDataLoading } = useAppData();
+  const router = useRouter();
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [budgetData, setBudgetData] = useState<BudgetPageData | null>(null);
   const [readyToAssign, setReadyToAssign] = useState<number | null>(null);
@@ -88,18 +87,16 @@ const BudgetView = () => {
     }
   }, [profile, currentDate]);
 
-  const { periodStartDate, periodEndDate, periodDisplayText } = useMemo(() => {
+  const { periodStartDate, periodEndDate } = useMemo(() => {
     if (!profile || !currentDate) {
       return { 
         periodStartDate: new Date(), 
         periodEndDate: new Date(), 
-        periodDisplayText: 'Memuat...' 
       };
     }
     const startDay = profile.period_start_day || 1;
     const period = getCustomPeriod(startDay, currentDate);
-    const displayText = `${format(period.from, 'd MMM', { locale: indonesiaLocale })} - ${format(period.to, 'd MMM yyyy', { locale: indonesiaLocale })}`;
-    return { periodStartDate: period.from, periodEndDate: period.to, periodDisplayText: displayText };
+    return { periodStartDate: period.from, periodEndDate: period.to };
   }, [profile, currentDate]);
 
   const fetchAllBudgetData = useCallback(async () => {
@@ -127,10 +124,12 @@ const BudgetView = () => {
     }
   }, [fetchAllBudgetData, dataVersion]);
 
-  const handlePeriodChange = (direction: 'next' | 'prev') => {
-    if (!currentDate) return;
-    const newDate = direction === 'next' ? addMonths(periodStartDate, 1) : subMonths(periodStartDate, 1);
+  const handlePeriodChange = (newDate: Date) => {
     setCurrentDate(newDate);
+  };
+  
+  const handleSyncComplete = () => {
+    router.refresh();
   };
 
   const handleAssignmentChange = async (categoryId: number, newAmount: number) => {
@@ -159,18 +158,15 @@ const BudgetView = () => {
     setBudgetData(prev => {
         if (!prev) return null;
         const newCategories = JSON.parse(JSON.stringify(prev.categories));
-        // let categoryFound = false; <-- Dihapus
         for (const cat of newCategories) {
             if (cat.id === categoryId) {
                 cat.assigned = newAmount;
-                // categoryFound = true; <-- Dihapus
                 break;
             }
             if (isParentCategory(cat) && cat.children && cat.children.length > 0) {
                 const child = cat.children.find((c: BudgetCategoryData) => c.id === categoryId);
                 if (child) {
                     child.assigned = newAmount;
-                    // categoryFound = true; <-- Dihapus
                     break;
                 }
             }
@@ -203,32 +199,23 @@ const BudgetView = () => {
     return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
   }
 
-  const remainingBudgetForPeriod = (budgetData?.total_budgeted ?? 0) - (budgetData?.total_activity ?? 0);
-
   return (
     <>
       <div className="space-y-6 p-4 md:p-6">
-        {/* === PERUBAHAN DIMULAI DI SINI === */}
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-800">Anggaran</h1>
-                <p className="text-muted-foreground">Alokasikan dana Anda untuk setiap kategori pengeluaran.</p>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+            <div className="flex-grow">
+                {/* We can keep the title here or move it inside BudgetHeader if preferred */}
             </div>
-            <ReadyToAssignCard isLoading={isLoading} amount={readyToAssign} />
-            <BudgetPeriodNavigator 
-                periodText={periodDisplayText}
-                onPrev={() => handlePeriodChange('prev')}
-                onNext={() => handlePeriodChange('next')}
-            />
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+              <ReadyToAssignCard isLoading={isLoading} amount={readyToAssign} />
+            </div>
         </div>
-        {/* === PERUBAHAN BERAKHIR DI SINI === */}
 
         <BudgetHeader 
-            totalIncome={budgetData?.total_income ?? 0}
-            totalBudgeted={budgetData?.total_budgeted ?? 0}
-            totalActivity={budgetData?.total_activity ?? 0}
-            remainingBudget={remainingBudgetForPeriod} 
-            isLoading={isLoading}
+            currentMonth={currentDate}
+            setCurrentMonth={handlePeriodChange}
+            householdId={householdId || ''}
+            onSyncComplete={handleSyncComplete}
         />
 
         {isLoading ? (
