@@ -57,7 +57,7 @@ export function BudgetHeader({
 
     const { error } = await supabase.rpc('update_rollover_for_period', {
       p_household_id: householdId,
-      p_current_month_anchor: monthAnchor,
+      p_current_month_ref_date: monthAnchor,
     });
 
     setIsSyncing(false);
