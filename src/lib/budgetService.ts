@@ -21,7 +21,6 @@ export const getBudgetDataForPeriod = async (household_id: string, startDate: Da
     throw error;
   }
   
-  // --- PERBAIKAN DI SINI ---
   // Fungsi RPC yang 'RETURNS TABLE' akan mengembalikan array.
   // Karena kita tahu fungsi ini hanya mengembalikan satu baris, kita ambil elemen pertama [0].
   return (data && data.length > 0 ? data[0] : null) as BudgetPageData | null;

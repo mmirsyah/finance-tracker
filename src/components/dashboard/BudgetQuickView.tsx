@@ -33,7 +33,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { format } from 'date-fns'; // <-- IMPORT BARU
+import { format } from 'date-fns';
 
 const BudgetQuickViewSkeleton = () => (
     <div className="space-y-4">
@@ -64,7 +64,6 @@ const AddPriorityPopover = ({
         if (isOpen && dateRange?.from) {
             setIsLoading(true);
             try {
-                // --- PERBAIKAN FORMAT TANGGAL ---
                 const periodDate = format(dateRange.from, 'yyyy-MM-dd');
                 const data = await getAllBudgetCategoriesForPeriod(periodDate);
                 setAllBudgets(data);
@@ -137,14 +136,25 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
     
     setIsLoading(true);
     try {
-      // --- PERBAIKAN FORMAT TANGGAL ---
       const periodDate = format(dateRange.from, 'yyyy-MM-dd');
+      
+      // Fetch both summary for all categories and the list of priority IDs
       const [summaryData, priorityIds] = await Promise.all([
         getBudgetSummary(periodDate),
         getBudgetPriorities()
       ]);
-      setBudgets(summaryData);
-      setPriorities(new Set(priorityIds));
+
+      const priorityIdSet = new Set(priorityIds);
+      setPriorities(priorityIdSet);
+      
+      // Filter the summary data locally based on priority IDs
+      if (priorityIdSet.size > 0) {
+        const filteredBudgets = summaryData.filter(item => priorityIdSet.has(item.category_id));
+        setBudgets(filteredBudgets);
+      } else {
+        setBudgets([]); // If no priorities, show nothing
+      }
+
     } catch (err) {
       console.error(err);
       toast.error('Gagal memuat pantauan budget.');
@@ -158,24 +168,13 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
   }, [fetchBudgetAndPriorities]);
 
   const handleTogglePriority = async (categoryId: number) => {
-    const isPriority = priorities.has(categoryId);
-    const newPriorities = new Set(priorities);
-    if (isPriority) { newPriorities.delete(categoryId); } else { newPriorities.add(categoryId); }
-    setPriorities(newPriorities);
     try {
-        if (isPriority) {
-            await removeBudgetPriority(categoryId);
-            toast.info('Prioritas dihapus.');
-        } else {
-            await setBudgetPriority(categoryId);
-            toast.success('Prioritas ditambahkan.');
-        }
-        await fetchBudgetAndPriorities();
+        await removeBudgetPriority(categoryId);
+        toast.info('Prioritas dihapus.');
+        // Refetch data to update the view
+        await fetchBudgetAndPriorities(); 
     } catch {
-        toast.error('Gagal memperbarui prioritas.');
-        const originalPriorities = new Set(priorities);
-        if (isPriority) { originalPriorities.add(categoryId); } else { originalPriorities.delete(categoryId); }
-        setPriorities(originalPriorities);
+        toast.error('Gagal menghapus prioritas.');
     }
   };
 
