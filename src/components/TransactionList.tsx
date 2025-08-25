@@ -5,10 +5,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Transaction, TransactionGroup } from '@/types';
 import Link from 'next/link';
-import { MoreVertical, Edit, Trash2, ArrowRight, Loader2, Repeat } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Loader2, Repeat } from 'lucide-react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
 
@@ -25,7 +26,7 @@ interface TransactionListProps {
     onDataLoaded: () => void;
     selectedIds: Set<string>;
     onSelectionChange: (newSelectedIds: Set<string>) => void;
-    onMakeRecurring?: (transaction: Transaction) => void; // New prop for recurring
+    onMakeRecurring?: (transaction: Transaction) => void;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -75,7 +76,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
 
     let query = supabase
       .from('transactions')
-      .select(`*, categories ( name ), accounts:account_id ( name ), to_account:to_account_id ( name )`, { count: 'exact' })
+      .select(`*, categories ( id, name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
       .eq('household_id', householdId)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -101,23 +102,20 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     setIsLoading(false);
   }, [householdId, filters, onDataLoaded]);
   
-  // Effect untuk me-reset state saat filter berubah
   useEffect(() => {
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
     onSelectionChange(new Set()); 
     setTimeout(() => fetchTransactions(0, true), 0);
-  }, [filters, fetchTransactions, onSelectionChange]); // <-- DEPENDENCY DIPERBAIKI DI SINI
+  }, [filters, fetchTransactions, onSelectionChange]);
 
-  // Effect untuk infinite scroll
   useEffect(() => {
       if (page > 0) {
           fetchTransactions(page, false);
       }
   }, [page, fetchTransactions]);
 
-  // Effect untuk setup IntersectionObserver
   useEffect(() => {
     const handleObserver = (entries: IntersectionObserverEntry[]) => {
       const target = entries[0];
@@ -134,7 +132,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   }, [hasMore, isLoading]);
 
   const handleDelete = async (transactionId: string) => {
-    // Find the transaction to check if it's from recurring
     const transaction = allTransactions.find(t => t.id === transactionId);
     const isFromRecurring = transaction?.note?.includes('(from:');
     
@@ -199,45 +196,76 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
   if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
 
-  const renderTransactionDetails = (t: Transaction) => { 
-    const isFromRecurring = t.note?.includes('(from:');
-    
-    if (t.type === 'transfer') { 
-      return ( 
-        <div className="flex-grow"> 
+  // --- REVISI UTAMA: Fungsi render detail transaksi yang baru ---
+  const renderTransactionDetails = (t: Transaction) => {
+    const isFromRecurring = t.note?.includes('(from:)');
+
+    const categoryName = t.categories?.name || 'Uncategorized';
+    const categoryId = t.categories?.id || t.category;
+
+    if (t.type === 'transfer') {
+      const primaryText = t.note || 'Transfer';
+      const secondaryText = `${t.accounts?.name || '?'} → ${t.to_account?.name || '?'}`;
+      return (
+        <div className="flex-grow min-w-0">
+          <p className="font-medium text-gray-800 truncate text-sm">{primaryText}</p>
+          <p className="text-xs text-muted-foreground truncate">{secondaryText}</p>
+        </div>
+      );
+    }
+
+    if (t.note) {
+      // Jika ada note, note jadi primary, akun & kategori jadi secondary
+      return (
+        <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-semibold text-gray-800">Transfer</p>
+            <p className="font-medium text-gray-800 truncate text-sm">{t.note}</p>
             {isFromRecurring && (
-              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Recurring</span>
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
             )}
           </div>
-          <div className="text-sm text-gray-500 flex items-center gap-1"> 
-            <span>{t.accounts?.name || '?'}</span> 
-            <ArrowRight size={12} /> 
-            <span>{t.to_account?.name || '?'}</span> 
-          </div> 
-        </div> 
-      ); 
-    } 
-    
-    return ( 
-      <div className="flex-grow"> 
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-gray-800"> 
-            <Link href={`/categories/${t.category}`} className="text-blue-600 hover:text-blue-800 hover:underline">
-              {t.categories?.name || 'Uncategorized'}
-            </Link> 
-          </p>
-          {isFromRecurring && (
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Recurring</span>
-          )}
+          <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+            <span>{t.accounts?.name || 'No Account'}</span>
+            <span>-</span>
+            {categoryId ? (
+                 <Link href={`/categories/${categoryId}`} className="hover:underline text-blue-600" onClick={(e) => e.stopPropagation()}>
+                    {categoryName}
+                 </Link>
+            ) : (
+                <span>{categoryName}</span>
+            )}
+          </div>
         </div>
-        <p className="text-sm text-gray-500">{t.note || 'No note'}</p> 
-      </div> 
-    ); 
+      );
+    } else {
+      // Jika tidak ada note, kategori jadi primary, akun jadi secondary
+      return (
+        <div className="flex-grow min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-gray-800 truncate text-sm">
+                {categoryId ? (
+                    <Link href={`/categories/${categoryId}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                        {categoryName}
+                    </Link>
+                ) : (
+                    <span>{categoryName}</span>
+                )}
+            </p>
+            {isFromRecurring && (
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">{t.accounts?.name || 'No Account'}</p>
+        </div>
+      );
+    }
   };
   
-  const getAmountColor = (type: string) => { if (type === 'income') return 'text-green-600'; if (type === 'expense') return 'text-red-600'; return 'text-gray-500'; };
+  const getAmountColor = (type: string) => { 
+      if (type === 'income') return 'text-green-600'; 
+      if (type === 'expense') return 'text-red-600'; 
+      return 'text-gray-700';
+  };
 
   return (
     <div className="space-y-4">
@@ -268,9 +296,13 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                     className="mr-4"
                   />
                   {renderTransactionDetails(t)}
-                  <div className="flex items-center gap-4">
-                    {t.type !== 'transfer' && (<span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full hidden md:block">{t.accounts?.name || 'No Account'}</span>)}
-                    <p className={`font-bold text-right w-32 ${getAmountColor(t.type)}`}>{t.type === 'income' ? '+' : ''} {formatCurrency(t.amount)}</p>
+                  <div className="flex items-center gap-2 md:gap-4">
+                    <p className={cn(
+                        "font-semibold text-right w-28 md:w-32 text-sm", 
+                        getAmountColor(t.type)
+                    )}>
+                      {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {formatCurrency(t.amount)}
+                    </p>
                     <div className="relative">
                       <button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>
                       {activeMenu === t.id && (

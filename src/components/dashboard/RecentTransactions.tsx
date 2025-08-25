@@ -9,7 +9,7 @@ import { ArrowRightLeft, ArrowUp, ArrowDown, Edit, Clock, AlertCircle } from 'lu
 import Link from 'next/link';
 import { RecentTransaction, Transaction } from '@/types';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const TransactionIcon = ({ type }: { type: string }) => {
@@ -32,7 +32,7 @@ const TransactionSkeleton = () => (
 );
 
 export default function RecentTransactions() {
-  const { user, householdId, dataVersion, handleOpenModalForEdit } = useAppData();
+  const { user, householdId, dataVersion, handleOpenModalForEdit, handleOpenModalForCreate } = useAppData();
   const [transactions, setTransactions] = useState<RecentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export default function RecentTransactions() {
           .from('transactions')
           .select(`
             id, date, type, amount, note,
-            categories ( name ),
+            categories ( id, name ),
             accounts:account_id ( name )
           `)
           .eq('household_id', householdId)
@@ -67,10 +67,11 @@ export default function RecentTransactions() {
             type: t.type as 'expense' | 'income' | 'transfer',
             amount: t.amount,
             note: t.note,
+            category_id: t.categories?.id,
             category_name: t.categories?.name || (t.type === 'transfer' ? 'Transfer' : 'Uncategorized'),
             account_name: t.accounts?.name || 'N/A'
           }));
-          setTransactions(mappedData);
+          setTransactions(mappedData as RecentTransaction[]);
         }
       } catch (err) {
         console.error("Error fetching recent transactions:", err);
@@ -101,23 +102,11 @@ export default function RecentTransactions() {
       console.error("Edit error:", err);
     }
   };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hari ini';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Kemarin';
-    } else {
-      return date.toLocaleDateString('id-ID', { 
-        day: 'numeric', 
-        month: 'short' 
-      });
-    }
+  
+  const getAmountColor = (type: string) => { 
+      if (type === 'income') return 'text-green-600'; 
+      if (type === 'expense') return 'text-red-600'; 
+      return 'text-gray-700';
   };
 
   // Loading state
@@ -177,8 +166,8 @@ export default function RecentTransactions() {
             <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
             <p className="text-muted-foreground mb-2">Belum ada transaksi</p>
             <p className="text-sm text-muted-foreground mb-4">Mulai dengan menambah transaksi pertama Anda</p>
-            <Button asChild size="sm">
-              <Link href="/transactions">Tambah Transaksi</Link>
+            <Button asChild size="sm" onClick={() => handleOpenModalForCreate()}>
+              <a>Tambah Transaksi</a>
             </Button>
           </div>
         </CardContent>
@@ -201,21 +190,44 @@ export default function RecentTransactions() {
               <div className="flex items-center space-x-3 flex-1 min-w-0">
                 <TransactionIcon type={t.type} />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate text-sm">
-                    {t.note || t.category_name}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className="truncate">{t.account_name}</span>
-                    <span>•</span>
-                    <span>{formatDate(t.date)}</span>
-                  </div>
+                  {/* --- REVISI UTAMA DI SINI --- */}
+                  {t.note ? (
+                    <>
+                      <p className="font-medium text-gray-900 truncate text-sm">{t.note}</p>
+                      <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                        <span>{t.account_name}</span>
+                        <span>-</span>
+                        {t.category_id ? (
+                          <Link href={`/categories/${t.category_id}`} className="hover:underline text-blue-600">
+                            {t.category_name}
+                          </Link>
+                        ) : (
+                          <span>{t.category_name}</span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-gray-800 truncate text-sm">
+                        {t.category_id ? (
+                            <Link href={`/categories/${t.category_id}`} className="hover:underline">
+                                {t.category_name}
+                            </Link>
+                        ) : (
+                            <span>{t.category_name}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{t.account_name}</p>
+                    </>
+                  )}
+                  {/* --- AKHIR REVISI --- */}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`font-semibold text-sm ${
-                  t.type === 'income' ? 'text-green-600' : 
-                  t.type === 'expense' ? 'text-red-600' : 'text-blue-600'
-                }`}>
+                <span className={cn(
+                    "font-semibold text-sm",
+                    getAmountColor(t.type)
+                )}>
                   {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''}
                   {formatCurrency(t.amount)}
                 </span>

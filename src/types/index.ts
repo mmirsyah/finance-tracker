@@ -56,15 +56,12 @@ export interface BudgetParentCategoryData extends BudgetCategoryData {
   children: (BudgetCategoryData & { is_rollover: boolean })[];
 }
 
-// --- PERBAIKAN DI SINI ---
-// Menyesuaikan tipe ini agar cocok dengan nama kolom yang dikembalikan oleh fungsi RPC 'get_budget_data'
 export interface BudgetPageData {
   total_income: number;
   total_budgeted: number;
   total_activity: number;
   categories: (BudgetParentCategoryData | (BudgetCategoryData & { children: [], is_rollover: boolean, is_flex_budget: boolean, unallocated_balance: number }))[];
 }
-// --- AKHIR PERBAIKAN TIPE BUDGET ---
 
 
 export interface Account {
@@ -95,7 +92,8 @@ export interface Transaction {
   household_id: string;
   created_at?: string;
   sequence_number?: number;
-  categories?: { name: string; icon?: string };
+  // --- PERBAIKAN 1: Tambahkan 'id' ke tipe categories ---
+  categories?: { id: number; name: string; icon?: string };
   accounts?: { name: string };
   to_account?: { name: string };
   [key: string]: unknown;
@@ -144,6 +142,8 @@ export type RecentTransaction = {
   type: 'expense' | 'income' | 'transfer';
   amount: number;
   note: string | null;
+  // --- PERBAIKAN 2: Tambahkan category_id agar sesuai dengan data yang di-map ---
+  category_id?: number;
   category_name: string | null;
   account_name: string | null;
 }
