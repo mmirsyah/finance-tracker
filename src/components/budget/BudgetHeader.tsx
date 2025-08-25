@@ -52,8 +52,7 @@ export function BudgetHeader({
     }
     setIsSyncing(true);
     
-    const monthAnchor = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-      .toISOString().split('T')[0];
+    const monthAnchor = format(currentMonth, 'yyyy-MM-dd');
 
     const { error } = await supabase.rpc('update_rollover_for_period', {
       p_household_id: householdId,
