@@ -6,7 +6,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
 import { BudgetPageData, BudgetParentCategoryData, BudgetCategoryData } from '@/types';
-import { format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { BudgetHeader } from '@/components/budget/BudgetHeader';
 import { BudgetTable } from '@/components/budget/BudgetTable';
@@ -184,7 +184,7 @@ const BudgetView = () => {
       await saveBudgetAssignment({
         household_id: householdId,
         category_id: categoryId,
-        month: format(startOfMonth(periodStartDate), 'yyyy-MM-dd'),
+        month: format(periodStartDate, 'yyyy-MM-dd'),
         assigned_amount: newAmount,
       });
       await fetchAllBudgetData();
