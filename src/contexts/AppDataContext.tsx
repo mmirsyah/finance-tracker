@@ -103,9 +103,16 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
         { event: '*', schema: 'public', table: 'categories' },
         () => refetchData()
       )
-      // --- PERUBAHAN DI SINI ---
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'asset_transactions' },
+        () => refetchData()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'recurring_templates' },
+        () => refetchData()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'recurring_instances' },
         () => refetchData()
       )
       .subscribe();

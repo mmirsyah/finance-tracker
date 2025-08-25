@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Transaction, TransactionGroup } from '@/types';
 import Link from 'next/link';
-import { MoreVertical, Edit, Trash2, ArrowRight, Loader2 } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, ArrowRight, Loader2, Repeat } from 'lucide-react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -25,6 +25,7 @@ interface TransactionListProps {
     onDataLoaded: () => void;
     selectedIds: Set<string>;
     onSelectionChange: (newSelectedIds: Set<string>) => void;
+    onMakeRecurring?: (transaction: Transaction) => void; // New prop for recurring
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -46,7 +47,7 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange }: TransactionListProps) {
+export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange, onMakeRecurring }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -133,7 +134,15 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   }, [hasMore, isLoading]);
 
   const handleDelete = async (transactionId: string) => {
-    if (confirm('Are you sure you want to delete this transaction?')) {
+    // Find the transaction to check if it's from recurring
+    const transaction = allTransactions.find(t => t.id === transactionId);
+    const isFromRecurring = transaction?.note?.includes('(from:');
+    
+    const confirmMessage = isFromRecurring 
+      ? 'This transaction was created from a recurring template.\n\nDeleting it will reset the recurring instance to "upcoming" status, allowing you to confirm it again.\n\nAre you sure you want to delete this transaction?'
+      : 'Are you sure you want to delete this transaction?';
+    
+    if (confirm(confirmMessage)) {
       const promise = async () => {
         const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
         if (error) { throw error; }
@@ -142,10 +151,19 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
 
       toast.promise(promise(), {
         loading: 'Deleting transaction...',
-        success: 'Transaction deleted!',
+        success: isFromRecurring 
+          ? 'Transaction deleted! Recurring instance reset to pending.' 
+          : 'Transaction deleted!',
         error: (err) => `Error: ${err.message}`,
       });
 
+      setActiveMenu(null);
+    }
+  };
+
+  const handleMakeRecurring = (transaction: Transaction) => {
+    if (onMakeRecurring) {
+      onMakeRecurring(transaction);
       setActiveMenu(null);
     }
   };
@@ -181,7 +199,44 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
   if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
 
-  const renderTransactionDetails = (t: Transaction) => { if (t.type === 'transfer') { return ( <div className="flex-grow"> <p className="font-semibold text-gray-800">Transfer</p> <div className="text-sm text-gray-500 flex items-center gap-1"> <span>{t.accounts?.name || '?'}</span> <ArrowRight size={12} /> <span>{t.to_account?.name || '?'}</span> </div> </div> ); } return ( <div className="flex-grow"> <p className="font-semibold text-gray-800"> <Link href={`/categories/${t.category}`} className="text-blue-600 hover:text-blue-800 hover:underline">{t.categories?.name || 'Uncategorized'}</Link> </p> <p className="text-sm text-gray-500">{t.note || 'No note'}</p> </div> ); };
+  const renderTransactionDetails = (t: Transaction) => { 
+    const isFromRecurring = t.note?.includes('(from:');
+    
+    if (t.type === 'transfer') { 
+      return ( 
+        <div className="flex-grow"> 
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-800">Transfer</p>
+            {isFromRecurring && (
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Recurring</span>
+            )}
+          </div>
+          <div className="text-sm text-gray-500 flex items-center gap-1"> 
+            <span>{t.accounts?.name || '?'}</span> 
+            <ArrowRight size={12} /> 
+            <span>{t.to_account?.name || '?'}</span> 
+          </div> 
+        </div> 
+      ); 
+    } 
+    
+    return ( 
+      <div className="flex-grow"> 
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-gray-800"> 
+            <Link href={`/categories/${t.category}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+              {t.categories?.name || 'Uncategorized'}
+            </Link> 
+          </p>
+          {isFromRecurring && (
+            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Recurring</span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500">{t.note || 'No note'}</p> 
+      </div> 
+    ); 
+  };
+  
   const getAmountColor = (type: string) => { if (type === 'income') return 'text-green-600'; if (type === 'expense') return 'text-red-600'; return 'text-gray-500'; };
 
   return (
@@ -219,8 +274,11 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                     <div className="relative">
                       <button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>
                       {activeMenu === t.id && (
-                        <div ref={menuRef} className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border">
+                        <div ref={menuRef} className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border">
                           <button onClick={() => { startEdit(t); setActiveMenu(null); }} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit size={14} /> Edit</button>
+                          {onMakeRecurring && !t.note?.includes('(from:') && (
+                            <button onClick={() => handleMakeRecurring(t)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100"><Repeat size={14} /> Make Recurring</button>
+                          )}
                           <button onClick={() => handleDelete(t.id)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"><Trash2 size={14} /> Delete</button>
                         </div>
                       )}

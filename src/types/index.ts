@@ -203,3 +203,56 @@ export interface BudgetCategoryListItem {
   category_id: number;
   category_name: string;
 }
+
+// --- RECURRING TRANSACTION TYPES ---
+export interface RecurringTemplate {
+  id: number;
+  template_name: string;
+  type: 'expense' | 'income' | 'transfer';
+  amount: number;
+  category_id: number | null;
+  category_name: string | null;
+  account_id: string;
+  account_name: string;
+  to_account_id: string | null;
+  to_account_name: string | null;
+  note: string | null;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  interval_value: number;
+  start_date: string;
+  end_date: string | null;
+  next_due_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringInstance {
+  instance_id: number;
+  template_id: number;
+  template_name: string;
+  due_date: string;
+  status: 'upcoming' | 'confirmed' | 'done' | 'done_with_difference' | 'overdue';
+  transaction_type: 'expense' | 'income' | 'transfer';
+  original_amount: number;
+  confirmed_amount: number | null;
+  original_category_id: number | null;
+  original_category_name: string | null;
+  confirmed_category_id: number | null;
+  confirmed_category_name: string | null;
+  original_account_id: string;
+  original_account_name: string;
+  confirmed_account_id: string | null;
+  confirmed_account_name: string | null;
+  original_to_account_id: string | null;
+  original_to_account_name: string | null;
+  confirmed_to_account_id: string | null;
+  confirmed_to_account_name: string | null;
+  original_note: string | null;
+  confirmed_note: string | null;
+  actual_transaction_id: string | null;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  created_at: string;
+}
+
+export type FrequencyType = 'daily' | 'weekly' | 'monthly' | 'yearly';

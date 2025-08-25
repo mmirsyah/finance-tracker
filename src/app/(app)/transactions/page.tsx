@@ -16,7 +16,9 @@ import { getCustomPeriod } from '@/lib/periodUtils';
 // Import komponen baru
 import BulkActionToolbar from '@/components/transaction/BulkActionToolbar';
 import BulkReassignCategoryModal from '@/components/modals/BulkReassignCategoryModal';
+import RecurringFromTransactionModal from '@/components/modals/RecurringFromTransactionModal';
 import * as transactionService from '@/lib/transactionService';
+import { Transaction } from '@/types';
 import { toast } from 'sonner';
 
 export default function TransactionsPage() {
@@ -32,6 +34,10 @@ export default function TransactionsPage() {
   // State baru untuk aksi massal
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+
+  // State untuk recurring modal
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   useEffect(() => {
     if (user && !date) {
@@ -94,6 +100,17 @@ export default function TransactionsPage() {
     });
   };
 
+  const handleMakeRecurring = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setIsRecurringModalOpen(true);
+  };
+
+  const handleRecurringSaved = () => {
+    setIsRecurringModalOpen(false);
+    setSelectedTransaction(null);
+    toast.success('Recurring template created successfully!');
+  };
+
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
   if (!user) { return null; }
 
@@ -131,6 +148,7 @@ export default function TransactionsPage() {
                   onDataLoaded={handleDataLoaded}
                   selectedIds={selectedIds}
                   onSelectionChange={setSelectedIds}
+                  onMakeRecurring={handleMakeRecurring}
                 />
               </div>
             </div>
@@ -150,6 +168,19 @@ export default function TransactionsPage() {
             onClose={() => setIsReassignModalOpen(false)}
             onSave={handleBulkReassign}
             transactionCount={selectedIds.size}
+            categories={categories}
+        />
+
+        {/* Modal untuk Make Recurring */}
+        <RecurringFromTransactionModal
+            isOpen={isRecurringModalOpen}
+            onClose={() => {
+              setIsRecurringModalOpen(false);
+              setSelectedTransaction(null);
+            }}
+            onSave={handleRecurringSaved}
+            transaction={selectedTransaction}
+            accounts={accounts}
             categories={categories}
         />
       </>

@@ -12,17 +12,23 @@ import RecentTransactions from '@/components/dashboard/RecentTransactions';
 import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
 import OnboardingGuide from '@/components/OnboardingGuide';
 import SummaryDisplay from '@/components/SummaryDisplay';
+import BudgetQuickView from '@/components/dashboard/BudgetQuickView';
+import PendingRecurringWidget from '@/components/dashboard/PendingRecurringWidget';
+import RecurringConfirmModal from '@/components/modals/RecurringConfirmModal';
+import { RecurringInstance } from '@/types';
 import useSWR from 'swr';
 import { formatCurrency } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { getComparisonMetrics } from '@/lib/reportService';
 import { getCustomPeriod } from '@/lib/periodUtils';
-import BudgetQuickView from '@/components/dashboard/BudgetQuickView';
+import { toast } from 'sonner';
 
 export default function DashboardPage() {
-    const { accounts, categories, assets, isLoading, householdId, profile } = useAppData();
+    const { accounts, categories, assets, isLoading, householdId, profile, refetchData } = useAppData();
     
     const [date, setDate] = useState<DateRange | undefined>(undefined);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [confirmingInstance, setConfirmingInstance] = useState<RecurringInstance | null>(null);
 
     useEffect(() => {
         if (profile) {
@@ -46,6 +52,18 @@ export default function DashboardPage() {
         return getComparisonMetrics(householdId!, currentStartDate, currentEndDate, previousStartDate, previousEndDate);
       }
     );
+
+    const handleInstanceClick = (instance: RecurringInstance) => {
+        setConfirmingInstance(instance);
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleInstanceConfirmed = () => {
+        setIsConfirmModalOpen(false);
+        setConfirmingInstance(null);
+        refetchData(); // Refresh app data to update account balances
+        toast.success('Recurring transaction confirmed from dashboard!');
+    };
 
     if (isLoading || !date) {
         return <DashboardSkeleton />;
@@ -105,7 +123,6 @@ export default function DashboardPage() {
                     <CashFlowChart dateRange={date} />
                 </div>
                 <div className="lg:col-span-1">
-                    {/* Mengirim state 'date' sebagai prop 'dateRange' */}
                     <BudgetQuickView dateRange={date} /> 
                 </div>
             </div>
@@ -114,11 +131,24 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2">
                     <RecentTransactions />
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 space-y-6">
+                    <PendingRecurringWidget onInstanceClick={handleInstanceClick} />
                     <SpendingByCategory dateRange={date} />
                 </div>
             </div>
 
+            {/* Recurring Confirmation Modal */}
+            <RecurringConfirmModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => {
+                    setIsConfirmModalOpen(false);
+                    setConfirmingInstance(null);
+                }}
+                onConfirm={handleInstanceConfirmed}
+                instance={confirmingInstance}
+                accounts={accounts}
+                categories={categories}
+            />
         </div>
     );
 }

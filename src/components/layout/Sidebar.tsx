@@ -7,19 +7,20 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import {
   LayoutDashboard, Wallet, ArrowRightLeft, PieChart,
-  FileText, Shapes, Settings, X, LogOut, TrendingUp // <-- Tambahkan TrendingUp
+  FileText, Shapes, Settings, X, LogOut, TrendingUp, Repeat // <-- Tambahkan Repeat
 } from 'lucide-react';
 
 interface NavItem { href: string; label: string; icon: React.ElementType; }
 
-// --- PERUBAHAN: Tambahkan item menu "Assets" ---
+// --- PERUBAHAN: Tambahkan item menu "Assets" dan "Recurring" ---
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/accounts', label: 'Accounts', icon: Wallet },
   { href: '/categories', label: 'Categories', icon: Shapes },
-  { href: '/assets', label: 'Assets', icon: TrendingUp }, // <-- ITEM BARU
+  { href: '/assets', label: 'Assets', icon: TrendingUp },
   { href: '/budgets', label: 'Budget', icon: FileText },
   { href: '/transactions', label: 'Transactions', icon: ArrowRightLeft },
+  { href: '/recurring', label: 'Recurring', icon: Repeat }, // <-- ITEM BARU
   { href: '/reports', label: 'Reports', icon: PieChart },
 ];
 
