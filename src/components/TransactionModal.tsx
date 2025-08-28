@@ -12,8 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  } from '@/components/ui/dialog';
 import {
   Drawer,
   DrawerContent,
@@ -25,12 +24,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { toast } from "sonner";
 
 // Main Props Interface
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+  onDelete?: () => void; // Optional
+  onMakeRecurring?: () => void; // Optional
   editId: string | null;
   isSaving: boolean;
   type: Transaction['type'];
@@ -68,12 +70,14 @@ export default function TransactionModal(props: TransactionModalProps) {
 // Desktop Component: Dialog with a side-panel style
 function TransactionDialog({ editId, isOpen, onClose, ...props }: TransactionModalProps) {
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md">
+        <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
+            <DialogContent variant="side-panel" className="flex flex-col" onInteractOutside={(e) => e.preventDefault()}>
                 <DialogHeader>
                     <DialogTitle>{editId ? 'Edit Transaction' : 'Add New Transaction'}</DialogTitle>
                 </DialogHeader>
-                <TransactionForm {...props} editId={editId} onClose={onClose} />
+                <div className="overflow-y-auto flex-grow pr-6 -mr-6">
+                    <TransactionForm {...props} editId={editId} onClose={onClose} />
+                </div>
             </DialogContent>
         </Dialog>
     );
@@ -94,6 +98,27 @@ function TransactionDrawer({ isOpen, onClose, ...props }: TransactionModalProps)
 
     const { editId, onSave, isSaving } = props;
 
+    const handleValidationAndSave = (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (props.type === 'transfer') {
+        if (!props.accountId || !props.toAccountId) { 
+          toast.error('Please select both From and To accounts.');
+          return; 
+        }
+        if (props.accountId === props.toAccountId) { 
+          toast.error('From and To accounts cannot be the same.'); 
+          return; 
+        }
+      } else {
+        if (!props.amount || !props.category || !props.accountId || !props.date) { 
+          toast.error('Please fill in all required fields.'); 
+          return; 
+        }
+      }
+      onSave(); 
+    };
+
     return (
         <Drawer open={isOpen} onClose={onClose}>
             <DrawerContent>
@@ -104,7 +129,7 @@ function TransactionDrawer({ isOpen, onClose, ...props }: TransactionModalProps)
                     </DrawerDescription>
                 </DrawerHeader>
                 
-                <div className="p-4">
+                <form onSubmit={handleValidationAndSave} className="p-4">
                     {step === 0 && 
                         <StepOne 
                             type={props.type} setType={props.setType}
@@ -122,17 +147,17 @@ function TransactionDrawer({ isOpen, onClose, ...props }: TransactionModalProps)
                             categories={props.categories} accounts={props.accounts}
                         />
                     }
-                </div>
+                </form>
 
                 <DrawerFooter className="pt-2">
                     {step === 0 && <Button onClick={handleNext}>Continue</Button>}
                     {step === 1 && (
-                        <>
-                            <Button onClick={onSave} disabled={isSaving}>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" onClick={handleBack}>Back</Button>
+                            <Button onClick={handleValidationAndSave} disabled={isSaving}>
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Transaction'}
                             </Button>
-                            <Button variant="outline" onClick={handleBack}>Back</Button>
-                        </>
+                        </div>
                     )}
                 </DrawerFooter>
             </DrawerContent>
@@ -154,7 +179,7 @@ interface StepOneProps {
 function StepOne({ type, setType, amount, setAmount, note, setNote }: StepOneProps) {
     return (
         <div className="space-y-4">
-            <ToggleGroup type="single" defaultValue={type} value={type} onValueChange={(value) => setType(value as Transaction['type'])} className="w-full">
+            <ToggleGroup type="single" defaultValue={type} value={type} onValueChange={(value) => value && setType(value as Transaction['type'])} className="w-full">
                 <ToggleGroupItem value="expense" className="w-full">Expense</ToggleGroupItem>
                 <ToggleGroupItem value="income" className="w-full">Income</ToggleGroupItem>
                 <ToggleGroupItem value="transfer" className="w-full">Transfer</ToggleGroupItem>
@@ -234,7 +259,8 @@ type TransactionFormProps = Omit<TransactionModalProps, 'isOpen' | 'editId' | 'o
 function TransactionForm({
   onClose, onSave, isSaving, type, setType, amount, setAmount,
   category, setCategory, accountId, setAccountId, toAccountId, setToAccountId,
-  note, setNote, date, setDate, categories, accounts, editId
+  note, setNote, date, setDate, categories, accounts, editId,
+  onDelete, onMakeRecurring
 }: TransactionFormProps) {
 
   const relevantCategories = useMemo(() => {
@@ -252,74 +278,102 @@ function TransactionForm({
 
   const handleValidationAndSave = (e: React.FormEvent) => { 
     e.preventDefault(); 
+    
+    if (type === 'transfer') {
+      if (!accountId || !toAccountId) { 
+        toast.error('Please select both From and To accounts.');
+        return; 
+      }
+      if (accountId === toAccountId) { 
+        toast.error('From and To accounts cannot be the same.'); 
+        return; 
+      }
+    } else {
+      if (!amount || !category || !accountId || !date) { 
+        toast.error('Please fill in all required fields.'); 
+        return; 
+      }
+    }
     onSave(); 
   };
 
   return (
-    <form onSubmit={handleValidationAndSave} className="space-y-4 pt-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-          <select 
-            value={type} 
-            onChange={(e) => setType(e.target.value as Transaction['type'])} 
-            className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800"
-          >
-            <option value="expense">Expense</option> 
-            <option value="income">Income</option> 
-            <option value="transfer">Transfer</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-          <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" required />
-        </div>
-        {type === 'transfer' ? (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">From Account</label>
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
-                <option value="" disabled>Select an account</option>
-                {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
-              <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
-                <option value="" disabled>Select an account</option>
-                {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
-              </select>
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
-                <option value="" disabled>Select an account</option>
-                {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
-              </select>
-            </div>
-          </>
-        )}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+    <form onSubmit={handleValidationAndSave} className="flex flex-col h-full">
+      <div className="space-y-4 flex-grow">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select 
+              value={type} 
+              onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); }} 
+              className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800"
+            >
+              <option value="expense">Expense</option> 
+              <option value="income">Income</option> 
+              <option value="transfer">Transfer</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+            <Input type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" required />
+          </div>
+          {type === 'transfer' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">From Account</label>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                  <option value="" disabled>Select an account</option>
+                  {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
+                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                  <option value="" disabled>Select an account</option>
+                  {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                  <option value="" disabled>Select an account</option>
+                  {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
+                </select>
+              </div>
+            </>
+          )}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+          </div>
         </div>
       </div>
-      <DialogFooter className="mt-6">
-        <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-        <Button type="submit" disabled={isSaving}>
-          {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Transaction'}
-        </Button>
+      <DialogFooter className="!justify-between mt-auto pt-4 border-t">
+        <div className="flex gap-2">
+          {editId && onDelete && (
+            <Button type="button" variant="destructive" onClick={onDelete} disabled={isSaving}>Delete</Button>
+          )}
+          {editId && onMakeRecurring && (
+            <Button type="button" variant="secondary" onClick={onMakeRecurring} disabled={isSaving}>Make Recurring</Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Transaction'}
+          </Button>
+        </div>
       </DialogFooter>
     </form>
   );

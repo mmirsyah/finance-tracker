@@ -5,9 +5,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Transaction, TransactionGroup } from '@/types';
 import Link from 'next/link';
-import { MoreVertical, Edit, Trash2, Loader2, Repeat } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAppData } from '@/contexts/AppDataContext';
-import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +25,7 @@ interface TransactionListProps {
     onDataLoaded: () => void;
     selectedIds: Set<string>;
     onSelectionChange: (newSelectedIds: Set<string>) => void;
-    onMakeRecurring?: (transaction: Transaction) => void;
+    editingId: string | null;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -48,10 +47,9 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange, onMakeRecurring }: TransactionListProps) {
+export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange, editingId }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -59,8 +57,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loaderRef = useRef<HTMLDivElement | null>(null);
 
-  const menuRef = useRef<HTMLDivElement>(null);
-  const { householdId, refetchData } = useAppData();
+  const { householdId } = useAppData();
 
   const fetchTransactions = useCallback(async (pageNum: number, isNewFilter: boolean) => {
     if (!householdId) {
@@ -83,6 +80,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       .range(from, to);
 
     if (filters.filterType) query = query.eq('type', filters.filterType);
+    // --- PERBAIKAN: Kembali menggunakan 'category' ---
     if (filters.filterCategory) query = query.eq('category', Number(filters.filterCategory));
     if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
     if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
@@ -130,40 +128,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     const currentObserver = observerRef.current;
     return () => { if (currentObserver) currentObserver.disconnect(); };
   }, [hasMore, isLoading]);
-
-  const handleDelete = async (transactionId: string) => {
-    const transaction = allTransactions.find(t => t.id === transactionId);
-    const isFromRecurring = transaction?.note?.includes('(from:');
-    
-    const confirmMessage = isFromRecurring 
-      ? 'This transaction was created from a recurring template.\n\nDeleting it will reset the recurring instance to "upcoming" status, allowing you to confirm it again.\n\nAre you sure you want to delete this transaction?'
-      : 'Are you sure you want to delete this transaction?';
-    
-    if (confirm(confirmMessage)) {
-      const promise = async () => {
-        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
-        if (error) { throw error; }
-        refetchData();
-      };
-
-      toast.promise(promise(), {
-        loading: 'Deleting transaction...',
-        success: isFromRecurring 
-          ? 'Transaction deleted! Recurring instance reset to pending.' 
-          : 'Transaction deleted!',
-        error: (err) => `Error: ${err.message}`,
-      });
-
-      setActiveMenu(null);
-    }
-  };
-
-  const handleMakeRecurring = (transaction: Transaction) => {
-    if (onMakeRecurring) {
-      onMakeRecurring(transaction);
-      setActiveMenu(null);
-    }
-  };
   
   const handleRowSelect = (transactionId: string) => {
     const newSelectedIds = new Set(selectedIds);
@@ -185,22 +149,10 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     onSelectionChange(newSelectedIds);
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setActiveMenu(null); } };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => { document.removeEventListener('mousedown', handleClickOutside); };
-  }, [activeMenu]);
-
-  const groupedTransactions = groupTransactionsByDate(allTransactions);
-
-  if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
-  if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
-
-  // --- REVISI UTAMA: Fungsi render detail transaksi yang baru ---
   const renderTransactionDetails = (t: Transaction) => {
     const isFromRecurring = t.note?.includes('(from:)');
-
     const categoryName = t.categories?.name || 'Uncategorized';
+    // --- PERBAIKAN: Kembali menggunakan 'category' ---
     const categoryId = t.categories?.id || t.category;
 
     if (t.type === 'transfer') {
@@ -215,7 +167,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     }
 
     if (t.note) {
-      // Jika ada note, note jadi primary, akun & kategori jadi secondary
       return (
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
@@ -238,7 +189,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
         </div>
       );
     } else {
-      // Jika tidak ada note, kategori jadi primary, akun jadi secondary
       return (
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
@@ -267,6 +217,11 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       return 'text-gray-700';
   };
 
+  const groupedTransactions = groupTransactionsByDate(allTransactions);
+
+  if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
+  if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
+
   return (
     <div className="space-y-4">
       {groupedTransactions.map(group => {
@@ -288,10 +243,18 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
             </header>
             <ul className="divide-y divide-gray-200">
               {group.transactions.map(t => (
-                <li key={t.id} className="flex items-center p-3 hover:bg-gray-50">
+                <li 
+                  key={t.id} 
+                  className={cn(
+                    "flex items-center p-3 hover:bg-gray-100 cursor-pointer transition-colors",
+                    editingId === t.id && "bg-blue-100 hover:bg-blue-100"
+                  )} 
+                  onClick={() => startEdit(t)}
+                >
                   <Checkbox
                     checked={selectedIds.has(t.id)}
                     onCheckedChange={() => handleRowSelect(t.id)}
+                    onClick={(e) => e.stopPropagation()}
                     aria-label={`Select transaction ${t.id}`}
                     className="mr-4"
                   />
@@ -303,18 +266,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                     )}>
                       {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {formatCurrency(t.amount)}
                     </p>
-                    <div className="relative">
-                      <button onClick={() => setActiveMenu(activeMenu === t.id ? null : t.id)} className="p-1 text-gray-500 hover:text-gray-800"><MoreVertical size={20} /></button>
-                      {activeMenu === t.id && (
-                        <div ref={menuRef} className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border">
-                          <button onClick={() => { startEdit(t); setActiveMenu(null); }} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><Edit size={14} /> Edit</button>
-                          {onMakeRecurring && !t.note?.includes('(from:') && (
-                            <button onClick={() => handleMakeRecurring(t)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100"><Repeat size={14} /> Make Recurring</button>
-                          )}
-                          <button onClick={() => handleDelete(t.id)} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"><Trash2 size={14} /> Delete</button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </li>
               ))}

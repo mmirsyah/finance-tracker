@@ -23,7 +23,10 @@ import { toast } from 'sonner';
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const { accounts, categories, isLoading: isAppDataLoading, user, dataVersion, refetchData, handleOpenModalForEdit, handleOpenImportModal } = useAppData();
+  const { 
+    accounts, categories, isLoading: isAppDataLoading, user, dataVersion, 
+    refetchData, handleOpenModalForEdit, handleOpenImportModal, handleCloseModal 
+  } = useAppData();
   const [isListLoading, setIsListLoading] = useState(true);
 
   const [date, setDate] = useState<DateRange | undefined>(undefined);
@@ -31,13 +34,16 @@ export default function TransactionsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterAccount, setFilterAccount] = useState<string>('');
 
-  // State baru untuk aksi massal
+  // State untuk aksi massal
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
   // State untuk recurring modal
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  // State untuk melacak ID transaksi yang sedang diedit
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !date) {
@@ -85,6 +91,22 @@ export default function TransactionsPage() {
     setIsListLoading(true);
   }, [filters]);
 
+  // Wrapper untuk handleOpenModalForEdit untuk melacak ID yang diedit
+  const startEditing = (transaction: Transaction) => {
+    setEditingTransactionId(transaction.id);
+    handleOpenModalForEdit(transaction, {
+      onDelete: () => handleDelete(transaction.id),
+      onMakeRecurring: () => handleMakeRecurring(transaction),
+    });
+  };
+  
+  // Wrapper untuk handleCloseModal untuk membersihkan ID yang diedit
+  const closeEditing = () => {
+    setEditingTransactionId(null);
+    handleCloseModal();
+  };
+
+
   const handleBulkReassign = async (newCategoryId: number) => {
     const promise = transactionService.bulkUpdateCategory(Array.from(selectedIds), newCategoryId)
       .then((updatedCount) => {
@@ -109,6 +131,34 @@ export default function TransactionsPage() {
     setIsRecurringModalOpen(false);
     setSelectedTransaction(null);
     toast.success('Recurring template created successfully!');
+    closeEditing(); // Tutup juga modal transaksi utama
+  };
+
+  const handleDelete = async (transactionId: string) => {
+    // We need to find the full transaction object to check if it's from a recurring template
+    const { data: transaction } = await supabase.from('transactions').select('note').eq('id', transactionId).single();
+    const isFromRecurring = transaction?.note?.includes('(from:');
+    
+    const confirmMessage = isFromRecurring 
+      ? 'This transaction was created from a recurring template.\n\nDeleting it will reset the recurring instance to "upcoming" status, allowing you to confirm it again.\n\nAre you sure you want to delete this transaction?' 
+      : 'Are you sure you want to delete this transaction?';
+    
+    if (confirm(confirmMessage)) {
+      const promise = async () => {
+        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+        if (error) { throw error; }
+        refetchData();
+        closeEditing(); // Tutup modal transaksi setelah hapus
+      };
+
+      toast.promise(promise(), {
+        loading: 'Deleting transaction...', 
+        success: isFromRecurring 
+          ? 'Transaction deleted! Recurring instance reset to pending.' 
+          : 'Transaction deleted!',
+        error: (err) => `Error: ${err.message}`,
+      });
+    }
   };
 
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
@@ -143,12 +193,12 @@ export default function TransactionsPage() {
               {isListLoading && <TransactionListSkeleton />}
               <div style={{ display: isListLoading ? 'none' : 'block' }}>
                 <TransactionList
-                  startEdit={handleOpenModalForEdit}
+                  startEdit={startEditing}
                   filters={filters}
                   onDataLoaded={handleDataLoaded}
                   selectedIds={selectedIds}
                   onSelectionChange={setSelectedIds}
-                  onMakeRecurring={handleMakeRecurring}
+                  editingId={editingTransactionId}
                 />
               </div>
             </div>

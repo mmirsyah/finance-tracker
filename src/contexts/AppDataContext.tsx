@@ -19,8 +19,15 @@ interface AppDataContextType {
   dataVersion: number;
   refetchData: () => void;
   handleOpenModalForCreate: () => void;
-  handleOpenModalForEdit: (transaction: Transaction) => void;
+  handleOpenModalForEdit: (transaction: Transaction, actions?: TransactionModalActions) => void;
+  handleCloseModal: () => void;
   handleOpenImportModal: () => void;
+}
+
+// This defines the actions that can be passed from a page to the modal
+export interface TransactionModalActions {
+    onDelete?: () => void;
+    onMakeRecurring?: () => void;
 }
 
 export const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
@@ -126,6 +133,8 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
     accounts, categories, assets, isLoading, user, householdId, profile, dataVersion, refetchData,
     handleOpenModalForCreate: () => console.warn('handleOpenModalForCreate not implemented'),
     handleOpenModalForEdit: () => console.warn('handleOpenModalForEdit not implemented'),
+    // --- PERBAIKAN DI SINI: Menambahkan placeholder yang hilang ---
+    handleCloseModal: () => console.warn('handleCloseModal not implemented'),
     handleOpenImportModal: () => console.warn('handleOpenImportModal not implemented')
   };
 

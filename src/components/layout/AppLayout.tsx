@@ -1,11 +1,11 @@
 // src/components/layout/AppLayout.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react'; // <-- Tambahkan useMemo
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { AppDataContext, AppDataProvider, useAppData } from '@/contexts/AppDataContext';
+import { AppDataContext, AppDataProvider, useAppData, TransactionModalActions } from '@/contexts/AppDataContext';
 import { Plus, PlusSquare, Upload } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
 import { Button } from '@/components/ui/button';
@@ -38,26 +38,82 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const [formToAccountId, setFormToAccountId] = useState('');
   const [formNote, setFormNote] = useState('');
   const [formDate, setFormDate] = useState('');
+  const [modalActions, setModalActions] = useState<TransactionModalActions>({});
 
-  // --- PERBAIKAN DI SINI: Filter akun sebelum diberikan ke modal ---
   const filteredAccountsForModal = useMemo(() => {
     return accounts.filter(acc => acc.name !== 'Modal Awal Aset');
   }, [accounts]);
-  // --- AKHIR PERBAIKAN ---
 
-  const handleOpenModalForCreate = useCallback(() => { setEditId(null); setFormType('expense'); setFormAmount(''); setFormCategory(''); setFormAccountId(''); setFormToAccountId(''); setFormNote(''); setFormDate(new Date().toISOString().split('T')[0]); setIsTransactionModalOpen(true); }, []);
-  const handleOpenModalForEdit = useCallback((transaction: Transaction) => { setEditId(transaction.id); setFormType(transaction.type); setFormAmount(String(transaction.amount)); setFormCategory(transaction.category?.toString() || ''); setFormAccountId(transaction.account_id || ''); setFormToAccountId(transaction.to_account_id || ''); setFormNote(transaction.note || ''); setFormDate(transaction.date); setIsTransactionModalOpen(true); }, []);
+  const handleOpenModalForCreate = useCallback(() => { 
+    setEditId(null); 
+    setFormType('expense'); 
+    setFormAmount(''); 
+    setFormCategory(''); 
+    setFormAccountId(''); 
+    setFormToAccountId(''); 
+    setFormNote(''); 
+    setFormDate(new Date().toISOString().split('T')[0]); 
+    setModalActions({}); 
+    setIsTransactionModalOpen(true); 
+  }, []);
+  
+  const handleOpenModalForEdit = useCallback((transaction: Transaction, actions?: TransactionModalActions) => {
+    setEditId(transaction.id);
+    setFormType(transaction.type);
+    setFormAmount(String(transaction.amount));
+    // --- PERBAIKAN: Membaca dari `category` ---
+    setFormCategory(transaction.category?.toString() || '');
+    setFormAccountId(transaction.account_id || '');
+    setFormToAccountId(transaction.to_account_id || '');
+    setFormNote(transaction.note || '');
+    setFormDate(transaction.date);
+    setModalActions(actions || {});
+    setIsTransactionModalOpen(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setIsTransactionModalOpen(false);
+    setModalActions({});
+  }, []);
+
   const handleOpenImportModal = useCallback(() => setIsImportModalOpen(true), []);
 
   const handleSaveTransaction = async () => { 
     setIsSaving(true); 
-    if (!user || !householdId) { toast.error('User session not found.'); setIsSaving(false); return; } 
-    const payload = { type: formType, amount: Number(formAmount), note: formNote || null, date: formDate, user_id: user.id, household_id: householdId, category: formType !== 'transfer' ? Number(formCategory) : null, account_id: formAccountId, to_account_id: formType === 'transfer' ? formToAccountId : null, }; 
-    const success = await transactionService.saveTransaction(supabase, payload, editId); 
+    if (!user || !householdId) { 
+      toast.error('User session not found.'); 
+      setIsSaving(false); 
+      return; 
+    } 
+
+    const payload = { 
+      type: formType, 
+      amount: Number(formAmount), 
+      note: formNote || null, 
+      date: formDate, 
+      user_id: user.id, 
+      household_id: householdId, 
+      // --- PERBAIKAN UTAMA: Key di sini harus `category` ---
+      category: formType !== 'transfer' ? Number(formCategory) : null, 
+      account_id: formAccountId, 
+      to_account_id: formType === 'transfer' ? formToAccountId : null, 
+    }; 
+    
+    const success = await transactionService.saveTransaction(supabase, payload as any, editId); 
+    
     if (success) { 
-        if (formType === 'transfer' && formToAccountId) { const targetAccount = accounts.find(acc => acc.id === formToAccountId); if (targetAccount && targetAccount.type === 'goal') { toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); } else { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); } } else { toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); }
-        setIsTransactionModalOpen(false); 
-        refetchData(); 
+      if (formType === 'transfer' && formToAccountId) { 
+        const targetAccount = accounts.find(acc => acc.id === formToAccountId); 
+        if (targetAccount && targetAccount.type === 'goal') { 
+          toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); 
+        } else { 
+          toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
+        } 
+      } else { 
+        toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
+      }
+      setIsTransactionModalOpen(false); 
+      refetchData(); 
     } 
     setIsSaving(false); 
   };
@@ -73,7 +129,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (user) {
-    const contextValue = { ...initialContext, handleOpenModalForCreate, handleOpenModalForEdit, handleOpenImportModal };
+    const contextValue = { ...initialContext, handleOpenModalForCreate, handleOpenModalForEdit, handleCloseModal, handleOpenImportModal };
     return (
       <AppDataContext.Provider value={contextValue}>
         <div className="relative h-screen flex overflow-hidden bg-gray-100">
@@ -103,8 +159,10 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
           
           <TransactionModal 
             isOpen={isTransactionModalOpen} 
-            onClose={() => setIsTransactionModalOpen(false)} 
+            onClose={handleCloseModal} 
             onSave={handleSaveTransaction} 
+            onDelete={modalActions.onDelete} 
+            onMakeRecurring={modalActions.onMakeRecurring}
             editId={editId} 
             isSaving={isSaving} 
             type={formType} setType={setFormType} 
@@ -115,7 +173,6 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             note={formNote} setNote={setFormNote} 
             date={formDate} setDate={setFormDate}
             categories={categories} 
-            // --- PERBAIKAN: Gunakan daftar akun yang sudah difilter ---
             accounts={filteredAccountsForModal} 
           />
           <ImportTransactionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />

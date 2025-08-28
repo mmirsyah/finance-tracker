@@ -39,39 +39,27 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Styles for react-day-picker */
-.rdp {
-  --rdp-cell-size: 40px;
-  --rdp-accent-color: #3b82f6;
-  --rdp-background-color: #eff6ff;
-  --rdp-accent-color-dark: #2563eb;
-  --rdp-background-color-dark: #1e3a8a;
-  margin: 1em 0;
-}
-.rdp-day_selected, .rdp-day_selected:focus-visible, .rdp-day_selected:hover {
-  background-color: var(--rdp-accent-color);
-  color: white;
-  font-weight: bold;
-}
-.rdp-day_range_start, .rdp-day_range_end {
-  background-color: var(--rdp-accent-color) !important;
-  color: white !important;
-}
-.rdp-day_range_middle {
-  background-color: var(--rdp-background-color) !important;
-  color: var(--rdp-accent-color) !important;
-  border-radius: 0 !important;
-}
+@layer utilities {
+  @keyframes slide-in-from-right {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
 
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type=number] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+  @keyframes slide-out-to-right {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
+
+  .slide-in-from-right {
+    animation: slide-in-from-right 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+
+  .slide-out-to-right {
+    animation: slide-out-to-right 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
 }
