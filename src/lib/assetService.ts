@@ -56,20 +56,44 @@ export const saveAssetTransaction = async (transaction: Partial<AssetTransaction
 
 /**
  * Deletes an asset transaction and its related financial transaction.
+ * The order is changed to be safer: delete asset tx first.
  */
 export const deleteAssetTransaction = async (transactionId: number, relatedTransactionId: string | null | undefined) => {
+    const { error: assetTxError } = await supabase.from('asset_transactions').delete().eq('id', transactionId);
+    if (assetTxError) {
+        console.error('Error deleting asset transaction:', assetTxError);
+        toast.error('Failed to delete the asset record. The corresponding financial transaction was not deleted to maintain consistency.');
+        throw assetTxError;
+    }
+
     if (relatedTransactionId) {
         const { error: financialTxError } = await supabase.from('transactions').delete().eq('id', relatedTransactionId);
         if (financialTxError) {
             console.error('Could not delete related financial transaction:', financialTxError.message);
+            // Even if this fails, the asset tx is gone, which is the primary goal.
+            // We should notify the user to handle this manually.
+            toast.warning(`Asset record was deleted, but the financial transaction deletion failed. You may need to delete it manually. ID: ${relatedTransactionId}`)
             throw new Error(`Failed to delete financial record: ${financialTxError.message}`);
         }
     }
+};
 
-    const { error: assetTxError } = await supabase.from('asset_transactions').delete().eq('id', transactionId);
-    if (assetTxError) {
-        console.error('Error deleting asset transaction:', assetTxError);
-        toast.warning('Financial transaction was deleted, but asset record deletion failed. Please check your data.');
-        throw assetTxError;
+/**
+ * NEW FUNCTION: Fetches an asset transaction based on its related financial transaction ID.
+ */
+export const getAssetTransactionByFinancialTxId = async (financialTxId: string): Promise<AssetTransaction | null> => {
+    const { data, error } = await supabase
+        .from('asset_transactions')
+        .select('*')
+        .eq('related_transaction_id', financialTxId)
+        .single();
+
+    if (error) {
+        // An error is expected if no row is found, so we only log unexpected errors.
+        if (error.code !== 'PGRST116') { 
+            console.error('Error fetching related asset transaction:', error);
+        }
+        return null;
     }
+    return data;
 };

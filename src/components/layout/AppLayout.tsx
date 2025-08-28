@@ -83,25 +83,24 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     if (!user || !householdId) { 
       toast.error('User session not found.'); 
       setIsSaving(false); 
-      return; 
+      return false; 
     } 
 
-    const payload = { 
+    const payload: Partial<Transaction> = { 
       type: formType, 
       amount: Number(formAmount), 
       note: formNote || null, 
       date: formDate, 
       user_id: user.id, 
       household_id: householdId, 
-      // --- PERBAIKAN UTAMA: Key di sini harus `category` ---
       category: formType !== 'transfer' ? Number(formCategory) : null, 
       account_id: formAccountId, 
       to_account_id: formType === 'transfer' ? formToAccountId : null, 
     }; 
     
-    const success = await transactionService.saveTransaction(supabase, payload as any, editId); 
+    const result = await transactionService.saveTransaction(supabase, payload, editId); 
     
-    if (success) { 
+    if (result) { 
       if (formType === 'transfer' && formToAccountId) { 
         const targetAccount = accounts.find(acc => acc.id === formToAccountId); 
         if (targetAccount && targetAccount.type === 'goal') { 
@@ -116,6 +115,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
       refetchData(); 
     } 
     setIsSaving(false); 
+    return result;
   };
 
   useEffect(() => {
@@ -161,7 +161,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             isOpen={isTransactionModalOpen} 
             onClose={handleCloseModal} 
             onSave={handleSaveTransaction} 
-            onDelete={modalActions.onDelete} 
+            onDelete={modalActions.onDelete}
             onMakeRecurring={modalActions.onMakeRecurring}
             editId={editId} 
             isSaving={isSaving} 

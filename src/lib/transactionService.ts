@@ -3,8 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Transaction } from '@/types';
 import { supabase } from './supabase'; // Pastikan supabase diimpor
 
-// Gunakan tipe turunan yang lebih spesifik, hilangkan 'any'
-type TransactionPayload = Omit<Transaction, 'id' | 'categories' | 'accounts' | 'to_account' | 'sequence_number' | 'household_id'> & { household_id: string };
+
 
 async function getHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
@@ -27,20 +26,20 @@ export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
   return data || [];
 }
 
-export async function saveTransaction(supabase: SupabaseClient, payload: TransactionPayload, editId: string | null) {
+export async function saveTransaction(supabase: SupabaseClient, payload: Partial<Transaction>, editId: string | null): Promise<Transaction | boolean> {
   let query;
   if (editId) {
-    query = supabase.from('transactions').update(payload).eq('id', editId);
+    query = supabase.from('transactions').update(payload).eq('id', editId).select().single();
   } else {
-    query = supabase.from('transactions').insert([payload]);
+    query = supabase.from('transactions').insert([payload]).select().single();
   }
-  const { error } = await query;
+  const { data, error } = await query;
   if (error) {
     console.error("RAW SAVE TRANSACTION ERROR:", JSON.stringify(error, null, 2));
     alert(`Failed to save transaction: ${error.message}`);
     return false;
   }
-  return true;
+  return data as Transaction;
 }
 
 /**

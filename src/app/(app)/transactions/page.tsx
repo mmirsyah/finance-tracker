@@ -18,7 +18,8 @@ import BulkActionToolbar from '@/components/transaction/BulkActionToolbar';
 import BulkReassignCategoryModal from '@/components/modals/BulkReassignCategoryModal';
 import RecurringFromTransactionModal from '@/components/modals/RecurringFromTransactionModal';
 import * as transactionService from '@/lib/transactionService';
-import { Transaction } from '@/types';
+import { deleteAssetTransaction } from '@/lib/assetService';
+import { Transaction, AssetTransaction } from '@/types';
 import { toast } from 'sonner';
 
 export default function TransactionsPage() {
@@ -134,8 +135,30 @@ export default function TransactionsPage() {
     closeEditing(); // Tutup juga modal transaksi utama
   };
 
-  const handleDelete = async (transactionId: string) => {
-    // We need to find the full transaction object to check if it's from a recurring template
+  const handleDelete = async (transactionId: string, linkedAssetTx?: AssetTransaction) => {
+    console.log("handleDelete called for tx:", transactionId);
+    console.log("Linked asset transaction received:", linkedAssetTx);
+
+    if (linkedAssetTx && linkedAssetTx.id) {
+        console.log("Asset path taken. Deleting asset tx:", linkedAssetTx.id);
+        // This is an asset-related transaction, use the dedicated delete service
+        if (confirm('This will delete both the financial transfer and the related asset transaction. Are you sure?')) {
+            const promise = async () => {
+                await deleteAssetTransaction(linkedAssetTx.id, linkedAssetTx.related_transaction_id);
+                refetchData();
+                closeEditing();
+            };
+            toast.promise(promise(), {
+                loading: 'Deleting asset transaction...', 
+                success: 'Asset transaction deleted successfully!',
+                error: (err) => `Error: ${err.message}`,
+            });
+        }
+        return;
+    }
+
+    console.log("Standard delete path taken.");
+    // Original delete logic for non-asset transactions
     const { data: transaction } = await supabase.from('transactions').select('note').eq('id', transactionId).single();
     const isFromRecurring = transaction?.note?.includes('(from:');
     

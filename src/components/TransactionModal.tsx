@@ -1,6 +1,6 @@
 "use client";
 
-import { Category, Account, Transaction } from "@/types";
+import { Category, Account, Transaction, AssetTransaction } from "@/types";
 import { useMemo, useState, useEffect } from "react";
 import { CategoryCombobox } from "./CategoryCombobox";
 import { Loader2 } from "lucide-react";
@@ -23,16 +23,17 @@ import {
 } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+
 import { toast } from "sonner";
+import { saveAssetTransaction, getAssetTransactionByFinancialTxId } from "@/lib/assetService";
 
 // Main Props Interface
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void;
-  onDelete?: () => void; // Optional
-  onMakeRecurring?: () => void; // Optional
+  onSave: () => Promise<Transaction | boolean>;
+  onDelete?: () => void; // Simplified: No longer passes data up
+  onMakeRecurring?: () => void;
   editId: string | null;
   isSaving: boolean;
   type: Transaction['type'];
@@ -83,174 +84,30 @@ function TransactionDialog({ editId, isOpen, onClose, ...props }: TransactionMod
     );
 }
 
-// Mobile Component: Drawer with multi-step form
+// Mobile Component: Drawer with a single-step form
 function TransactionDrawer({ isOpen, onClose, ...props }: TransactionModalProps) {
-    const [step, setStep] = useState(0);
-
-    const handleNext = () => setStep(prev => prev + 1);
-    const handleBack = () => setStep(prev => prev - 1);
-
-    useEffect(() => {
-        if (isOpen) {
-            setStep(0);
-        }
-    }, [isOpen]);
-
-    const { editId, onSave, isSaving } = props;
-
-    const handleValidationAndSave = (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      if (props.type === 'transfer') {
-        if (!props.accountId || !props.toAccountId) { 
-          toast.error('Please select both From and To accounts.');
-          return; 
-        }
-        if (props.accountId === props.toAccountId) { 
-          toast.error('From and To accounts cannot be the same.'); 
-          return; 
-        }
-      } else {
-        if (!props.amount || !props.category || !props.accountId || !props.date) { 
-          toast.error('Please fill in all required fields.'); 
-          return; 
-        }
-      }
-      onSave(); 
-    };
-
     return (
         <Drawer open={isOpen} onClose={onClose}>
             <DrawerContent>
                 <DrawerHeader className="text-left">
-                    <DrawerTitle>{editId ? 'Edit Transaction' : 'Add New Transaction'}</DrawerTitle>
+                    <DrawerTitle>{props.editId ? 'Edit Transaction' : 'Add New Transaction'}</DrawerTitle>
                     <DrawerDescription>
-                        {editId ? 'Update the details of your transaction.' : `Step ${step + 1} of 2: Enter the details.`}
+                        {props.editId ? 'Update the details of your transaction.' : 'Enter the details for your new transaction.'}
                     </DrawerDescription>
                 </DrawerHeader>
                 
-                <form onSubmit={handleValidationAndSave} className="p-4">
-                    {step === 0 && 
-                        <StepOne 
-                            type={props.type} setType={props.setType}
-                            amount={props.amount} setAmount={props.setAmount}
-                            note={props.note} setNote={props.setNote}
-                        />
-                    }
-                    {step === 1 && 
-                        <StepTwo 
-                            type={props.type}
-                            category={props.category} setCategory={props.setCategory}
-                            accountId={props.accountId} setAccountId={props.setAccountId}
-                            toAccountId={props.toAccountId} setToAccountId={props.setToAccountId}
-                            date={props.date} setDate={props.setDate}
-                            categories={props.categories} accounts={props.accounts}
-                        />
-                    }
-                </form>
+                <div className="overflow-y-auto px-4">
+                  <TransactionForm {...props} editId={props.editId} onClose={onClose} />
+                </div>
 
-                <DrawerFooter className="pt-2">
-                    {step === 0 && <Button onClick={handleNext}>Continue</Button>}
-                    {step === 1 && (
-                        <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" onClick={handleBack}>Back</Button>
-                            <Button onClick={handleValidationAndSave} disabled={isSaving}>
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Transaction'}
-                            </Button>
-                        </div>
-                    )}
+                <DrawerFooter className="pt-2 mt-4">
                 </DrawerFooter>
             </DrawerContent>
         </Drawer>
     );
 }
 
-// Props for Step One
-interface StepOneProps {
-    type: Transaction['type'];
-    setType: (type: Transaction['type']) => void;
-    amount: string;
-    setAmount: (amount: string) => void;
-    note: string;
-    setNote: (note: string) => void;
-}
-
-// UI for Step One
-function StepOne({ type, setType, amount, setAmount, note, setNote }: StepOneProps) {
-    return (
-        <div className="space-y-4">
-            <ToggleGroup type="single" defaultValue={type} value={type} onValueChange={(value) => value && setType(value as Transaction['type'])} className="w-full">
-                <ToggleGroupItem value="expense" className="w-full">Expense</ToggleGroupItem>
-                <ToggleGroupItem value="income" className="w-full">Income</ToggleGroupItem>
-                <ToggleGroupItem value="transfer" className="w-full">Transfer</ToggleGroupItem>
-            </ToggleGroup>
-            <div>
-                <label htmlFor="amount-input" className="text-sm font-medium">Amount</label>
-                <Input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Rp 0" className="text-2xl h-14 mt-1" required />
-            </div>
-            <div>
-                <label htmlFor="note-input" className="text-sm font-medium">Note (Optional)</label>
-                <Textarea id="note-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g., Lunch with client" className="mt-1" />
-            </div>
-        </div>
-    );
-}
-
-// Props for Step Two
-interface StepTwoProps {
-    type: Transaction['type'];
-    category: string;
-    setCategory: (category: string) => void;
-    accountId: string;
-    setAccountId: (accountId: string) => void;
-    toAccountId: string;
-    setToAccountId: (toAccountId: string) => void;
-    date: string;
-    setDate: (date: string) => void;
-    categories: Category[];
-    accounts: Account[];
-}
-
-// UI for Step Two
-function StepTwo({ type, category, setCategory, accountId, setAccountId, toAccountId, setToAccountId, date, setDate, categories, accounts }: StepTwoProps) {
-    const relevantCategories = useMemo(() => categories.filter(c => c.type === type && !c.is_archived), [categories, type]);
-
-    return (
-        <div className="space-y-4">
-            {type !== 'transfer' ? (
-                <div>
-                    <label htmlFor="category-input" className="text-sm font-medium">Category</label>
-                    <CategoryCombobox allCategories={relevantCategories} value={category || ''} onChange={setCategory} />
-                </div>
-            ) : null}
-            
-            <div>
-                <label htmlFor="account-input" className="text-sm font-medium">{type === 'transfer' ? 'From Account' : 'Account'}</label>
-                <select id="account-input" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800 mt-1" required>
-                    <option value="" disabled>Select an account</option>
-                    {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
-                </select>
-            </div>
-
-            {type === 'transfer' && (
-                 <div>
-                    <label htmlFor="to-account-input" className="text-sm font-medium">To Account</label>
-                    <select id="to-account-input" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800 mt-1" required>
-                        <option value="" disabled>Select an account</option>
-                        {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
-                    </select>
-                </div>
-            )}
-
-            <div>
-                <label htmlFor="date-input" className="text-sm font-medium">Date</label>
-                <Input id="date-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1" required />
-            </div>
-        </div>
-    );
-}
-
-// The original form, to be used inside the desktop dialog for now
+// The main form, used by both Dialog and Drawer
 type TransactionFormProps = Omit<TransactionModalProps, 'isOpen' | 'editId' | 'onClose'> & {
   editId: string | null;
   onClose: () => void;
@@ -262,6 +119,48 @@ function TransactionForm({
   note, setNote, date, setDate, categories, accounts, editId,
   onDelete, onMakeRecurring
 }: TransactionFormProps) {
+
+  const [isAssetMode, setIsAssetMode] = useState(false);
+  const [linkedAssetTx, setLinkedAssetTx] = useState<AssetTransaction | null>(null);
+  const [quantity, setQuantity] = useState('');
+  const [price, setPrice] = useState('');
+
+  // Effect for EDIT MODE: Fetch linked asset transaction
+  useEffect(() => {
+    const fetchLinkedAssetTx = async () => {
+      if (editId) {
+        const linkedTx = await getAssetTransactionByFinancialTxId(editId);
+        if (linkedTx) {
+          setIsAssetMode(true);
+          setLinkedAssetTx(linkedTx);
+          setQuantity(String(linkedTx.quantity));
+          setPrice(String(linkedTx.price_per_unit));
+        } else {
+          setIsAssetMode(false);
+          setLinkedAssetTx(null);
+        }
+      }
+    };
+    fetchLinkedAssetTx();
+  }, [editId]);
+
+  // Effect for CREATE MODE: Detect if it should be an asset transaction
+  useEffect(() => {
+    if (editId) return;
+    if (type === 'transfer') {
+      const fromAccount = accounts.find(a => a.id === accountId);
+      const toAccount = accounts.find(a => a.id === toAccountId);
+      setIsAssetMode(fromAccount?.type === 'asset' || toAccount?.type === 'asset');
+    } else {
+      setIsAssetMode(false);
+    }
+  }, [type, accountId, toAccountId, accounts, editId]);
+
+  // Effect to calculate total amount from quantity and price
+  useEffect(() => {
+    const totalAmount = Number(quantity) * Number(price);
+    setAmount(String(totalAmount > 0 ? totalAmount : ''));
+  }, [quantity, price, setAmount]);
 
   const relevantCategories = useMemo(() => {
     const categoriesForType = categories.filter(c => c.type === type);
@@ -276,25 +175,49 @@ function TransactionForm({
     return activeCategories;
   }, [categories, type, editId, category]);
 
-  const handleValidationAndSave = (e: React.FormEvent) => { 
-    e.preventDefault(); 
-    
+  const handleValidationAndSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (type === 'transfer') {
-      if (!accountId || !toAccountId) { 
-        toast.error('Please select both From and To accounts.');
-        return; 
-      }
-      if (accountId === toAccountId) { 
-        toast.error('From and To accounts cannot be the same.'); 
-        return; 
-      }
+      if (!accountId || !toAccountId) { toast.error('Please select both From and To accounts.'); return; }
+      if (accountId === toAccountId) { toast.error('From and To accounts cannot be the same.'); return; }
     } else {
-      if (!amount || !category || !accountId || !date) { 
-        toast.error('Please fill in all required fields.'); 
-        return; 
-      }
+      if (!amount || !category || !accountId || !date) { toast.error('Please fill in all required fields.'); return; }
     }
-    onSave(); 
+    
+    if (isAssetMode && (!quantity || !price || Number(quantity) <= 0 || Number(price) < 0)) {
+      toast.error("For asset transactions, please enter a valid quantity and price.");
+      return;
+    }
+
+    const financialTx = await onSave();
+
+    if (isAssetMode && financialTx) {
+        const assetPayload: Partial<AssetTransaction> = {
+            quantity: Number(quantity),
+            price_per_unit: Number(price),
+            transaction_date: date,
+        };
+
+        if (editId && linkedAssetTx) {
+            assetPayload.id = linkedAssetTx.id;
+        } else if (!editId && typeof financialTx !== 'boolean') {
+            const fromAccount = accounts.find(a => a.id === accountId);
+            const assetAccount = fromAccount?.type === 'asset' ? fromAccount : accounts.find(a => a.id === toAccountId);
+            if (!assetAccount) { toast.error("Could not determine asset account."); return; }
+
+            assetPayload.asset_account_id = assetAccount.id;
+            assetPayload.household_id = assetAccount.household_id;
+            assetPayload.transaction_type = fromAccount?.type === 'asset' ? 'sell' : 'buy';
+            assetPayload.related_transaction_id = financialTx.id;
+        }
+
+        try {
+            await saveAssetTransaction(assetPayload);
+        } catch (error) {
+            toast.error(`Failed to save asset transaction details: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
   };
 
   return (
@@ -303,32 +226,52 @@ function TransactionForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-            <select 
-              value={type} 
-              onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); }} 
+            <select
+              value={type}
+              onChange={(e) => { setType(e.target.value as Transaction['type']); setCategory(''); }}
               className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800"
+              disabled={editId !== null}
             >
-              <option value="expense">Expense</option> 
-              <option value="income">Income</option> 
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
               <option value="transfer">Transfer</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <Input type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" required />
-          </div>
+
+          {isAssetMode ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <Input type="number" min="0" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="e.g., 1.5" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price per Unit</label>
+                <Input type="number" min="0" step="any" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g., 1,000,000" required />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                <Input type="number" value={amount} placeholder="0" required disabled />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+              <Input type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" required />
+            </div>
+          )}
+
           {type === 'transfer' ? (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">From Account</label>
-                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required disabled={editId !== null}>
                   <option value="" disabled>Select an account</option>
                   {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
-                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required disabled={editId !== null}>
                   <option value="" disabled>Select an account</option>
                   {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                 </select>
@@ -338,11 +281,11 @@ function TransactionForm({
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory}/>
+                <CategoryCombobox allCategories={relevantCategories} value={category} onChange={setCategory} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required disabled={editId !== null}>
                   <option value="" disabled>Select an account</option>
                   {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                 </select>
@@ -371,7 +314,7 @@ function TransactionForm({
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
           <Button type="submit" disabled={isSaving}>
-            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Transaction'}
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (editId ? 'Save Changes' : 'Save Transaction')}
           </Button>
         </div>
       </DialogFooter>
