@@ -22,10 +22,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50`}>
+      <body className={`${inter.className} bg-background`}>
 
         <NextTopLoader
-          color="#2563EB"
+          color= 'bg-primary'
           initialPosition={0.08}
           crawlSpeed={200}
           height={3}

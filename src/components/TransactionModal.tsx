@@ -156,11 +156,13 @@ function TransactionForm({
     }
   }, [type, accountId, toAccountId, accounts, editId]);
 
-  // Effect to calculate total amount from quantity and price
+  // Effect to calculate total amount from quantity and price, ONLY in asset mode
   useEffect(() => {
-    const totalAmount = Number(quantity) * Number(price);
-    setAmount(String(totalAmount > 0 ? totalAmount : ''));
-  }, [quantity, price, setAmount]);
+    if (isAssetMode) {
+      const totalAmount = Number(quantity) * Number(price);
+      setAmount(String(totalAmount > 0 ? totalAmount : ''));
+    }
+  }, [quantity, price, setAmount, isAssetMode]);
 
   const relevantCategories = useMemo(() => {
     const categoriesForType = categories.filter(c => c.type === type);

@@ -1,25 +1,41 @@
-// src/components/transaction/TransactionSummary.tsx
-"use client";
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, ArrowUpRight, ArrowDownRight, PiggyBank, Percent, Hash } from 'lucide-react';
 import type { TransactionSummary as TSummary } from '@/types';
 import { useAppData } from '@/contexts/AppDataContext';
 import { getTransactionsForExport } from '@/lib/reportService';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
-// --- HELPER DIPINDAHKAN KE SINI AGAR KOMPONEN MANDIRI ---
-const formatCurrency = (value: number | null | undefined) => { if (value === null || value === undefined) return 'Rp 0'; return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
-
-
-interface SummaryProps {
-  startDate: string;
-  endDate: string;
+interface TransactionSummaryProps {
+  startDate?: string;
+  endDate?: string;
 }
 
-export default function TransactionSummary({ startDate, endDate }: SummaryProps) {
+const formatCurrency = (value: number | null | undefined) => {
+  if (value === null || value === undefined) return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(value);
+};
+
+const SummaryItem = ({ icon: Icon, label, value, colorClass }: { icon: React.ElementType, label: string, value: string, colorClass?: string }) => (
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-3">
+      <Icon className="h-5 w-5 text-muted-foreground" />
+      <span className="text-muted-foreground">{label}</span>
+    </div>
+    <span className={`font-semibold ${colorClass || 'text-foreground'}`}>{value}</span>
+  </div>
+);
+
+export default function TransactionSummary({ startDate, endDate }: TransactionSummaryProps) {
   const [summary, setSummary] = useState<TSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -28,19 +44,26 @@ export default function TransactionSummary({ startDate, endDate }: SummaryProps)
   const fetchSummary = useCallback(async () => {
     if (!householdId) return;
     setLoading(true);
+    
+    const p_start_date = startDate || '1970-01-01';
+    const p_end_date = endDate || '2999-12-31';
+
     const { data, error } = await supabase.rpc('get_transaction_summary', {
       p_household_id: householdId,
-      p_start_date: '1970-01-01',
-      p_end_date: '2999-12-31',
+      p_start_date,
+      p_end_date,
     });
+
     if (error) {
       console.error('Error fetching summary:', error);
-      toast.error("Gagal memuat ringkasan transaksi seumur hidup.");
+      toast.error("Gagal memuat ringkasan transaksi.");
     } else if (data && data.length > 0) {
       setSummary(data[0]);
+    } else {
+      setSummary(null); // Reset summary if no data
     }
     setLoading(false);
-  }, [householdId]);
+  }, [householdId, startDate, endDate]);
 
   useEffect(() => {
     if (householdId) {
@@ -81,36 +104,49 @@ export default function TransactionSummary({ startDate, endDate }: SummaryProps)
     }
   };
 
+  const netSavings = (summary?.total_income || 0) - (summary?.total_spending || 0);
+  const savingsRate = (summary?.total_income || 0) > 0 ? 
+  (netSavings / (summary?.total_income || 1)) * 100 : 0;
+  const averageExpense = (summary?.total_transactions || 0) > 0 ? (summary?.total_spending || 0) / (summary?.total_transactions || 1) : 0;
+
+  if (loading) {
+    return (
+        <Card>
+            <CardHeader><CardTitle>Ringkasan</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <div className="h-5 bg-muted rounded w-3/4"></div>
+                <div className="h-5 bg-muted rounded w-1/2"></div>
+                <div className="h-5 bg-muted rounded w-2/3"></div>
+                <div className="h-5 bg-muted rounded w-3/4"></div>
+                <div className="h-5 bg-muted rounded w-1/2"></div>
+            </CardContent>
+        </Card>
+    )
+  }
+
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">Lifetime Summary</h2>
-
-      {/* --- PERBAIKAN: Tampilkan data langsung di sini --- */}
-      {loading ? (
-        <div className="space-y-3 text-sm animate-pulse">
-            <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded w-24"></div><div className="h-4 bg-gray-200 rounded w-12"></div></div>
-            <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded w-32"></div><div className="h-4 bg-gray-200 rounded w-20"></div></div>
-            <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded w-28"></div><div className="h-4 bg-gray-200 rounded w-20"></div></div>
-        </div>
-      ) : summary ? (
-        <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Total pemasukan</span><span className="font-medium text-green-600">{formatCurrency(summary.total_income)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Total pengeluaran</span><span className="font-medium text-red-600">{formatCurrency(summary.total_spending)}</span></div>
-            <hr className="my-3"/>
-            <div className="flex justify-between"><span className="text-gray-600">Total transaksi</span><span className="font-medium text-gray-900">{summary.total_transactions || 0}</span></div>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500">Tidak ada data ringkasan.</p>
-      )}
-
-      <button
-        onClick={handleDownload}
-        disabled={isDownloading}
-        className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
-      >
-        {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-        {isDownloading ? 'Memproses...' : 'Download (Sesuai Filter)'}
-      </button>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Ringkasan</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {summary ? (
+          <>
+            <SummaryItem icon={ArrowUpRight} label="Total Pemasukan" value={formatCurrency(summary.total_income)} colorClass="text-secondary-text" />
+            <SummaryItem icon={ArrowDownRight} label="Total Pengeluaran" value={formatCurrency(summary.total_spending)} colorClass="text-destructive-text" />
+            <SummaryItem icon={PiggyBank} label="Simpanan Bersih" value={formatCurrency(netSavings)} colorClass={netSavings >= 0 ? 'text-secondary-text' : 'text-destructive-text'} />
+            <hr />
+            <SummaryItem icon={Percent} label="Tingkat Tabungan" value={`${savingsRate.toFixed(1)}%`} />
+            <SummaryItem icon={Hash} label="Rata-rata Pengeluaran" value={formatCurrency(averageExpense)} />
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Tidak ada data ringkasan untuk periode ini.</p>
+        )}
+        <Button onClick={handleDownload} disabled={isDownloading || !startDate || !endDate} className="w-full mt-4">
+          {isDownloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+          {isDownloading ? 'Memproses...' : 'Download Laporan CSV'}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

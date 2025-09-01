@@ -19,10 +19,10 @@ const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: 
         return (
             <Card className="w-full md:w-auto">
                 <CardHeader className="p-3">
-                    <CardTitle className="text-sm font-semibold text-center text-gray-600">Ready to Assign</CardTitle>
+                    <CardTitle className="text-sm font-semibold text-center text-muted-foreground">Ready to Assign</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                    <div className="h-9 w-40 bg-gray-200 rounded-md animate-pulse mt-1 mx-auto"></div>
+                    <div className="h-9 w-40 bg-muted rounded-md animate-pulse mt-1 mx-auto"></div>
                 </CardContent>
             </Card>
         )
@@ -30,14 +30,14 @@ const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: 
 
     if (amount > 0) {
         return (
-            <Card className="w-full md:w-auto bg-green-50 border-green-200 shadow-md">
+            <Card className="w-full md:w-auto bg-primary/10 border-primary/20 shadow-md">
                  <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                    <Wallet className="w-5 h-5 text-green-700"/>
-                    <CardTitle className="text-sm font-semibold text-green-800">Dana Perlu Dialokasikan</CardTitle>
+                    <Wallet className="w-5 h-5 text-primary"/>
+                    <CardTitle className="text-sm font-semibold text-primary">Dana Perlu Dialokasikan</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 text-center">
-                    <p className="text-3xl font-bold text-green-600">{formatCurrency(amount)}</p>
-                    <p className="text-xs text-green-700/80 mt-1">Ayo beri setiap rupiah tugas!</p>
+                    <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
+                    <p className="text-xs text-primary/80 mt-1">Ayo beri setiap rupiah tugas!</p>
                 </CardContent>
             </Card>
         )
@@ -45,28 +45,28 @@ const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: 
 
     if (amount < 0) {
         return (
-            <Card className="w-full md:w-auto bg-red-50 border-red-200 shadow-md">
+            <Card className="w-full md:w-auto bg-destructive/10 border-destructive/20 shadow-md">
                 <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                    <AlertTriangle className="w-5 h-5 text-red-700"/>
-                    <CardTitle className="text-sm font-semibold text-red-800">Anggaran Melebihi Dana</CardTitle>
+                    <AlertTriangle className="w-5 h-5 text-destructive"/>
+                    <CardTitle className="text-sm font-semibold text-destructive">Anggaran Melebihi Dana</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 text-center">
-                    <p className="text-3xl font-bold text-red-600">{formatCurrency(amount)}</p>
-                    <p className="text-xs text-red-700/80 mt-1">Kurangi alokasi di salah satu kategori.</p>
+                    <p className="text-3xl font-bold text-destructive">{formatCurrency(amount)}</p>
+                    <p className="text-xs text-destructive/80 mt-1">Kurangi alokasi di salah satu kategori.</p>
                 </CardContent>
             </Card>
         )
     }
 
     return (
-        <Card className="w-full md:w-auto bg-blue-50 border-blue-200 shadow-md">
+        <Card className="w-full md:w-auto bg-secondary/10 border-secondary/20 shadow-md">
             <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                <CheckCircle2 className="w-5 h-5 text-blue-700"/>
-                <CardTitle className="text-sm font-semibold text-blue-800">Kerja Bagus!</CardTitle>
+                <CheckCircle2 className="w-5 h-5 text-secondary-text"/>
+                <CardTitle className="text-sm font-semibold text-secondary-text">Kerja Bagus!</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 text-center">
-                <p className="text-3xl font-bold text-blue-600">{formatCurrency(0)}</p>
-                <p className="text-xs text-blue-700/80 mt-1">Semua dana telah dialokasikan.</p>
+                <p className="text-3xl font-bold text-secondary-text">{formatCurrency(0)}</p>
+                <p className="text-xs text-muted-secondary-text mt-1">Semua dana telah dialokasikan.</p>
             </CardContent>
         </Card>
     );
@@ -196,7 +196,7 @@ const BudgetView = () => {
   };
 
   if (isAppDataLoading || !profile || !currentDate) {
-    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
+    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
   }
 
   return (
@@ -219,7 +219,7 @@ const BudgetView = () => {
         />
 
         {isLoading ? (
-             <div className="flex justify-center items-center h-64 bg-white rounded-lg shadow-sm border"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
+             <div className="flex justify-center items-center h-64 bg-card rounded-lg shadow-sm border"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
         ) : (
             <BudgetTable
                 data={budgetData?.categories || []}

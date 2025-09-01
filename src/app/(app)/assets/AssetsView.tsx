@@ -21,7 +21,7 @@ const AssetCard = ({ asset, onNavigate }: { asset: AssetSummary, onNavigate: (as
             <CardHeader>
                 <CardTitle className="flex justify-between items-start">
                     <span className="text-lg font-bold">{asset.name}</span>
-                    <span className={cn("text-xl font-semibold", asset.unrealized_pnl >= 0 ? "text-green-600" : "text-red-600")}>
+                    <span className={cn("text-xl font-semibold", asset.unrealized_pnl >= 0 ? "text-primary" : "text-destructive")}>
                         {formatCurrency(asset.current_value)}
                     </span>
                 </CardTitle>
@@ -38,7 +38,7 @@ const AssetCard = ({ asset, onNavigate }: { asset: AssetSummary, onNavigate: (as
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Unrealized P&L</span>
-                    <span className={cn("font-medium", asset.unrealized_pnl >= 0 ? "text-green-600" : "text-red-600")}>
+                    <span className={cn("font-medium", asset.unrealized_pnl >= 0 ? "text-primary" : "text-destructive")}>
                         {asset.unrealized_pnl >= 0 ? '+' : ''}{formatCurrency(asset.unrealized_pnl)} ({asset.unrealized_pnl_percent.toFixed(2)}%)
                     </span>
                 </div>
@@ -113,7 +113,7 @@ export default function AssetsView() {
     return (
         <>
             <div className="p-6">
-                <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
+                <div className="sticky top-0 z-10 bg-background/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-border flex justify-between items-center">
                     <h1 className="text-3xl font-bold">Manage Assets</h1>
                     <Button onClick={() => handleOpenAccountModal()} className="flex items-center gap-2">
                         <Plus size={20} /> Add New Asset
@@ -132,9 +132,9 @@ export default function AssetsView() {
                     </div>
                 ) : (
                     <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                        <TrendingUp className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-xl font-semibold text-gray-700">No Assets Yet</h3>
-                        <p className="mt-1 text-sm text-gray-500">
+                        <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <h3 className="mt-2 text-xl font-semibold text-foreground">No Assets Yet</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
                             Tambahkan saham, emas, atau investasi lainnya untuk mulai melacak.
                         </p>
                     </div>

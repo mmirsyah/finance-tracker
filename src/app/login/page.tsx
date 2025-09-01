@@ -2,9 +2,9 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
@@ -20,26 +20,31 @@ const GoogleIcon = () => (
   </svg>
 );
 
-
-export default function LoginPage() {
+function LoginComponent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
+    const message = searchParams.get('message');
+    if (message === 'signup_success') {
+      toast.success("Pendaftaran berhasil! Silakan periksa email Anda untuk verifikasi sebelum masuk.");
+      setIsSignUp(false);
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
-
         router.push('/dashboard');
       }
     });
 
     return () => {
-
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [router, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +62,26 @@ export default function LoginPage() {
     setIsLoading(false);
   };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      toast.error(error.message);
+      setIsLoading(false);
+    } else {
+      router.push('/login?message=signup_success');
+    }
+  };
+
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -69,16 +94,17 @@ export default function LoginPage() {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md border">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">Money Management</h1>
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
+          {isSignUp ? 'Buat Akun' : 'Manajemen Keuangan'}
+        </h1>
         
-
         <Button 
           variant="outline" 
           className="w-full mb-4"
           onClick={handleGoogleLogin}
         >
           <GoogleIcon />
-          Sign in with Google
+          {isSignUp ? 'Daftar dengan Google' : 'Masuk dengan Google'}
         </Button>
 
         <div className="relative my-4">
@@ -86,14 +112,13 @@ export default function LoginPage() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-2 text-gray-500">Or continue with</span>
+            <span className="bg-white px-2 text-gray-500">Atau lanjutkan dengan</span>
           </div>
         </div>
 
-
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={isSignUp ? handleSignUp : handleLogin} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email address</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Alamat email</label>
             <input
               id="email"
               type="email"
@@ -101,11 +126,11 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-              placeholder="you@example.com"
+              placeholder="anda@contoh.com"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Your Password</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Kata Sandi Anda</label>
             <input
               id="password"
               type="password"
@@ -118,20 +143,30 @@ export default function LoginPage() {
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sign in
+            {isSignUp ? 'Daftar' : 'Masuk'}
           </Button>
         </form>
         
         <div className="text-center text-sm mt-6">
-          <a href="#" className="font-medium text-primary hover:underline">Forgot your password?</a>
+          <a href="#" className="font-medium text-primary hover:underline">Lupa kata sandi Anda?</a>
         </div>
         <div className="text-center text-sm mt-2">
-          {/* --- PERBAIKAN DI SINI --- */}
-          <span className="text-gray-600">Don&apos;t have an account? </span>
-          {/* --- PERBAIKAN SELESAI --- */}
-          <a href="#" className="font-medium text-primary hover:underline">Sign up</a>
+          <span className="text-gray-600">
+            {isSignUp ? 'Sudah punya akun? ' : "Belum punya akun? "}
+          </span>
+          <a href="#" onClick={(e) => { e.preventDefault(); setIsSignUp(!isSignUp); }} className="font-medium text-primary hover:underline">
+            {isSignUp ? 'Masuk' : 'Daftar'}
+          </a>
         </div>
       </div>
     </div>
   );
 }
+
+export default function LoginPage() {
+    return (
+      <Suspense fallback={<div>Memuat...</div>}>
+        <LoginComponent />
+      </Suspense>
+    )
+  }

@@ -202,6 +202,8 @@ export interface BudgetSummaryItem {
 export interface BudgetCategoryListItem {
   category_id: number;
   category_name: string;
+  parent_id: number | null;
+  type: 'expense' | 'income' | 'transfer';
 }
 
 // --- RECURRING TRANSACTION TYPES ---

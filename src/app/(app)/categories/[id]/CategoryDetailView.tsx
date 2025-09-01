@@ -16,7 +16,7 @@ import { DateRangePicker } from '@/components/DateRangePicker';
 import CategoryModal from '@/components/modals/CategoryModal';
 import { toast } from 'sonner';
 import ReportSkeleton from '@/components/skeletons/ReportSkeleton';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { DonutChart } from '@tremor/react';
 //import { supabase } from '@/lib/supabase';
 
@@ -32,7 +32,10 @@ const StatCard = ({ title, value, change, changeType }: { title: string, value: 
         <CardContent>
             <div className="text-2xl font-bold">{value}</div>
             {change && (
-                <p className={`text-xs ${changeType === 'increase' ? 'text-red-500' : 'text-green-500'}`}>
+                <p className={cn(
+                    "text-xs",
+                    changeType === 'increase' ? 'text-destructive' : 'text-primary'
+                )}>
                     {change} vs periode sebelumnya
                 </p>
             )}

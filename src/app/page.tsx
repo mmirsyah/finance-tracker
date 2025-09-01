@@ -28,7 +28,7 @@ export default function HomePage() {
 
   // Tampilkan halaman loading sederhana selagi proses redirect berjalan di latar belakang
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-gray-100">
+    <div className="flex h-screen w-full items-center justify-center bg-background-dark">
       <p className="text-gray-500 animate-pulse">Loading...</p>
     </div>
   );

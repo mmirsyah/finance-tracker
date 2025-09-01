@@ -53,7 +53,7 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
     globalCategories.find(c => c.id.toString() === value)?.name || "Pilih kategori...";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"

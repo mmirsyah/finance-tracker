@@ -50,10 +50,6 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
 
   useEffect(() => {
     fetchPendingInstances();
-    
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchPendingInstances, 5 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleInstanceClick = (instance: RecurringInstance) => {
@@ -64,7 +60,7 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
 
   const getStatusIcon = (status: string, dueDate: string) => {
     if (status === 'overdue') {
-      return <AlertCircle className="w-4 h-4 text-red-500" />;
+      return <AlertCircle className="w-4 h-4 text-destructive" />;
     }
     
     const today = new Date();
@@ -72,28 +68,28 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
     const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
     if (diffDays <= 0) {
-      return <AlertCircle className="w-4 h-4 text-red-500" />;
+      return <AlertCircle className="w-4 h-4 text-destructive" />;
     } else if (diffDays <= 3) {
       return <Clock className="w-4 h-4 text-yellow-500" />;
     } else {
-      return <Calendar className="w-4 h-4 text-blue-500" />;
+      return <Calendar className="w-4 h-4 text-primary" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'overdue': return 'bg-red-100 text-red-800 border-red-200';
-      case 'upcoming': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'overdue': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'upcoming': return 'bg-primary/10 text-primary border-primary/20';
+      default: return 'bg-muted text-muted-foreground border-border';
     }
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'income': return 'text-green-600';
-      case 'expense': return 'text-red-600';
-      case 'transfer': return 'text-blue-600';
-      default: return 'text-gray-600';
+      case 'expense': return 'text-destructive';
+      case 'transfer': return 'text-primary';
+      default: return 'text-muted-foreground';
     }
   };
 
@@ -153,7 +149,7 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
         </CardHeader>
         <CardContent>
           <div className="text-center py-6">
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            <CheckCircle className="w-12 h-12 text-secondary mx-auto mb-3" />
             <p className="text-gray-600 mb-2">All caught up!</p>
             <p className="text-sm text-gray-500">No pending recurring transactions to confirm.</p>
           </div>
@@ -166,7 +162,7 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="text-base md:text-lg flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             Pending Confirmations
             <Badge variant="outline" className="ml-2">
@@ -186,8 +182,7 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
           {pendingInstances.map((instance) => (
             <div
               key={instance.instance_id}
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors"
-              onClick={() => handleInstanceClick(instance)}
+              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
             >
               <div className="flex-shrink-0">
                 {getStatusIcon(instance.status, instance.due_date)}
@@ -213,7 +208,7 @@ export default function PendingRecurringWidget({ onInstanceClick }: PendingRecur
               </div>
               
               <div className="flex-shrink-0">
-                <Button size="sm" variant="outline" className="text-xs">
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => handleInstanceClick(instance)}>
                   Confirm
                 </Button>
               </div>

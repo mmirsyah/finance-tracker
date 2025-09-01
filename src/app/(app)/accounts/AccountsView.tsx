@@ -39,7 +39,7 @@ const GoalProjection = ({ accountId }: { accountId: string }) => {
     }, [accountId]);
 
     if (isLoading) {
-        return <div className="h-4 w-40 bg-gray-200 rounded animate-pulse mt-1"></div>;
+        return <div className="h-4 w-40 bg-muted rounded animate-pulse mt-1"></div>;
     }
 
     if (projection) {
@@ -64,7 +64,7 @@ const GoalAccountCard = ({ account, onEdit, onDelete, onCelebrate }: { account: 
         : 0;
 
     return (
-        <Card className={cn("flex flex-col", isAchieved && "bg-green-50 border-green-200")}>
+        <Card className={cn("flex flex-col", isAchieved && "bg-primary/10 border-primary/20")}>
             <CardHeader>
                 <div className="flex justify-between items-start gap-4">
                     <CardTitle className="text-lg font-bold">{account.name}</CardTitle>
@@ -75,7 +75,7 @@ const GoalAccountCard = ({ account, onEdit, onDelete, onCelebrate }: { account: 
                 <CardDescription>{account.goal_reason || 'Terus semangat menabung!'}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-                <div className={cn("text-2xl font-bold", isAchieved ? "text-green-600" : "text-primary")}>
+                <div className={cn("text-2xl font-bold text-primary")}>
                     {formatCurrency(currentBalance)}
                 </div>
                 {account.target_amount && account.target_amount > 0 && (
@@ -91,11 +91,11 @@ const GoalAccountCard = ({ account, onEdit, onDelete, onCelebrate }: { account: 
             </CardContent>
             <CardFooter className="flex justify-between items-center mt-auto pt-4 border-t">
                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onDelete(account)}><Trash2 className="h-4 w-4 text-red-500"/></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onDelete(account)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => onEdit(account)}>Edit</Button>
                 </div>
                 {isAchieved && (
-                    <Button type="button" size="sm" onClick={() => onCelebrate(account)} className="bg-green-600 hover:bg-green-700">
+                    <Button type="button" size="sm" onClick={() => onCelebrate(account)}>
                         Rayakan!
                     </Button>
                 )}
@@ -122,9 +122,8 @@ export default function AccountsView() {
     const goals: Account[] = [];
     const generics: Account[] = [];
     accounts.forEach(acc => {
-      // --- PERBAIKAN: Menyembunyikan akun virtual ---
       if (acc.name === 'Modal Awal Aset') {
-        return; // Lewati akun ini
+        return;
       }
       if (acc.type === 'goal') {
         goals.push(acc);
@@ -248,7 +247,7 @@ export default function AccountsView() {
   return (
     <>
       <div className="p-6">
-        <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
+        <div className="sticky top-0 z-10 bg-background/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b flex justify-between items-center">
             <h1 className="text-3xl font-bold">Manage Accounts</h1>
             <Button onClick={handleAddNew} disabled={isAppDataLoading} className="flex items-center gap-2">
             <Plus size={20} /> Add New
@@ -264,26 +263,26 @@ export default function AccountsView() {
                         <Wallet className="w-6 h-6" /> Akun Umum
                     </h2>
                     {genericAccounts.length > 0 ? (
-                        <div className="bg-white rounded-lg shadow overflow-hidden">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                        <div className="bg-card rounded-lg shadow overflow-hidden border">
+                            <table className="min-w-full divide-y divide-border">
+                                <thead className="bg-muted/50">
                                 <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo Saat Ini</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Nama</th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Saldo Saat Ini</th>
                                     <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                                 </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-card divide-y divide-border">
                                 {genericAccounts.map((acc) => (
                                     <tr key={acc.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{acc.name}</td>
-                                    <td className={cn('px-6 py-4 whitespace-nowrap text-sm font-semibold text-right', (acc.balance ?? 0) < 0 ? 'text-red-600' : 'text-gray-900')}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">{acc.name}</td>
+                                    <td className={cn('px-6 py-4 whitespace-nowrap text-sm font-semibold text-right', (acc.balance ?? 0) < 0 ? 'text-destructive' : 'text-foreground')}>
                                         {formatCurrency(acc.balance ?? 0)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex justify-end gap-4">
-                                        <button type="button" onClick={() => handleEdit(acc)} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
-                                        <button type="button" onClick={() => handleDeleteAccount(acc)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(acc)}><Edit className="h-4 w-4 text-primary" /></Button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteAccount(acc)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                         </div>
                                     </td>
                                     </tr>
@@ -292,8 +291,8 @@ export default function AccountsView() {
                             </table>
                         </div>
                     ) : (
-                        <div className="text-center p-6 bg-white rounded-lg shadow">
-                            <p className="text-gray-500">Tidak ada akun umum. Klik &quot;Add New&quot; untuk membuat rekening bank atau dompet digital Anda.</p>
+                        <div className="text-center p-6 bg-card rounded-lg shadow border">
+                            <p className="text-muted-foreground">Tidak ada akun umum. Klik &quot;Add New&quot; untuk membuat rekening bank atau dompet digital Anda.</p>
                         </div>
                     )}
                 </div>

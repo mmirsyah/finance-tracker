@@ -1,5 +1,4 @@
-// src/components/TransactionList.tsx
-"use client";
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -80,7 +79,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       .range(from, to);
 
     if (filters.filterType) query = query.eq('type', filters.filterType);
-    // --- PERBAIKAN: Kembali menggunakan 'category' ---
     if (filters.filterCategory) query = query.eq('category', Number(filters.filterCategory));
     if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
     if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
@@ -152,7 +150,6 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   const renderTransactionDetails = (t: Transaction) => {
     const isFromRecurring = t.note?.includes('(from:)');
     const categoryName = t.categories?.name || 'Uncategorized';
-    // --- PERBAIKAN: Kembali menggunakan 'category' ---
     const categoryId = t.categories?.id || t.category;
 
     if (t.type === 'transfer') {
@@ -160,7 +157,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       const secondaryText = `${t.accounts?.name || '?'} → ${t.to_account?.name || '?'}`;
       return (
         <div className="flex-grow min-w-0">
-          <p className="font-medium text-gray-800 truncate text-sm">{primaryText}</p>
+          <p className="font-medium text-foreground truncate text-sm">{primaryText}</p>
           <p className="text-xs text-muted-foreground truncate">{secondaryText}</p>
         </div>
       );
@@ -170,16 +167,16 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       return (
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-medium text-gray-800 truncate text-sm">{t.note}</p>
+            <p className="font-medium text-foreground truncate text-sm">{t.note}</p>
             {isFromRecurring && (
-              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
+              <span className="text-xs bg-accent text-accent-foreground px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
             )}
           </div>
           <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
             <span>{t.accounts?.name || 'No Account'}</span>
             <span>-</span>
             {categoryId ? (
-                 <Link href={`/categories/${categoryId}`} className="hover:underline text-blue-600" onClick={(e) => e.stopPropagation()}>
+                 <Link href={`/categories/${categoryId}`} className="hover:underline text-primary" onClick={(e) => e.stopPropagation()}>
                     {categoryName}
                  </Link>
             ) : (
@@ -192,7 +189,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       return (
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-medium text-gray-800 truncate text-sm">
+            <p className="font-medium text-foreground truncate text-sm">
                 {categoryId ? (
                     <Link href={`/categories/${categoryId}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
                         {categoryName}
@@ -202,7 +199,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                 )}
             </p>
             {isFromRecurring && (
-              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
+              <span className="text-xs bg-accent text-accent-foreground px-2 py-1 rounded-full flex-shrink-0">Recurring</span>
             )}
           </div>
           <p className="text-xs text-muted-foreground truncate">{t.accounts?.name || 'No Account'}</p>
@@ -212,15 +209,15 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   };
   
   const getAmountColor = (type: string) => { 
-      if (type === 'income') return 'text-green-600'; 
-      if (type === 'expense') return 'text-red-600'; 
-      return 'text-gray-700';
+      if (type === 'income') return 'text-secondary-text'; 
+      if (type === 'expense') return 'text-destructive-text'; 
+      return 'text-muted-foreground';
   };
 
   const groupedTransactions = groupTransactionsByDate(allTransactions);
 
-  if (error) return <div className="text-center p-6 bg-white rounded-lg shadow text-red-500">{error}</div>;
-  if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-white rounded-lg shadow text-gray-500">No transactions found.</div>;
+  if (error) return <div className="text-center p-6 bg-card rounded-lg shadow border text-destructive">{error}</div>;
+  if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-card rounded-lg shadow border text-muted-foreground">No transactions found.</div>;
 
   return (
     <div className="space-y-4">
@@ -229,25 +226,25 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
         const areAllInGroupSelected = groupTransactionIds.every(id => selectedIds.has(id));
 
         return (
-          <div key={group.date} className="bg-white rounded-lg shadow">
-            <header className="flex justify-between items-center p-3 bg-gray-50 border-b">
+          <div key={group.date} className="bg-card rounded-lg shadow border">
+            <header className="flex justify-between items-center p-3 bg-muted/50 border-b border-border">
               <div className="flex items-center gap-3">
                 <Checkbox 
                   checked={areAllInGroupSelected}
                   onCheckedChange={(checked) => handleGroupSelect(groupTransactionIds, !!checked)}
                   aria-label={`Select all transactions for ${group.date}`}
                 />
-                <h3 className="font-semibold text-gray-700">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                <h3 className="font-semibold text-foreground">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
               </div>
-              <span className={`font-bold text-sm ${group.subtotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(group.subtotal)}</span>
+              <span className={cn('font-bold text-sm', group.subtotal >= 0 ? 'text-secondary-text' : 'text-destructive-text')}>{formatCurrency(group.subtotal)}</span>
             </header>
-            <ul className="divide-y divide-gray-200">
+            <ul className="divide-y divide-border">
               {group.transactions.map(t => (
                 <li 
                   key={t.id} 
                   className={cn(
-                    "flex items-center p-3 hover:bg-gray-100 cursor-pointer transition-colors",
-                    editingId === t.id && "bg-blue-100 hover:bg-blue-100"
+                    "flex items-center p-3 hover:bg-muted/50 cursor-pointer transition-colors",
+                    editingId === t.id && "bg-accent"
                   )} 
                   onClick={() => startEdit(t)}
                 >
@@ -275,8 +272,8 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       })}
 
       <div ref={loaderRef} className="flex justify-center items-center p-4 h-10">
-        {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-gray-500" />}
-        {!hasMore && allTransactions.length > 0 && <p className="text-sm text-gray-500">You&apos;ve reached the end.</p>}
+        {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />}
+        {!hasMore && allTransactions.length > 0 && <p className="text-sm text-muted-foreground">You&apos;ve reached the end.</p>}
       </div>
     </div>
   );

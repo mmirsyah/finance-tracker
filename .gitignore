@@ -19,6 +19,7 @@
 *.pem
 *.log
 project-structure.txt
+GEMINI.md
 
 # Local Environment Variables
 # Ignore all .env files
@@ -31,6 +32,8 @@ project-structure.txt
 
 # Supabase
 supabase/.temp
+supabase/functions/.env
+supabase/functions/supabase-test-fixtures--*.ts
 
 # Qodo
 .qodo/

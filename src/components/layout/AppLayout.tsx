@@ -57,19 +57,29 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     setIsTransactionModalOpen(true); 
   }, []);
   
-  const handleOpenModalForEdit = useCallback((transaction: Transaction, actions?: TransactionModalActions) => {
+      const handleOpenModalForEdit = useCallback((transaction: Transaction, actions?: TransactionModalActions) => {
     setEditId(transaction.id);
     setFormType(transaction.type);
     setFormAmount(String(transaction.amount));
-    // --- PERBAIKAN: Membaca dari `category` ---
     setFormCategory(transaction.category?.toString() || '');
-    setFormAccountId(transaction.account_id || '');
+    setFormAccountId(transaction.account_id);
     setFormToAccountId(transaction.to_account_id || '');
     setFormNote(transaction.note || '');
-    setFormDate(transaction.date);
-    setModalActions(actions || {});
+    setFormDate(transaction.date.split('T')[0]);
     setIsTransactionModalOpen(true);
-  }, []);
+    if (actions) setModalActions(actions);
+  }, [
+    setEditId, 
+    setFormType, 
+    setFormAmount, 
+    setFormCategory, 
+    setFormAccountId, 
+    setFormToAccountId, 
+    setFormNote, 
+    setFormDate, 
+    setIsTransactionModalOpen, 
+    setModalActions
+  ]);
 
   const handleCloseModal = useCallback(() => {
     setIsTransactionModalOpen(false);
@@ -132,7 +142,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     const contextValue = { ...initialContext, handleOpenModalForCreate, handleOpenModalForEdit, handleCloseModal, handleOpenImportModal };
     return (
       <AppDataContext.Provider value={contextValue}>
-        <div className="relative h-screen flex overflow-hidden bg-gray-100">
+        <div className="relative h-screen flex overflow-hidden bg-background">
           <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           
           <div className="flex-1 flex flex-col">
@@ -184,10 +194,19 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   return null;
 }
 
+import { SessionContextProvider } from '@supabase/auth-helpers-react';
+import { createClient } from '@/utils/supabase/client';
+
+// ... AppLayoutContent component remains the same ...
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const [supabaseClient] = useState(() => createClient());
+
   return (
-    <AppDataProvider>
-      <AppLayoutContent>{children}</AppLayoutContent>
-    </AppDataProvider>
+    <SessionContextProvider supabaseClient={supabaseClient}>
+      <AppDataProvider>
+        <AppLayoutContent>{children}</AppLayoutContent>
+      </AppDataProvider>
+    </SessionContextProvider>
   );
 }

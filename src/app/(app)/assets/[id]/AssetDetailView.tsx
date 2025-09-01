@@ -108,9 +108,6 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
         asset_account_id: assetSummary.account_id, household_id: householdId, related_transaction_id: financialTx.id
     };
     
-    delete (assetTxPayload as { from_account_id?: string }).from_account_id;
-    delete (assetTxPayload as { to_account_id?: string }).to_account_id;
-
     const promise = assetService.saveAssetTransaction(assetTxPayload).then(() => {
         refetchData();
         setIsTxModalOpen(false);
@@ -160,7 +157,7 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Nilai Saat Ini</CardTitle></CardHeader>
-                <CardContent><p className={cn("text-2xl font-bold", assetSummary.unrealized_pnl >= 0 ? "text-green-600" : "text-red-600")}>{formatCurrency(assetSummary.current_value)}</p></CardContent>
+                <CardContent><p className={cn("text-2xl font-bold", assetSummary.unrealized_pnl >= 0 ? "text-primary" : "text-destructive")}>{formatCurrency(assetSummary.current_value)}</p></CardContent>
             </Card>
             <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Kuantitas</CardTitle></CardHeader>
@@ -172,7 +169,7 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
             </Card>
              <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Keuntungan (Unrealized)</CardTitle></CardHeader>
-                <CardContent><p className={cn("text-2xl font-bold", assetSummary.unrealized_pnl >= 0 ? "text-green-600" : "text-red-600")}>{assetSummary.unrealized_pnl >= 0 ? '+' : ''}{formatCurrency(assetSummary.unrealized_pnl)}</p><p className="text-xs text-muted-foreground">{assetSummary.unrealized_pnl_percent.toFixed(2)}%</p></CardContent>
+                <CardContent><p className={cn("text-2xl font-bold", assetSummary.unrealized_pnl >= 0 ? "text-primary" : "text-destructive")}>{assetSummary.unrealized_pnl >= 0 ? '+' : ''}{formatCurrency(assetSummary.unrealized_pnl)}</p><p className="text-xs text-muted-foreground">{assetSummary.unrealized_pnl_percent.toFixed(2)}%</p></CardContent>
             </Card>
         </div>
 
@@ -200,7 +197,7 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
                   <TableRow key={tx.id}>
                     <TableCell>{format(new Date(tx.transaction_date), 'dd MMM yyyy')}</TableCell>
                     <TableCell>
-                      <span className={cn("capitalize px-2 py-1 text-xs font-semibold rounded-full", tx.transaction_type === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')}>
+                      <span className={cn("capitalize px-2 py-1 text-xs font-semibold rounded-full", tx.transaction_type === 'buy' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive')}>
                         {tx.transaction_type}
                       </span>
                     </TableCell>
@@ -209,7 +206,7 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
                     <TableCell className="text-right">{formatCurrency(tx.quantity * tx.price_per_unit)}</TableCell>
                     <TableCell className="text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteTx(tx)}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                     </TableCell>
                   </TableRow>
@@ -233,7 +230,6 @@ export default function AssetDetailView({ initialAssetAccount, initialTransactio
           onSave={handleSaveTx}
           transaction={editingTx}
           assetName={assetSummary.name}
-          // --- PERBAIKAN: Filter akun virtual di sini juga ---
           accounts={accounts.filter(acc => acc.type === 'generic' && acc.name !== 'Modal Awal Aset')}
         />
       )}

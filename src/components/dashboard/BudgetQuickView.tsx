@@ -65,8 +65,10 @@ const AddPriorityPopover = ({
             setIsLoading(true);
             try {
                 const periodDate = format(dateRange.from, 'yyyy-MM-dd');
-                const data = await getAllBudgetCategoriesForPeriod(periodDate);
-                setAllBudgets(data);
+                const { untracked } = await getAllBudgetCategoriesForPeriod(periodDate);
+                console.log("Untracked categories from API:", untracked);
+                const filteredUntracked = untracked.filter(item => item.category_id !== undefined && item.category_id !== null);
+                setAllBudgets(filteredUntracked);
             } catch {
                 toast.error("Gagal memuat daftar kategori.");
             } finally {
@@ -90,6 +92,18 @@ const AddPriorityPopover = ({
 
     const availableBudgets = allBudgets.filter(b => !existingPriorities.has(b.category_id));
 
+    const buildCategoryTree = (categories: BudgetCategoryListItem[]) => {
+        const parents = categories.filter(cat => cat.parent_id === null);
+        const children = categories.filter(cat => cat.parent_id !== null);
+
+        return parents.map(parent => ({
+            ...parent,
+            subcategories: children.filter(child => child.parent_id === parent.category_id)
+        }));
+    };
+
+    const categoryTree = buildCategoryTree(availableBudgets);
+
     return (
         <Popover open={open} onOpenChange={handleOpenChange}>
             <PopoverTrigger asChild>
@@ -103,15 +117,27 @@ const AddPriorityPopover = ({
                     <CommandList>
                         {isLoading && <div className="p-4 text-sm text-center">Memuat...</div>}
                         <CommandEmpty>Tidak ada kategori ditemukan.</CommandEmpty>
-                        <CommandGroup>
-                            {availableBudgets.map((budget) => (
-                                <CommandItem
-                                    key={budget.category_id}
-                                    value={budget.category_name}
-                                    onSelect={() => handleSelectCategory(budget.category_id)}
-                                >
-                                    {budget.category_name}
-                                </CommandItem>
+                        <CommandGroup key="available-budgets">
+                            {categoryTree.map((parentCategory) => (
+                                <div key={parentCategory.category_id}>
+                                    <CommandItem
+                                        key={parentCategory.category_id}
+                                        value={parentCategory.category_name}
+                                        onSelect={() => handleSelectCategory(parentCategory.category_id)}
+                                    >
+                                        {parentCategory.category_name}
+                                    </CommandItem>
+                                    {parentCategory.subcategories.map((subCategory) => (
+                                        <CommandItem
+                                            key={subCategory.category_id}
+                                            value={subCategory.category_name}
+                                            onSelect={() => handleSelectCategory(subCategory.category_id)}
+                                            className="pl-8"
+                                        >
+                                            {subCategory.category_name}
+                                        </CommandItem>
+                                    ))}
+                                </div>
                             ))}
                         </CommandGroup>
                     </CommandList>
@@ -132,33 +158,45 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchBudgetAndPriorities = useCallback(async () => {
-    if (!dateRange?.from) return;
-    
+    if (!dateRange?.from) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const periodDate = format(dateRange.from, 'yyyy-MM-dd');
-      
-      // Fetch both summary for all categories and the list of priority IDs
-      const [summaryData, priorityIds] = await Promise.all([
+
+      const [{ tracked }, summaryData, priorityIds] = await Promise.all([
+        getAllBudgetCategoriesForPeriod(periodDate),
         getBudgetSummary(periodDate),
-        getBudgetPriorities()
+        getBudgetPriorities(),
       ]);
 
       const priorityIdSet = new Set(priorityIds);
       setPriorities(priorityIdSet);
-      
-      // Filter the summary data locally based on priority IDs
-      if (priorityIdSet.size > 0) {
-        const filteredBudgets = summaryData.filter(item => priorityIdSet.has(item.category_id));
-        setBudgets(filteredBudgets);
-      } else {
-        setBudgets([]); // If no priorities, show nothing
-      }
 
+      const budgetMap = new Map(summaryData.map(item => [item.category_id, item]));
+
+      const enrichedBudgets = tracked
+        .map(cat => {
+          const summary = budgetMap.get(cat.category_id);
+          return {
+            ...cat,
+            ...summary,
+            spent_amount: summary?.spent_amount || 0,
+            assigned_amount: summary?.assigned_amount || 0,
+            progress_percentage: summary?.progress_percentage || 0,
+            remaining_amount: summary?.remaining_amount || 0,
+          };
+        })
+        .filter(b => b.category_id);
+
+      setBudgets(enrichedBudgets);
+      setIsLoading(false);
     } catch (err) {
       console.error(err);
       toast.error('Gagal memuat pantauan budget.');
-    } finally {
       setIsLoading(false);
     }
   }, [dateRange]);
@@ -204,20 +242,21 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
                                 <TooltipTrigger asChild>
                                     <button onClick={() => handleTogglePriority(item.category_id)}>
                                         <Star
-                                            className={cn('w-4 h-4 text-yellow-400 fill-yellow-400 transition-all hover:text-yellow-500')}
+                                            className={cn('w-4 h-4 text-yellow-500 fill-yellow-500 transition-all hover:text-yellow-600')}
                                         />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent><p>Hapus dari Prioritas</p></TooltipContent>
                             </Tooltip>
-                            <span className="font-medium text-gray-700 truncate">{item.category_name}</span>
+                            <span className="font-medium text-foreground truncate">{item.category_name}</span>
                         </div>
-                        <span className={cn('font-semibold flex-shrink-0', isOverspent ? 'text-red-600' : 'text-gray-600')}>
+                        <span className={cn('font-semibold flex-shrink-0', isOverspent ? 'text-destructive' : 'text-muted-foreground')}>
                         {isOverspent ? `Lebih ${formatCurrency(Math.abs(item.remaining_amount))}` : `${formatCurrency(item.remaining_amount)} tersisa`}
                         </span>
                     </div>
-                    <Progress value={progress} className={cn('h-2', progress > 85 && !isOverspent && '[&>div]:bg-yellow-500', isOverspent && '[&>div]:bg-red-600')} />
-                    <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
+                    <Progress value={progress} className={cn('h-2 w-full rounded-full bg-muted  overflow-hidden', 
+                      progress < 75 && !isOverspent && '[&>div]:bg-primary', progress >= 75 && !isOverspent && '[&>div]:bg-warning', isOverspent && '[&>div]:bg-destructive')} />
+                    <div className="flex justify-between items-center mt-1 text-xs text-muted-foreground">
                         <span>{formatCurrency(item.spent_amount)}</span>
                         <span>dari {formatCurrency(item.assigned_amount)}</span>
                     </div>
@@ -230,9 +269,9 @@ export default function BudgetQuickView({ dateRange }: BudgetQuickViewProps) {
   };
 
   return (
-    <Card className="h-full">
+    <Card className="relative">
       <CardHeader className="relative">
-        <CardTitle>Pantauan Budget</CardTitle>
+        <CardTitle className="text-base md:text-lg">Pantauan Budget</CardTitle>
         <CardDescription>
           Kategori budget yang Anda prioritaskan.
         </CardDescription>

@@ -71,7 +71,7 @@ const BudgetingAssistant = ({ category, onApply, currentPeriodStart, onOpenChang
                             data={history.monthly_history}
                             index="month"
                             categories={["Pengeluaran"]}
-                            colors={["blue"]}
+                            colors={["brand"]}
                             valueFormatter={formatCurrency}
                             yAxisWidth={60}
                             showLegend={false}
@@ -198,16 +198,16 @@ const CategoryRow = ({
         }
     };
 
-    const availableColor = category.available >= 0 ? 'text-green-600' : 'text-red-600';
+    const availableColor = category.available >= 0 ? 'text-secondary-text' : 'text-destructive-text';
     const activityDisplay = category.activity > 0 ? formatCurrency(-category.activity) : formatCurrency(0);
     
     const isInputDisabled = isParent && !isFlexMode;
     const unallocatedBalance = parentData?.unallocated_balance;
-    const unallocatedColor = unallocatedBalance !== undefined && unallocatedBalance >= 0 ? 'text-blue-600' : 'text-orange-600';
+    const unallocatedColor = unallocatedBalance !== undefined && unallocatedBalance >= 0 ? 'text-primary' : 'text-destructive';
 
     return (
         <div className={cn("grid grid-cols-10 md:grid-cols-12 gap-x-2 md:gap-x-4 items-start py-3 px-3", 
-            isParent ? "font-semibold bg-gray-50/75" : "border-t", 
+            isParent ? "font-semibold bg-muted/75" : "border-t border-border", 
             isStandalone && "font-medium"
         )}>
             <div className="col-span-4 flex items-start gap-2">
@@ -262,7 +262,7 @@ const CategoryRow = ({
                         <TooltipProvider delayDuration={100}>
                             <Tooltip>
                                 <TooltipTrigger>
-                                    <Repeat className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                    <Repeat className="w-3 h-3 text-primary flex-shrink-0" />
                                 </TooltipTrigger>
                                 <TooltipContent><p>Rollover aktif</p></TooltipContent>
                             </Tooltip>
@@ -272,7 +272,7 @@ const CategoryRow = ({
                 </div>
             </div>
             
-            <div className="hidden md:block md:col-span-2 text-right text-sm text-gray-500">
+            <div className="hidden md:block md:col-span-2 text-right text-sm text-muted-foreground">
                 {formatCurrency(category.rollover)}
             </div>
 
@@ -287,7 +287,7 @@ const CategoryRow = ({
                             onChange={handleInputChange}
                             onFocus={() => { if(!isInputDisabled) setIsAssistantOpen(true) }}
                             disabled={isInputDisabled}
-                            className={cn("h-10 md:h-8 text-right", isInputDisabled ? "bg-gray-100 text-gray-500 border-none" : "bg-blue-50 focus:bg-white")}
+                            className={cn("h-10 md:h-8 text-right", isInputDisabled ? "bg-muted text-muted-foreground border-none" : "bg-card/10 focus:bg-card")}
                         />
                     </PopoverTrigger>
                     {isAssistantOpen && <BudgetingAssistant category={category as BudgetCategoryData} onApply={handleApplyFromAssistant} currentPeriodStart={currentPeriodStart} onOpenChange={setIsAssistantOpen} />}
@@ -379,10 +379,8 @@ export const BudgetTable = ({ data, onAssignmentChange, onRefresh, currentPeriod
     </div>;
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border">
-            {/* === PERBAIKAN DIMULAI DI SINI: bg-gray-50 diubah menjadi bg-white === */}
-            <div className="grid grid-cols-10 md:grid-cols-12 gap-x-2 md:gap-x-4 py-2 px-3 border-b bg-white text-xs font-bold text-gray-600 uppercase sticky top-[65px] z-10">
-            {/* === PERBAIKAN BERAKHIR DI SINI === */}
+        <div className="bg-card rounded-lg shadow-sm border">
+            <div className="grid grid-cols-10 md:grid-cols-12 gap-x-2 md:gap-x-4 py-2 px-3 border-b border-border bg-card text-xs font-bold text-muted-foreground uppercase sticky top-[65px] z-10">
                 <div className="col-span-4 md:col-span-4 text-left">Kategori</div>
                 <div className="hidden md:block md:col-span-2 text-right">Sisa Bulan Lalu</div>
                 <div className="col-span-3 md:col-span-2 text-right">Dialokasikan</div>

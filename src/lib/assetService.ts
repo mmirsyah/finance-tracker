@@ -86,14 +86,13 @@ export const getAssetTransactionByFinancialTxId = async (financialTxId: string):
         .from('asset_transactions')
         .select('*')
         .eq('related_transaction_id', financialTxId)
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single()
 
     if (error) {
-        // An error is expected if no row is found, so we only log unexpected errors.
-        if (error.code !== 'PGRST116') { 
-            console.error('Error fetching related asset transaction:', error);
-        }
-        return null;
+        // An error now would be unexpected (e.g., more than one row found), so we should log it.
+        console.error('Error fetching related asset transaction:', error);
+        return null; // Return null on unexpected error
     }
-    return data;
+    
+    return data; // data will be null if not found, or the single object if found
 };

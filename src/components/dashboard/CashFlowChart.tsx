@@ -1,6 +1,6 @@
-// src/components/dashboard/CashFlowChart.tsx
-"use client";
+'use client';
 
+import { useMemo } from 'react';
 import { useAppData } from "@/contexts/AppDataContext";
 import useSWR from 'swr';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,7 +16,8 @@ import {
     CartesianGrid, 
     Tooltip, 
     Legend, 
-    ResponsiveContainer 
+    ResponsiveContainer,
+    ReferenceLine
 } from 'recharts';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -24,15 +25,13 @@ interface CashFlowChartProps {
     dateRange: DateRange | undefined;
 }
 
-// Tipe data untuk hasil RPC
 type DashboardCashFlowData = {
     period: string;
     pemasukan: number;
-    pengeluaran: number; // Ini adalah angka negatif
+    pengeluaran: number;
     kas_tersedia: number;
 };
 
-// Custom tooltip untuk format yang lebih baik
 interface TooltipProps {
     active?: boolean;
     payload?: Array<{
@@ -43,11 +42,12 @@ interface TooltipProps {
     label?: string;
 }
 
+// Custom tooltip untuk menampilkan nilai format rupiah
 const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
     if (active && payload && payload.length) {
         return (
-            <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                <p className="font-medium text-gray-900 mb-2">{label}</p>
+            <div className="bg-card p-3 border rounded-lg shadow-lg">
+                <p className="font-medium text-foreground mb-2">{label}</p>
                 {payload.map((entry, index: number) => (
                     <p key={index} className="text-sm" style={{ color: entry.color }}>
                         <span className="font-medium">{entry.dataKey}:</span> {formatCurrency(entry.value)}
@@ -59,7 +59,6 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
     return null;
 };
 
-// Custom legend untuk styling yang lebih baik
 interface LegendProps {
     payload?: Array<{
         color: string;
@@ -67,6 +66,7 @@ interface LegendProps {
     }>;
 }
 
+// Custom legend agar lebih rapi
 const CustomLegend = ({ payload }: LegendProps) => {
     if (!payload) return null;
     
@@ -78,7 +78,7 @@ const CustomLegend = ({ payload }: LegendProps) => {
                         className="w-3 h-3 md:w-4 md:h-4 rounded-sm" 
                         style={{ backgroundColor: entry.color }}
                     />
-                    <span className="text-xs md:text-sm text-gray-600 font-medium">
+                    <span className="text-xs md:text-sm text-muted-foreground font-medium">
                         {entry.value}
                     </span>
                 </div>
@@ -90,16 +90,34 @@ const CustomLegend = ({ payload }: LegendProps) => {
 export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
     const { householdId } = useAppData();
     
+    // Hitung endDate efektif → tidak boleh lewat dari hari ini
+    const effectiveEndDate = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (!dateRange?.to) {
+            return today;
+        }
+
+        const selectedTo = new Date(dateRange.to);
+        selectedTo.setHours(0, 0, 0, 0);
+
+        return new Date(Math.min(selectedTo.getTime(), today.getTime()));
+    }, [dateRange?.to]);
+
+    // Fetch data arus kas
     const { data: chartData, isLoading, error } = useSWR(
-        (householdId && dateRange?.from && dateRange.to) ? ['dashboardCashFlow', householdId, dateRange] : null, 
-        () => getDashboardCashFlow(householdId!, dateRange!),
+        (householdId && dateRange?.from) 
+            ? ['dashboardCashFlow', householdId, dateRange.from, effectiveEndDate] 
+            : null, 
+        () => getDashboardCashFlow(householdId!, { from: dateRange!.from!, to: effectiveEndDate }),
         {
             revalidateOnFocus: false,
-            dedupingInterval: 60000, // Cache for 1 minute
+            dedupingInterval: 60000, // cache 1 menit
         }
     );
 
-    // Loading state dengan spinner
+    // Kondisi loading
     if (isLoading) {
         return (
             <Card>
@@ -110,7 +128,7 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
                 <CardContent>
                     <div className="h-80 flex items-center justify-center">
                         <div className="flex flex-col items-center gap-2">
-                            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p className="text-sm text-muted-foreground">Memuat data chart...</p>
                         </div>
                     </div>
@@ -119,7 +137,7 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
         );
     }
 
-    // Error state
+    // Kondisi error
     if (error) {
         return (
             <Card>
@@ -129,7 +147,7 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
                 </CardHeader>
                 <CardContent>
                     <div className="h-80 flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2 text-red-500">
+                        <div className="flex flex-col items-center gap-2 text-destructive">
                             <AlertCircle className="h-8 w-8" />
                             <p className="text-sm">Gagal memuat data chart</p>
                             <p className="text-xs text-muted-foreground">Silakan refresh halaman</p>
@@ -140,7 +158,7 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
         );
     }
 
-    // Empty state
+    // Kondisi data kosong
     if (!chartData || chartData.length === 0) {
         return (
             <Card>
@@ -160,12 +178,18 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
         );
     }
 
-    // Transform data untuk chart
+    // Utility untuk pastikan angka valid
+    const toNumber = (v: unknown) => {
+        const n = Number(String(v ?? 0).replace(/[^0-9.-]+/g, ''));
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    // Transformasi data → pastikan pengeluaran negatif
     const transformedData = chartData.map((item: DashboardCashFlowData) => ({
         period: item.period,
-        'Pemasukan': item.pemasukan,
-        'Pengeluaran': Math.abs(item.pengeluaran), // Tetap positif untuk visualisasi
-        'Kas Tersedia': item.kas_tersedia,
+        Pemasukan: toNumber(item.pemasukan),
+        Pengeluaran: -Math.abs(toNumber(item.pengeluaran)), // selalu negatif
+        'Kas Tersedia': toNumber(item.kas_tersedia),
     }));
 
     return (
@@ -175,76 +199,87 @@ export default function CashFlowChart({ dateRange }: CashFlowChartProps) {
                 <CardDescription className="text-sm">Pergerakan dana harian dan total kas yang tersedia pada periode yang dipilih.</CardDescription>
             </CardHeader>
             <CardContent>
-                {/* Mobile-optimized height: shorter on mobile, taller on desktop */}
                 <div className="h-64 md:h-80 mt-4">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                             data={transformedData}
-                            margin={{
-                                top: 10,
-                                right: 10,
-                                left: 10,
-                                bottom: 5,
-                            }}
+                            margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
                         >
-                            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                            {/* Grid */}
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                            
+                            {/* Sumbu X */}
                             <XAxis 
+                                
                                 dataKey="period" 
+                                axisLine={false}
                                 tick={{ fontSize: 10 }}
-                                tickLine={{ stroke: '#e5e7eb' }}
+                                tickLine={{ stroke: 'oklch(var(--border))' }}
                                 interval="preserveStartEnd"
                                 angle={-45}
                                 textAnchor="end"
                                 height={60}
                             />
+
+                            {/* Sumbu Y → pastikan bisa render negatif */}
                             <YAxis 
+                                domain={[
+                                    (_dataMin: number) => Math.min(0, ...transformedData.map((d: { Pengeluaran: number; }) => d.Pengeluaran)),
+                                    (_dataMax: number) => Math.max(...transformedData.map((d: { Pemasukan: number; 'Kas Tersedia': number; }) => Math.max(d.Pemasukan, d['Kas Tersedia'])))
+                                ]}
+                                axisLine={false}
                                 tick={{ fontSize: 10 }}
-                                tickLine={{ stroke: '#e5e7eb' }}
+                                tickLine={{ stroke: 'oklch(var(--border))' }}
                                 width={60}
                                 tickFormatter={(value) => {
-                                    // Mobile-friendly currency format
-                                    if (value >= 1000000) {
-                                        return `${(value / 1000000).toFixed(1)}M`;
-                                    } else if (value >= 1000) {
-                                        return `${(value / 1000).toFixed(0)}K`;
-                                    }
+                                    const absValue = Math.abs(value as number);
+                                    const sign = value < 0 ? '-' : '';
+                                    if (absValue >= 1000000) return `${sign}${(absValue / 1000000).toFixed(1)}M`;
+                                    if (absValue >= 1000) return `${sign}${(absValue / 1000).toFixed(0)}K`;
                                     return value.toString();
                                 }}
                             />
+
+
+                            {/* Garis nol */}
+                            <ReferenceLine y={0} strokeWidth={1} stroke="oklch(var(--foreground))" label={{ position: 'insideBottom', offset: 10 }} />
+                            
+
+                            {/* Tooltip & Legend */}
                             <Tooltip 
                                 content={<CustomTooltip />}
-                                cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }}
+                                cursor={{ fill: 'oklch(var(--accent))' }}
                             />
                             <Legend 
                                 content={<CustomLegend />}
                                 wrapperStyle={{ paddingTop: '10px' }}
                             />
                             
-                            {/* Bar untuk Pemasukan */}
+                            {/* Bar pemasukan (positif) */}
                             <Bar 
                                 dataKey="Pemasukan" 
-                                fill="#10b981" 
+                                fill="oklch(var(--secondary))" 
                                 name="Pemasukan"
                                 radius={[2, 2, 0, 0]}
                             />
                             
-                            {/* Bar untuk Pengeluaran */}
+                            {/* Bar pengeluaran (negatif → kebawah) */}
                             <Bar 
                                 dataKey="Pengeluaran" 
-                                fill="#ef4444" 
+                                fill="oklch(var(--destructive))" 
                                 name="Pengeluaran"
-                                radius={[2, 2, 0, 0]}
+                                radius={[0, 0, 2, 2]}
                             />
                             
-                            {/* Line untuk Kas Tersedia */}
+                            {/* Garis kas tersedia */}
                             <Line 
                                 type="monotone" 
                                 dataKey="Kas Tersedia" 
-                                stroke="#3b82f6" 
+                                stroke="oklch(var(--primary))" 
                                 strokeWidth={2}
                                 name="Kas Tersedia"
-                                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 3 }}
-                                activeDot={{ r: 5, stroke: '#3b82f6', strokeWidth: 2 }}
+                                dot={{ fill: 'oklch(var(--primary))', strokeWidth: 2, r: 3 }}
+                                activeDot={{ r: 5, stroke: 'oklch(var(--primary))', strokeWidth: 2 }}
                             />
                         </ComposedChart>
                     </ResponsiveContainer>

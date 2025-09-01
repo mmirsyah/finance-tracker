@@ -205,18 +205,43 @@ export const removeBudgetPriority = async (categoryId: number) => {
   }
 };
 
-export const getAllBudgetCategoriesForPeriod = async (
-  period: string
-): Promise<BudgetCategoryListItem[]> => {
+  export const getAllBudgetCategoriesForPeriod = async (
+  _period: string
+): Promise<{
+  tracked: BudgetCategoryListItem[];
+  untracked: BudgetCategoryListItem[];
+}> => {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc('get_all_budget_categories_for_period', {
-    p_ref_date: period,
-  });
+  const { data: categories, error: categoriesError } = await supabase
+    .from('categories')
+    .select('id, name, parent_id, is_archived, type')
+    .eq('type', 'expense');
 
-  if (error) {
-    console.error('Error fetching all budget categories:', error.message);
-    throw new Error('Failed to fetch budget categories.');
+  console.log("Fetched categories from DB:", categories);
+
+  if (categoriesError) {
+    console.error(
+      'Error fetching all categories:',
+      categoriesError.message
+    );
+    throw new Error('Failed to fetch categories.');
   }
 
-  return data as BudgetCategoryListItem[];
+  const activeCategories = categories.filter(cat => !cat.is_archived);
+  console.log("Active categories (not archived):", activeCategories);
+
+  const priorities = await getBudgetPriorities();
+  console.log("Budget Priorities:", priorities);
+
+  const tracked = activeCategories
+    .filter(cat => priorities.includes(cat.id))
+    .map(cat => ({ category_id: cat.id, category_name: cat.name, parent_id: cat.parent_id, type: cat.type }));
+  console.log("Tracked categories:", tracked);
+
+  const untracked = activeCategories
+    .filter(cat => !priorities.includes(cat.id))
+    .map(cat => ({ category_id: cat.id, category_name: cat.name, parent_id: cat.parent_id, type: cat.type }));
+  console.log("Untracked categories:", untracked);
+
+  return { tracked, untracked };
 };

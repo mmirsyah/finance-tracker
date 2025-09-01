@@ -22,9 +22,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
 
   return (
-    <header className="sticky top-0 bg-white/75 backdrop-blur-sm border-b border-gray-200 z-30">
+    <header className="sticky top-0 bg-card backdrop-blur-sm border-b border-background z-30 shadow-md">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <button className="p-2 text-gray-500 hover:text-gray-800" onClick={onMenuClick}>
+        <button className="p-4 text-foreground hover:text-gray-800 hover:bg-gray-200 rounded-full" onClick={onMenuClick}>
           <span className="sr-only">Open/Close sidebar</span>
           <Menu className="w-6 h-6" />
         </button>

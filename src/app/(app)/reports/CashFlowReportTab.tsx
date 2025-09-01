@@ -105,7 +105,7 @@ export default function CashFlowReportTab({ data, isLoading }: CashFlowReportTab
                             data={processedData.formattedChartData}
                             index="period"
                             categories={['Surplus', 'Defisit']}
-                            colors={['emerald', 'rose']}
+                            colors={['secondary', 'destructive']}
                             valueFormatter={formatCurrency}
                             yAxisWidth={80}
                             showAnimation={true}
@@ -118,7 +118,7 @@ export default function CashFlowReportTab({ data, isLoading }: CashFlowReportTab
                             data={processedData.formattedChartData}
                             index="period"
                             categories={['Pemasukan', 'Pengeluaran']}
-                            colors={['emerald', 'rose']}
+                            colors={['secondary', 'destructive']}
                             valueFormatter={formatCurrency}
                             yAxisWidth={80}
                             showAnimation={true}

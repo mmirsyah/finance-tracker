@@ -18,7 +18,7 @@ const SpendingBadge = ({ change }: { change: number | null | undefined }) => {
     const percentage = Math.abs(change).toFixed(2);
 
     return (
-        <Badge color={isPositive ? 'emerald' : 'red'} icon={isPositive ? ArrowDownCircle : ArrowUpCircle}>
+        <Badge color={isPositive ? 'secondary' : 'destructive'} icon={isPositive ? ArrowDownCircle : ArrowUpCircle}>
             {percentage}%
         </Badge>
     );
@@ -98,7 +98,7 @@ export default function ReportSummaryCard({ summary, comparisonData, isLoading, 
                         <Text>dari {formatCurrency(previous_income)}</Text>
                     </Flex>
                     <Flex justifyContent="start" className="space-x-2 mt-4">
-                        <Badge color={incomeChange >= 0 ? 'emerald' : 'red'} icon={incomeChange >= 0 ? ArrowUpCircle : ArrowDownCircle}>
+                        <Badge color={incomeChange >= 0 ? 'secondary' : 'destructive'} icon={incomeChange >= 0 ? ArrowUpCircle : ArrowDownCircle}>
                             {Math.abs(incomeChange).toFixed(2)}%
                         </Badge>
                         <Text>dari periode sebelumnya</Text>
@@ -122,7 +122,7 @@ export default function ReportSummaryCard({ summary, comparisonData, isLoading, 
                         <Text>dari {formatCurrency(previousNet)}</Text>
                     </Flex>
                     <Flex justifyContent="start" className="space-x-2 mt-4">
-                         <Badge color={netChange >= 0 ? 'emerald' : 'red'} icon={netChange >= 0 ? ArrowUpCircle : ArrowDownCircle}>
+                         <Badge color={netChange >= 0 ? 'secondary' : 'destructive'} icon={netChange >= 0 ? ArrowUpCircle : ArrowDownCircle}>
                             {Math.abs(netChange).toFixed(2)}%
                         </Badge>
                         <Text>dari periode sebelumnya</Text>
