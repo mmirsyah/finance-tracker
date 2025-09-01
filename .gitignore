@@ -29,6 +29,8 @@ GEMINI.md
 
 # Database backups
 *.sql
+# ... EXCEPT for the ones in the supabase/migrations/ directory
+!supabase/migrations/
 
 # Supabase
 supabase/.temp
