@@ -30,6 +30,9 @@ export interface Category {
   children?: Category[];
 }
 
+// Tipe khusus untuk penyimpanan di Dexie, menghilangkan properti rekursif
+export type DbCategory = Omit<Category, 'children'>;
+
 // --- TIPE BUDGET BARU ---
 export interface BudgetAssignment {
   id?: number;

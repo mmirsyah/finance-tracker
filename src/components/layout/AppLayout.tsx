@@ -16,7 +16,7 @@ import * as transactionService from '@/lib/transactionService';
 import TransactionModal from '@/components/TransactionModal';
 import ImportTransactionModal from '@/components/modals/ImportTransactionModal';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+
 
 const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -106,26 +106,29 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
       category: formType !== 'transfer' ? Number(formCategory) : null, 
       account_id: formAccountId, 
       to_account_id: formType === 'transfer' ? formToAccountId : null, 
+      // Gabungkan editId ke dalam payload jika ada, pastikan tipenya undefined jika null
+      id: editId || undefined,
     }; 
     
-    const result = await transactionService.saveTransaction(supabase, payload, editId); 
+    // Panggil fungsi saveTransaction dengan satu argumen
+    await transactionService.saveTransaction(payload); 
     
-    if (result) { 
-      if (formType === 'transfer' && formToAccountId) { 
-        const targetAccount = accounts.find(acc => acc.id === formToAccountId); 
-        if (targetAccount && targetAccount.type === 'goal') { 
-          toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); 
-        } else { 
-          toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
-        } 
+    // Logika setelahnya tidak perlu diubah, karena saveTransaction sekarang tidak mengembalikan nilai
+    if (formType === 'transfer' && formToAccountId) { 
+      const targetAccount = accounts.find(acc => acc.id === formToAccountId); 
+      if (targetAccount && targetAccount.type === 'goal') { 
+        toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); 
       } else { 
         toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
-      }
-      setIsTransactionModalOpen(false); 
-      refetchData(); 
-    } 
+      } 
+    } else { 
+      toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
+    }
+    setIsTransactionModalOpen(false); 
+    refetchData(); 
+    
     setIsSaving(false); 
-    return result;
+    return true; // Kembalikan true secara manual untuk menutup modal, dll.
   };
 
   useEffect(() => {

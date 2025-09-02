@@ -1,12 +1,15 @@
-// src/contexts/AppDataContext.tsx
+
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Account, Category, Transaction, Profile, AssetSummary } from '@/types';
 import { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import * as assetService from '@/lib/assetService';
+import { processSyncQueue } from '@/lib/syncService'; // Import sync service
 
 interface AppDataContextType {
   accounts: Account[];
@@ -25,7 +28,6 @@ interface AppDataContextType {
   handleOpenImportModal: () => void;
 }
 
-// This defines the actions that can be passed from a page to the modal
 export interface TransactionModalActions {
     onDelete?: () => void;
     onMakeRecurring?: () => void;
@@ -34,94 +36,141 @@ export interface TransactionModalActions {
 export const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
 export const AppDataProvider = ({ children }: { children: ReactNode }) => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [assets, setAssets] = useState<AssetSummary[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const accounts = useLiveQuery(() => db.accounts.toArray(), []) ?? [];
+  const categories: Category[] = useLiveQuery(() => db.categories.toArray(), []) ?? [];
+  const assets = useLiveQuery(() => db.assets.toArray(), []) ?? [];
+  const transactions = useLiveQuery(() => db.transactions.orderBy('date').reverse().toArray(), []) ?? [];
+
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const isSyncing = useRef(false);
 
-  const fetchData = useCallback(async (currentUser: User, currentProfile: Profile) => {
-    if (!currentProfile.household_id) return;
+  const syncData = useCallback(async (currentUser: User, currentProfile: Profile) => {
+    if (isSyncing.current || !currentProfile.household_id) return;
+    if (!navigator.onLine) {
+      toast.info("You are offline. Data shown may not be up to date.");
+      setIsLoading(false);
+      return;
+    }
+
+    isSyncing.current = true;
+    toast.info("Syncing data...", { duration: 1500 });
+
     try {
-      // Fetch semua data secara paralel
       const [accountsRes, categoriesRes, assetsData, transactionsRes] = await Promise.all([
         supabase.rpc('get_accounts_with_balance', { p_user_id: currentUser.id }),
         supabase.from('categories').select('*').eq('household_id', currentProfile.household_id).order('name'),
         assetService.getAssetSummaries(currentProfile.household_id),
-        // Query untuk transaksi ditambahkan di sini
-        supabase.from('transactions').select('*, categories(name, parent_id)').eq('household_id', currentProfile.household_id).order('date', { ascending: false }).limit(100)
+        supabase.from('transactions').select('*, categories(name, parent_id)').eq('household_id', currentProfile.household_id).order('date', { ascending: false }).limit(500)
       ]);
 
-      // Cek error untuk setiap hasil
       if (accountsRes.error) throw accountsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
       if (transactionsRes.error) throw transactionsRes.error;
-      
-      // Set state dengan data yang sudah diambil
-      setAccounts(accountsRes.data || []);
-      setCategories(categoriesRes.data || []);
-      setAssets(assetsData || []);
-      setTransactions(transactionsRes.data || []);
+
+      await db.transaction('rw', db.accounts, db.categories, db.assets, db.transactions, async () => {
+        await db.accounts.clear();
+        await db.accounts.bulkPut(accountsRes.data || []);
+        await db.categories.clear();
+        await db.categories.bulkPut(categoriesRes.data || []);
+        await db.assets.clear();
+        await db.assets.bulkPut(assetsData || []);
+        await db.transactions.clear();
+        await db.transactions.bulkPut(transactionsRes.data || []);
+      });
+
+      setDataVersion(v => v + 1);
+      toast.success("Data synced successfully!");
 
     } catch (error) {
-      console.error("Error fetching app data:", error);
-      toast.error("Failed to fetch app data.");
+      console.error("Error syncing app data:", error);
+      toast.error("Failed to sync app data.");
+    } finally {
+      isSyncing.current = false;
+      setIsLoading(false);
     }
   }, []);
 
   const refetchData = useCallback(() => {
     if (user && profile) {
-      toast.info("Refreshing data...", { duration: 1500 });
-      fetchData(user, profile);
-      setDataVersion(v => v + 1);
+      syncData(user, profile);
     }
-  }, [user, profile, fetchData]);
+  }, [user, profile, syncData]);
 
   useEffect(() => {
     const initialize = async () => {
-      try {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          setUser(currentUser);
-          const { data: profileData } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-          if (profileData) {
-              setProfile(profileData);
-              setHouseholdId(profileData.household_id);
-              await fetchData(currentUser, profileData);
-          }
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        setUser(currentUser);
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+        if (profileData) {
+          setProfile(profileData);
+          setHouseholdId(profileData.household_id);
+          await syncData(currentUser, profileData);
         }
-      } catch (error) {
-        console.error("Initialization error:", error);
-      } finally {
+      } else {
         setIsLoading(false);
       }
     };
     initialize();
-  }, [fetchData]);
+  }, [syncData]);
 
+  // Efek untuk menangani sinkronisasi otomatis saat kembali online
+  useEffect(() => {
+    // Fungsi untuk menangani saat status online
+    const handleOnline = () => {
+      toast.success("You are back online!");
+      processSyncQueue();
+    };
+
+    // Tambahkan event listener
+    window.addEventListener('online', handleOnline);
+
+    // Jalankan proses antrian sekali saat aplikasi dimuat, jika ada koneksi
+    if (navigator.onLine) {
+      processSyncQueue();
+    }
+
+    // Cleanup: hapus event listener saat komponen dibongkar
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []); // Array dependensi kosong agar hanya berjalan sekali
+
+  // Listener Real-time dinonaktifkan sementara untuk debugging loop offline
+  /*
   useEffect(() => {
     if (!householdId) return;
 
-    const channel = supabase.channel(`household-db-changes-${householdId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => refetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, () => refetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => refetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'asset_transactions' }, () => refetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_templates' }, () => refetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_instances' }, () => refetchData())
-      .subscribe();
+    const channel: RealtimeChannel = supabase.channel(`household-db-changes-${householdId}`)
+      .on('postgres_changes', { event: '*', schema: 'public' },
+        (payload) => {
+        // SOLUSI: Abaikan semua event jika sinkronisasi sedang berlangsung.
+        if (isSyncing.current) {
+          return;
+        }
+        console.log('Database change detected from another source, triggering sync.', payload);
+        refetchData();
+      }
+    ).subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Realtime channel subscribed.');
+      }
+    });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [householdId, refetchData]);
+  */
 
   const value = {
-    accounts, categories, assets, isLoading, user, householdId, profile, dataVersion, refetchData, transactions,
+    accounts, categories, assets, transactions,
+    isLoading: isLoading || (accounts.length === 0 && categories.length === 0),
+    user, householdId, profile, dataVersion, refetchData,
     handleOpenModalForCreate: () => console.warn('handleOpenModalForCreate not implemented'),
     handleOpenModalForEdit: () => console.warn('handleOpenModalForEdit not implemented'),
     handleCloseModal: () => console.warn('handleCloseModal not implemented'),

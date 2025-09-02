@@ -1,10 +1,12 @@
-// src/lib/transactionService.ts
+
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Transaction } from '@/types';
-import { supabase } from './supabase'; // Pastikan supabase diimpor
+import { supabase } from './supabase';
+import { db } from './db'; // Import instance Dexie
+import { v4 as uuidv4 } from 'uuid'; // Import uuid
+import { toast } from 'sonner';
 
-
-
+// Fungsi helper tidak berubah
 async function getHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single();
   return profile?.household_id || null;
@@ -26,30 +28,60 @@ export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
   return data || [];
 }
 
-export async function saveTransaction(supabase: SupabaseClient, payload: Partial<Transaction>, editId: string | null): Promise<Transaction | boolean> {
-  let query;
-  if (editId) {
-    query = supabase.from('transactions').update(payload).eq('id', editId).select().single();
+// --- FUNGSI SAVE TRANSACTION YANG DI REFAKTOR ---
+export async function saveTransaction(payload: Partial<Transaction>): Promise<void> {
+  // Untuk edit, kita asumsikan selalu online untuk saat ini
+  if (payload.id && !String(payload.id).startsWith('temp_')) {
+    const { error } = await supabase.from('transactions').update(payload).eq('id', payload.id);
+    if (error) {
+      toast.error(`Failed to update transaction: ${error.message}`);
+      throw error;
+    }
+    toast.success("Transaction updated successfully!");
+    return;
+  }
+
+  // Logika untuk Tambah Baru atau Edit item offline
+  if (navigator.onLine) {
+    // --- ONLINE ---
+    const payloadWithoutId = { ...payload };
+    delete payloadWithoutId.id; // Hapus id sementara secara eksplisit
+    const { data, error } = await supabase.from('transactions').insert([payloadWithoutId]).select().single();
+    if (error) {
+      toast.error(`Failed to save transaction: ${error.message}`);
+      throw error;
+    }
+    toast.success("Transaction saved successfully!");
+    // Perbarui data di Dexie juga agar konsisten
+    await db.transactions.put(data as Transaction);
+
   } else {
-    query = supabase.from('transactions').insert([payload]).select().single();
+    // --- OFFLINE ---
+    const tempId = payload.id || `temp_${uuidv4()}`;
+    const transactionWithTempId = { ...payload, id: tempId, created_at: new Date().toISOString() } as Transaction;
+
+    try {
+      // Simpan ke Dexie untuk pembaruan UI optimis
+      await db.transactions.put(transactionWithTempId);
+
+      // Tambahkan ke antrian sinkronisasi
+      await db.syncQueue.add({
+        type: 'transaction_add',
+        payload: transactionWithTempId,
+        timestamp: Date.now(),
+      });
+
+      toast.info("You are offline. Transaction saved locally and will sync later.");
+    } catch (e) {
+      toast.error("Failed to save transaction locally.");
+      console.error(e);
+    }
   }
-  const { data, error } = await query;
-  if (error) {
-    console.error("RAW SAVE TRANSACTION ERROR:", JSON.stringify(error, null, 2));
-    alert(`Failed to save transaction: ${error.message}`);
-    return false;
-  }
-  return data as Transaction;
 }
 
-/**
- * ====================================================================
- * FUNGSI BARU DITAMBAHKAN DI SINI UNTUK DIAGNOSTIK
- * ====================================================================
- * Mengambil semua transaksi 'expense' dalam rentang tanggal tertentu.
- */
+// Fungsi lain tidak berubah untuk saat ini...
 export const getExpensesByPeriod = async (
-  supabase: SupabaseClient, // Menambahkan supabase sebagai argumen agar konsisten
+  supabase: SupabaseClient,
   household_id: string,
   period_start: string,
   period_end: string
@@ -70,11 +102,6 @@ export const getExpensesByPeriod = async (
   return data || [];
 };
 
-/**
- * ====================================================================
- * FUNGSI BARU: Untuk mengubah kategori transaksi secara massal
- * ====================================================================
- */
 export const bulkUpdateCategory = async (transactionIds: string[], newCategoryId: number) => {
     const { data, error } = await supabase.rpc('bulk_update_transaction_category', {
         transaction_ids: transactionIds,
@@ -86,5 +113,5 @@ export const bulkUpdateCategory = async (transactionIds: string[], newCategoryId
         throw new Error(error.message);
     }
 
-    return data; // Mengembalikan jumlah yang diupdate
+    return data;
 };

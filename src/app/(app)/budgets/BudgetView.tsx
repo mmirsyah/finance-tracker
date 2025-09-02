@@ -122,7 +122,7 @@ const BudgetView = () => {
     if (currentDate) {
         fetchAllBudgetData();
     }
-  }, [fetchAllBudgetData, dataVersion]);
+  }, [fetchAllBudgetData, dataVersion, currentDate]);
 
   const handlePeriodChange = (newDate: Date) => {
     setCurrentDate(newDate);
