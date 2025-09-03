@@ -177,6 +177,11 @@ function TransactionForm({
     return activeCategories;
   }, [categories, type, editId, category]);
 
+  const standardAccounts = useMemo(() => 
+    accounts.filter(acc => acc.type !== 'asset' && acc.type !== 'goal'),
+    [accounts]
+  );
+
   const handleValidationAndSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -289,7 +294,7 @@ function TransactionForm({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
                 <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-800" required disabled={editId !== null}>
                   <option value="" disabled>Select an account</option>
-                  {accounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
+                  {standardAccounts.map((acc) => (<option key={acc.id} value={acc.id}>{acc.name}</option>))}
                 </select>
               </div>
             </>
