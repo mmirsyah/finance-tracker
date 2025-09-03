@@ -6,6 +6,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   skipWaiting: true,
     workboxOptions: {
     disableDevLogs: true,
+    importScripts: ['/push-worker.js'], // Impor skrip push worker kita
   },
   runtimeCaching: [
     // Aturan untuk halaman (navigasi)

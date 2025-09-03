@@ -28,6 +28,52 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [periodStartDay, setPeriodStartDay] = useState<number>(1);
   const [periodInput, setPeriodInput] = useState<string>('1');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+
+  // Fungsi untuk mengubah VAPID key dari URL-safe base64 ke Uint8Array
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  const handleSubscribe = async () => {
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+      console.error('VAPID Public Key is not defined. Please set NEXT_PUBLIC_VAPID_PUBLIC_KEY in your .env.local file.');
+      toast.error('Notification configuration is missing on the server.');
+      return;
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      toast.error('Service Worker not supported.');
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    });
+
+    const { error } = await supabase.functions.invoke('save-subscription', {
+      body: subscription,
+    });
+
+    if (error) {
+      toast.error('Failed to save subscription.');
+      console.error(error);
+    } else {
+      toast.success('Notifications enabled!');
+      setIsSubscribed(true);
+    }
+  };
 
   const fetchHouseholdData = useCallback(async (householdId: string) => {
     const { data, error } = await supabase
@@ -69,6 +115,17 @@ export default function SettingsPage() {
       setLoading(false);
     };
     fetchUserAndProfile();
+
+    // Cek status langganan notifikasi saat komponen dimuat
+    navigator.serviceWorker.ready.then(registration => {
+      registration.pushManager.getSubscription().then(subscription => {
+        if (subscription) {
+          setIsSubscribed(true);
+        }
+        setIsSubscriptionLoading(false);
+      });
+    });
+
   }, [router, fetchHouseholdData]);
   
   const handlePeriodInputBlur = () => {
@@ -180,8 +237,26 @@ export default function SettingsPage() {
           </div>
         </form>
       </div>
-      
-      {/* Kartu Household Management dan Change Password tidak berubah */}
+
+      {/* Kartu Notifikasi Push */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Notifications</h2>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Enable push notifications to receive updates from your household members.
+          </p>
+          <div className="flex items-center justify-start">
+            <button 
+              onClick={handleSubscribe}
+              disabled={isSubscribed || isSubscriptionLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-48 disabled:bg-blue-400 disabled:cursor-not-allowed"
+            >
+              {isSubscriptionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isSubscribed ? 'Notifications Enabled' : 'Enable Notifications')}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Household Management</h2>
         <div className="mb-6"><h3 className="text-lg font-medium mb-2">Current Members</h3><ul className="space-y-2">{householdMembers.map(member => (<li key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md"><span className="text-gray-700">{member.full_name || 'Unnamed User'}</span></li>))}</ul></div>
