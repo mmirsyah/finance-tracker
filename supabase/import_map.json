@@ -1,6 +1,7 @@
 {
   "imports": {
     "supabase": "https://esm.sh/@supabase/supabase-js@2",
-    "cors": "./functions/_shared/cors.ts"
+    "cors": "./functions/_shared/cors.ts",
+    "@negrel/webpush@^0.5.0": "https://esm.sh/@negrel/webpush@0.5.0"
   }
 }

@@ -1,9 +1,9 @@
 // supabase/functions/tsconfig.json
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "ES2022",
     "module": "esnext",
-    "lib": ["esnext", "deno.ns", "deno.unstable"],
+    "lib": ["esnext", "ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
