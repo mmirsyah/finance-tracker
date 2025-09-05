@@ -4,7 +4,7 @@ import { Category, Account, Transaction, AssetTransaction } from "@/types";
 import { useMemo, useState, useEffect } from "react";
 import { CategoryCombobox } from "./CategoryCombobox";
 import { Loader2 } from "lucide-react";
-import { useMediaQuery } from '@/hooks/use-media-query';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

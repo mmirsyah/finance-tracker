@@ -17,7 +17,7 @@ import { format } from 'date-fns';
 import AssetTransactionModal from '@/components/modals/AssetTransactionModal';
 import AccountModal from '@/components/modals/AccountModal';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 
 interface AssetDetailViewProps {
   initialAssetAccount: Account;
@@ -27,6 +27,7 @@ interface AssetDetailViewProps {
 export default function AssetDetailView({ initialAssetAccount, initialTransactions }: AssetDetailViewProps) {
   const router = useRouter();
   const { assets, accounts, householdId, user, refetchData, dataVersion } = useAppData();
+  const supabase = createClient();
   
   const [transactions, setTransactions] = useState(initialTransactions);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);

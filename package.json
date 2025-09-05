@@ -2,6 +2,7 @@
   "name": "finance-tracker",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -44,6 +45,7 @@
     "date-fns": "^4.1.0",
     "dexie": "^4.2.0",
     "dexie-react-hooks": "^4.2.0",
+    "framer-motion": "^12.23.12",
     "lucide-react": "^0.536.0",
     "next": "^15.5.2",
     "nextjs-toploader": "^3.8.16",

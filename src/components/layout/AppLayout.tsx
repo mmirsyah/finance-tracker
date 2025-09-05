@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import BottomNavigation from './BottomNavigation';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { AppDataContext, AppDataProvider, useAppData, TransactionModalActions } from '@/contexts/AppDataContext';
 import { Plus, PlusSquare, Upload } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
@@ -21,6 +23,7 @@ import { toast } from 'sonner';
 const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const isDesktop = useIsDesktop();
   
   const initialContext = useAppData();
   const { isLoading, user, refetchData, accounts, categories, householdId } = initialContext;
@@ -146,15 +149,27 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     return (
       <AppDataContext.Provider value={contextValue}>
         <div className="relative h-screen flex overflow-hidden bg-background">
-          <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+          {/* Desktop Sidebar */}
+          {isDesktop && <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />}
           
           <div className="flex-1 flex flex-col">
             <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-            <main className="flex-1 overflow-y-auto">{children}</main>
+            <main className={cn(
+              "flex-1 overflow-y-auto",
+              !isDesktop && "pb-24" // Add bottom padding for mobile navigation
+            )}>
+              {children}
+            </main>
           </div>
 
-          <div className="sm:hidden fixed bottom-6 right-6 z-40 flex flex-col items-center gap-3">
-              <div className={cn("flex flex-col items-center gap-3 transition-all duration-300 ease-in-out", isFabOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none")}>
+          {/* Mobile Bottom Navigation */}
+          {!isDesktop && <BottomNavigation />}
+
+          {/* FAB - positioned differently for desktop and mobile */}
+          {!isDesktop && (
+            /* Mobile FAB - centered above bottom navigation */
+            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center gap-3">
+              <div className={cn("flex flex-row items-center gap-3 transition-all duration-300 ease-in-out", isFabOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none")}>
                   <Button variant="secondary" className="rounded-full h-12 w-12 shadow-lg" aria-label="Import from CSV" onClick={() => { handleOpenImportModal(); setIsFabOpen(false); }}>
                       <Upload size={20} />
                   </Button>
@@ -168,7 +183,8 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
               <Button onClick={() => setIsFabOpen(!isFabOpen)} className={cn("bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-4 h-16 w-16 shadow-lg transition-transform duration-300 ease-in-out", isFabOpen && "rotate-45 bg-destructive hover:bg-destructive/90")} aria-label="Add Transaction Menu">
                 <Plus size={28} />
               </Button>
-          </div>
+            </div>
+          )}
           
           <TransactionModal 
             isOpen={isTransactionModalOpen} 

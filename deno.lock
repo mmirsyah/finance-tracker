@@ -8200,6 +8200,7 @@
         "npm:eslint-plugin-react-hooks@^5.2.0",
         "npm:eslint-plugin-react@^7.37.5",
         "npm:eslint@9",
+        "npm:framer-motion@^12.23.12",
         "npm:jest-environment-jsdom@^30.1.1",
         "npm:jest@^30.1.1",
         "npm:lucide-react@0.536",

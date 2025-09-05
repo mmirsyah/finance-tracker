@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import CategoryModal from '@/components/modals/CategoryModal';
 import { toast } from 'sonner';
 import * as categoryService from '@/lib/categoryService';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { cn } from '@/lib/utils';
 import TableSkeleton from '@/components/skeletons/TableSkeleton';
 import { Switch } from '@/components/ui/switch';
@@ -156,6 +156,7 @@ export default function CategoriesPage() {
             return toast.error("Tidak bisa menghapus kategori induk. Harap arsipkan atau hapus semua sub-kategorinya terlebih dahulu.");
         }
         
+        const supabase = createClient();
         const { count } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('category', category.id);
         if ((count || 0) > 0) {
             return toast.error("Kategori ini memiliki transaksi. Harap arsipkan saja jika sudah tidak digunakan.");
