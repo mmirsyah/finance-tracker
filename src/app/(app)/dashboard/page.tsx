@@ -61,20 +61,31 @@ function Dashboard() {
           <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
         </div>
         <div className="grid grid-cols-12 gap-6">
+          {/* PRIORITAS 1 & 2 (Mobile): Ringkasan Anggaran & Aksi Mendesak.
+              Di desktop, kita letakkan keduanya berdampingan di baris pertama.
+          */}
+          <div className="col-span-12 lg:col-span-7 budget-quick-view">
+            <BudgetQuickView dateRange={date} />
+          </div>
+          <div className="col-span-12 lg:col-span-5 pending-recurring">
+            <PendingRecurringWidget onInstanceClick={handleInstanceClick} />
+          </div>
+
+          {/* PRIORITAS 3 (Mobile): Transaksi Terbaru.
+              Di desktop, kita berikan lebar penuh agar tabel mudah dibaca.
+          */}
+          <div className="col-span-12 recent-transactions">
+            <RecentTransactions />
+          </div>
+
+          {/* PRIORITAS 4 & 5 (Mobile): Grafik dan Analisis.
+              Di desktop, keduanya berbagi tempat di baris terakhir, seperti sebelumnya.
+          */}
           <div className="col-span-12 lg:col-span-8 cash-flow-chart">
             <CashFlowChart dateRange={date} />
           </div>
           <div className="col-span-12 lg:col-span-4 spending-by-category">
             <SpendingByCategory dateRange={date} />
-          </div>
-          <div className="col-span-12 lg:col-span-6 recent-transactions">
-            <RecentTransactions />
-          </div>
-          <div className="col-span-12 lg:col-span-6 budget-quick-view">
-            <BudgetQuickView dateRange={date} />
-          </div>
-          <div className="col-span-12 pending-recurring">
-            <PendingRecurringWidget onInstanceClick={handleInstanceClick} />
           </div>
         </div>
       </div>
