@@ -12,8 +12,9 @@ import { Plus, PlusSquare, Upload } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Transaction } from '@/types';
+import { Transaction, AssetTransaction } from '@/types';
 import * as transactionService from '@/lib/transactionService';
+import { saveAssetTransaction } from '@/lib/assetService';
 
 import TransactionModal from '@/components/TransactionModal';
 import ImportTransactionModal from '@/components/modals/ImportTransactionModal';
@@ -71,18 +72,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     setFormDate(transaction.date.split('T')[0]);
     setIsTransactionModalOpen(true);
     if (actions) setModalActions(actions);
-  }, [
-    setEditId, 
-    setFormType, 
-    setFormAmount, 
-    setFormCategory, 
-    setFormAccountId, 
-    setFormToAccountId, 
-    setFormNote, 
-    setFormDate, 
-    setIsTransactionModalOpen, 
-    setModalActions
-  ]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsTransactionModalOpen(false);
@@ -91,47 +81,57 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
   const handleOpenImportModal = useCallback(() => setIsImportModalOpen(true), []);
 
-  const handleSaveTransaction = async () => { 
-    setIsSaving(true); 
-    if (!user || !householdId) { 
-      toast.error('User session not found.'); 
-      setIsSaving(false); 
-      return false; 
-    } 
-
-    const payload: Partial<Transaction> = { 
-      type: formType, 
-      amount: Number(formAmount), 
-      note: formNote || null, 
-      date: formDate, 
-      user_id: user.id, 
-      household_id: householdId, 
-      category: formType !== 'transfer' ? Number(formCategory) : null, 
-      account_id: formAccountId, 
-      to_account_id: formType === 'transfer' ? formToAccountId : null, 
-      // Gabungkan editId ke dalam payload jika ada, pastikan tipenya undefined jika null
-      id: editId || undefined,
-    }; 
-    
-    // Panggil fungsi saveTransaction dengan satu argumen
-    await transactionService.saveTransaction(payload); 
-    
-    // Logika setelahnya tidak perlu diubah, karena saveTransaction sekarang tidak mengembalikan nilai
-    if (formType === 'transfer' && formToAccountId) { 
-      const targetAccount = accounts.find(acc => acc.id === formToAccountId); 
-      if (targetAccount && targetAccount.type === 'goal') { 
-        toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`); 
-      } else { 
-        toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
-      } 
-    } else { 
-      toast.success(editId ? 'Transaction updated!' : 'Transaction saved!'); 
+  const handleSaveTransaction = async (isAssetMode?: boolean, assetPayload?: Partial<AssetTransaction>): Promise<Transaction | boolean> => {
+    setIsSaving(true);
+    if (!user || !householdId) {
+        toast.error('User session not found.');
+        setIsSaving(false);
+        return false;
     }
-    setIsTransactionModalOpen(false); 
-    refetchData(); 
-    
-    setIsSaving(false); 
-    return true; // Kembalikan true secara manual untuk menutup modal, dll.
+
+    const transactionData: Partial<Transaction> = {
+        type: formType,
+        amount: Number(formAmount),
+        note: formNote || null,
+        date: formDate,
+        user_id: user.id,
+        household_id: householdId,
+        category: formType !== 'transfer' ? Number(formCategory) : null,
+        account_id: formAccountId,
+        to_account_id: formType === 'transfer' ? formToAccountId : null,
+        id: editId || undefined,
+    };
+
+    try {
+        const savedTransaction = await transactionService.saveTransaction(transactionData);
+
+        // Jika ini transaksi aset, simpan data asetnya sekarang
+        if (isAssetMode && assetPayload && savedTransaction) {
+            assetPayload.related_transaction_id = savedTransaction.id;
+            await saveAssetTransaction(assetPayload);
+        }
+
+        if (formType === 'transfer' && formToAccountId) {
+            const targetAccount = accounts.find(acc => acc.id === formToAccountId);
+            if (targetAccount?.type === 'goal') {
+                toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`);
+            } else {
+                toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
+            }
+        } else {
+            toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
+        }
+
+        setIsTransactionModalOpen(false);
+        refetchData();
+        setIsSaving(false);
+        return savedTransaction;
+    } catch (err) {
+        // toast error sudah ditangani di dalam service, cukup log di sini
+        console.error("Error during save process:", err);
+        setIsSaving(false);
+        return false;
+    }
   };
 
   useEffect(() => {
@@ -215,8 +215,6 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
 import { SessionContextProvider } from '@supabase/auth-helpers-react';
 import { createClient } from '@/utils/supabase/client';
-
-// ... AppLayoutContent component remains the same ...
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [supabaseClient] = useState(() => createClient());

@@ -1,3 +1,8 @@
+-- Description: Reverts the trigger function to a correct implementation to fix http_post error.
+-- Ensure required extensions are enabled
+CREATE EXTENSION IF NOT EXISTS http WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
+
 -- 1️⃣ Create the trigger function (Correct Implementation for Production)
 CREATE OR REPLACE FUNCTION public.notify_on_new_transaction()
 RETURNS TRIGGER

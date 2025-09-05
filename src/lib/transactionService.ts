@@ -1,3 +1,4 @@
+// src/lib/transactionService.ts
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Transaction } from '@/types';
@@ -28,17 +29,16 @@ export async function fetchAccounts(supabase: SupabaseClient, userId: string) {
   return data || [];
 }
 
-// --- FUNGSI SAVE TRANSACTION YANG DI REFAKTOR ---
-export async function saveTransaction(payload: Partial<Transaction>): Promise<void> {
+// --- FUNGSI SAVE TRANSACTION YANG DIPERBARUI ---
+export async function saveTransaction(payload: Partial<Transaction>): Promise<Transaction> {
   // Untuk edit, kita asumsikan selalu online untuk saat ini
   if (payload.id && !String(payload.id).startsWith('temp_')) {
-    const { error } = await supabase.from('transactions').update(payload).eq('id', payload.id);
+    const { data, error } = await supabase.from('transactions').update(payload).eq('id', payload.id).select().single();
     if (error) {
       toast.error(`Failed to update transaction: ${error.message}`);
       throw error;
     }
-    toast.success("Transaction updated successfully!");
-    return;
+    return data as Transaction;
   }
 
   // Logika untuk Tambah Baru atau Edit item offline
@@ -51,9 +51,9 @@ export async function saveTransaction(payload: Partial<Transaction>): Promise<vo
       toast.error(`Failed to save transaction: ${error.message}`);
       throw error;
     }
-    toast.success("Transaction saved successfully!");
     // Perbarui data di Dexie juga agar konsisten
     await db.transactions.put(data as Transaction);
+    return data as Transaction;
 
   } else {
     // --- OFFLINE ---
@@ -72,9 +72,11 @@ export async function saveTransaction(payload: Partial<Transaction>): Promise<vo
       });
 
       toast.info("You are offline. Transaction saved locally and will sync later.");
+      return transactionWithTempId;
     } catch (e) {
       toast.error("Failed to save transaction locally.");
       console.error(e);
+      throw e;
     }
   }
 }
