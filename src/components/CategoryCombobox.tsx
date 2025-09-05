@@ -22,6 +22,8 @@ import {
 import { Category } from "@/types";
 import { useAppData } from "@/contexts/AppDataContext"; // Import context
 
+import DynamicIcon from "./DynamicIcon";
+
 interface CategoryComboboxProps {
   allCategories: Category[]; // Ini akan menjadi daftar yang sudah difilter
   value: string;
@@ -48,9 +50,7 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
     return grouped;
   }, [allCategories]);
 
-  // Logika baru: Cari nama dari daftar global untuk memastikan kategori arsip tetap tampil
-  const selectedCategoryName = 
-    globalCategories.find(c => c.id.toString() === value)?.name || "Pilih kategori...";
+  const selectedCategory = globalCategories.find(c => c.id.toString() === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -61,7 +61,10 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
-          <span className="truncate">{selectedCategoryName}</span>
+          <div className="flex items-center gap-2">
+            {selectedCategory?.icon && <DynamicIcon name={selectedCategory.icon} className="h-4 w-4" />}
+            <span className="truncate">{selectedCategory?.name || "Pilih kategori..."}</span>
+          </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -88,6 +91,7 @@ export function CategoryCombobox({ allCategories, value, onChange }: CategoryCom
                         value === category.id.toString() ? "opacity-100" : "opacity-0"
                       )}
                     />
+                    {category.icon && <DynamicIcon name={category.icon} className="mr-2 h-4 w-4" />}
                     {category.name}
                   </CommandItem>
                 ))}

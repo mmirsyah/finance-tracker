@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { Category } from '@/types';
 import toast from 'react-hot-toast';
 
+import IconPicker from '../IconPicker';
+
 type CategoryType = 'income' | 'expense';
 
 interface CategoryModalProps {
@@ -19,16 +21,19 @@ export default function CategoryModal({ isOpen, onClose, onSave, category, paren
   const [name, setName] = useState('');
   const [type, setType] = useState<CategoryType>('expense');
   const [parentId, setParentId] = useState<number | null>(null);
+  const [icon, setIcon] = useState('');
 
   useEffect(() => {
     if (category) {
       setName(category.name || '');
       setType(category.type as CategoryType);
       setParentId(category.parent_id || null);
+      setIcon(category.icon || '');
     } else {
       setName('');
       setType('expense');
       setParentId(null);
+      setIcon('');
     }
   }, [category, isOpen]);
 
@@ -37,7 +42,7 @@ export default function CategoryModal({ isOpen, onClose, onSave, category, paren
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return toast.error('Category name is required.');
-    onSave({ id: category?.id, name, type, parent_id: parentId });
+    onSave({ id: category?.id, name, type, parent_id: parentId, icon });
   };
 
   return (
@@ -49,6 +54,10 @@ export default function CategoryModal({ isOpen, onClose, onSave, category, paren
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
               <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required />
+            </div>
+            <div>
+              <label htmlFor="icon" className="block text-sm font-medium text-gray-700">Icon</label>
+              <IconPicker value={icon} onChange={setIcon} />
             </div>
             <div>
               <label htmlFor="type" className="block text-sm font-medium text-gray-700">Type</label>

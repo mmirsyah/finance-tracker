@@ -27,6 +27,7 @@ export interface Category {
   parent_id: number | null;
   is_archived: boolean;
   is_rollover: boolean;
+  icon?: string;
   children?: Category[];
 }
 

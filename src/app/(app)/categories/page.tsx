@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import TableSkeleton from '@/components/skeletons/TableSkeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import DynamicIcon from '@/components/DynamicIcon';
 
 const CategoryRow = ({ 
     category, 
@@ -46,7 +47,8 @@ const CategoryRow = ({
                             </Button>
                         </CollapsibleTrigger>
                     )}
-                    <button onClick={() => onNavigate(category.id)} className={cn("text-left", !(category.children && category.children.length > 0) && "ml-12")}>
+                    <button onClick={() => onNavigate(category.id)} className={cn("flex items-center gap-3 text-left", !(category.children && category.children.length > 0) && "ml-12")}>
+                      {category.icon && <DynamicIcon name={category.icon} className="h-5 w-5 text-gray-700" />}
                       <p className="font-medium">{category.name}</p>
                     </button>
                 </div>
@@ -70,7 +72,8 @@ const CategoryRow = ({
                     <div className="pl-12 border-l ml-6">
                         {category.children.map(child => (
                            <div key={child.id} className={cn("flex items-center justify-between p-3 hover:bg-gray-50 border-b last:border-b-0", child.is_archived && "bg-gray-100 opacity-60")}>
-                               <button onClick={() => onNavigate(child.id)} className="text-left">
+                               <button onClick={() => onNavigate(child.id)} className="flex items-center gap-3 text-left">
+                                  {child.icon && <DynamicIcon name={child.icon} className="h-5 w-5 text-gray-600" />}
                                   <p className="font-medium text-gray-700">{child.name}</p>
                                </button>
                                <div className="flex items-center gap-2">
