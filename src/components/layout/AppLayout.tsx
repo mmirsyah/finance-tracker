@@ -1,24 +1,22 @@
 // src/components/layout/AppLayout.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import BottomNavigation from './BottomNavigation';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
-import { AppDataContext, AppDataProvider, useAppData, TransactionModalActions } from '@/contexts/AppDataContext';
+import { AppDataContext, AppDataProvider, useAppData } from '@/contexts/AppDataContext';
+import { useTransactionModal } from '@/hooks/useTransactionModal'; // Added hook
 import { Plus, PlusSquare, Upload } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Transaction, AssetTransaction } from '@/types';
-import * as transactionService from '@/lib/transactionService';
-import { saveAssetTransaction } from '@/lib/assetService';
 
-import TransactionModal from '@/components/TransactionModal';
+// Import the new wrapper modal
+import TransactionModal from '@/components/transaction/TransactionModal';
 import ImportTransactionModal from '@/components/modals/ImportTransactionModal';
-import { toast } from 'sonner';
 
 
 const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
@@ -27,111 +25,23 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const isDesktop = useIsDesktop();
   
   const initialContext = useAppData();
-  const { isLoading, user, refetchData, accounts, categories, householdId } = initialContext;
+  const { isLoading, user } = initialContext;
   
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  // All modal logic is now encapsulated in the hook
+  const transactionModal = useTransactionModal();
+  
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
 
-  const [isSaving, setIsSaving] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [formType, setFormType] = useState<Transaction['type']>('expense');
-  const [formAmount, setFormAmount] = useState('');
-  const [formCategory, setFormCategory] = useState('');
-  const [formAccountId, setFormAccountId] = useState('');
-  const [formToAccountId, setFormToAccountId] = useState('');
-  const [formNote, setFormNote] = useState('');
-  const [formDate, setFormDate] = useState('');
-  const [modalActions, setModalActions] = useState<TransactionModalActions>({});
-
-  const filteredAccountsForModal = useMemo(() => {
-    return accounts.filter(acc => acc.name !== 'Modal Awal Aset');
-  }, [accounts]);
-
-  const handleOpenModalForCreate = useCallback(() => { 
-    setEditId(null); 
-    setFormType('expense'); 
-    setFormAmount(''); 
-    setFormCategory(''); 
-    setFormAccountId(''); 
-    setFormToAccountId(''); 
-    setFormNote(''); 
-    setFormDate(new Date().toISOString().split('T')[0]); 
-    setModalActions({}); 
-    setIsTransactionModalOpen(true); 
-  }, []);
-  
-      const handleOpenModalForEdit = useCallback((transaction: Transaction, actions?: TransactionModalActions) => {
-    setEditId(transaction.id);
-    setFormType(transaction.type);
-    setFormAmount(String(transaction.amount));
-    setFormCategory(transaction.category?.toString() || '');
-    setFormAccountId(transaction.account_id);
-    setFormToAccountId(transaction.to_account_id || '');
-    setFormNote(transaction.note || '');
-    setFormDate(transaction.date.split('T')[0]);
-    setIsTransactionModalOpen(true);
-    if (actions) setModalActions(actions);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setIsTransactionModalOpen(false);
-    setModalActions({});
-  }, []);
-
   const handleOpenImportModal = useCallback(() => setIsImportModalOpen(true), []);
 
-  const handleSaveTransaction = async (isAssetMode?: boolean, assetPayload?: Partial<AssetTransaction>): Promise<Transaction | boolean> => {
-    setIsSaving(true);
-    if (!user || !householdId) {
-        toast.error('User session not found.');
-        setIsSaving(false);
-        return false;
-    }
-
-    const transactionData: Partial<Transaction> = {
-        type: formType,
-        amount: Number(formAmount),
-        note: formNote || null,
-        date: formDate,
-        user_id: user.id,
-        household_id: householdId,
-        category: formType !== 'transfer' ? Number(formCategory) : null,
-        account_id: formAccountId,
-        to_account_id: formType === 'transfer' ? formToAccountId : null,
-        id: editId || undefined,
-    };
-
-    try {
-        const savedTransaction = await transactionService.saveTransaction(transactionData);
-
-        // Jika ini transaksi aset, simpan data asetnya sekarang
-        if (isAssetMode && assetPayload && savedTransaction) {
-            assetPayload.related_transaction_id = savedTransaction.id;
-            await saveAssetTransaction(assetPayload);
-        }
-
-        if (formType === 'transfer' && formToAccountId) {
-            const targetAccount = accounts.find(acc => acc.id === formToAccountId);
-            if (targetAccount?.type === 'goal') {
-                toast.success(`Kerja Bagus! Selangkah lebih dekat menuju "${targetAccount.name}"! 🎉`);
-            } else {
-                toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
-            }
-        } else {
-            toast.success(editId ? 'Transaction updated!' : 'Transaction saved!');
-        }
-
-        setIsTransactionModalOpen(false);
-        refetchData();
-        setIsSaving(false);
-        return savedTransaction;
-    } catch (err) {
-        // toast error sudah ditangani di dalam service, cukup log di sini
-        console.error("Error during save process:", err);
-        setIsSaving(false);
-        return false;
-    }
+  // The context now provides the modal handlers directly from our custom hook
+  const contextValue = { 
+    ...initialContext, 
+    handleOpenModalForCreate: transactionModal.handleOpenForCreate, 
+    handleOpenModalForEdit: transactionModal.handleOpenForEdit, 
+    handleCloseModal: transactionModal.handleClose, 
+    handleOpenImportModal 
   };
 
   useEffect(() => {
@@ -145,7 +55,16 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (user) {
-    const contextValue = { ...initialContext, handleOpenModalForCreate, handleOpenModalForEdit, handleCloseModal, handleOpenImportModal };
+    // Filter out the specific account before passing it to the modal
+    const filteredAccountsForModal = transactionModal.contextData.accounts.filter(acc => acc.name !== 'Modal Awal Aset');
+    const modalProps = {
+      ...transactionModal,
+      contextData: {
+        ...transactionModal.contextData,
+        accounts: filteredAccountsForModal,
+      }
+    };
+
     return (
       <AppDataContext.Provider value={contextValue}>
         <div className="relative h-screen flex overflow-hidden bg-background">
@@ -167,7 +86,6 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
           {/* FAB - positioned differently for desktop and mobile */}
           {!isDesktop && (
-            /* Mobile FAB - centered above bottom navigation */
             <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center gap-3">
               <div className={cn("flex flex-row items-center gap-3 transition-all duration-300 ease-in-out", isFabOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none")}>
                   <Button variant="secondary" className="rounded-full h-12 w-12 shadow-lg" aria-label="Import from CSV" onClick={() => { handleOpenImportModal(); setIsFabOpen(false); }}>
@@ -176,7 +94,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
                   <Button variant="secondary" className="rounded-full h-12 w-12 shadow-lg" aria-label="Bulk Input" onClick={() => { router.push('/transactions/bulk-add'); setIsFabOpen(false); }}>
                       <PlusSquare size={20} />
                   </Button>
-                  <Button variant="secondary" className="rounded-full h-12 w-12 shadow-lg" aria-label="Add Single Transaction" onClick={() => { handleOpenModalForCreate(); setIsFabOpen(false); }}>
+                  <Button variant="secondary" className="rounded-full h-12 w-12 shadow-lg" aria-label="Add Single Transaction" onClick={() => { transactionModal.handleOpenForCreate(); setIsFabOpen(false); }}>
                       <Plus size={20} />
                   </Button>
               </div>
@@ -186,24 +104,9 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             </div>
           )}
           
-          <TransactionModal 
-            isOpen={isTransactionModalOpen} 
-            onClose={handleCloseModal} 
-            onSave={handleSaveTransaction} 
-            onDelete={modalActions.onDelete}
-            onMakeRecurring={modalActions.onMakeRecurring}
-            editId={editId} 
-            isSaving={isSaving} 
-            type={formType} setType={setFormType} 
-            amount={formAmount} setAmount={setFormAmount} 
-            category={formCategory} setCategory={setFormCategory} 
-            accountId={formAccountId} setAccountId={setFormAccountId} 
-            toAccountId={formToAccountId} setToAccountId={setFormToAccountId} 
-            note={formNote} setNote={setFormNote} 
-            date={formDate} setDate={setFormDate}
-            categories={categories} 
-            accounts={filteredAccountsForModal} 
-          />
+          {/* The new, simplified TransactionModal call */}
+          <TransactionModal {...modalProps} />
+
           <ImportTransactionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
         </div>
       </AppDataContext.Provider>
