@@ -8,8 +8,9 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { getTransactionsForExport } from '@/lib/reportService';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface TransactionSummaryProps {
   startDate?: string;
@@ -29,9 +30,12 @@ const SummaryItem = ({ icon: Icon, label, value, colorClass }: { icon: React.Ele
   <div className="flex items-center justify-between">
     <div className="flex items-center gap-3">
       <Icon className="h-5 w-5 text-muted-foreground" />
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
     </div>
-    <span className={`font-semibold ${colorClass || 'text-foreground'}`}>{value}</span>
+    <p className={cn(
+      "font-semibold text-right w-28 md:w-32 text-sm",
+      colorClass || 'text-foreground'
+    )}>{value}</p>
   </div>
 );
 
@@ -112,7 +116,7 @@ export default function TransactionSummary({ startDate, endDate }: TransactionSu
   if (loading) {
     return (
         <Card>
-            <CardHeader><CardTitle>Ringkasan</CardTitle></CardHeader>
+            <CardHeader><h3 className="font-semibold text-foreground">Summarize Transaction</h3></CardHeader>
             <CardContent className="space-y-4">
                 <div className="h-5 bg-muted rounded w-3/4"></div>
                 <div className="h-5 bg-muted rounded w-1/2"></div>
@@ -127,7 +131,7 @@ export default function TransactionSummary({ startDate, endDate }: TransactionSu
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ringkasan</CardTitle>
+        <h3 className="font-semibold text-foreground">Summarize Transaction</h3>
       </CardHeader>
       <CardContent className="space-y-4">
         {summary ? (

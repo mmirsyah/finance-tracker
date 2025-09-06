@@ -45,31 +45,35 @@ export default function Header({ onMenuClick }: HeaderProps) {
         )}
         
         <div className="hidden sm:flex items-center gap-2">
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button className="pl-4 pr-2">
-                        <Plus size={18} className="mr-2"/>
-                        <span>Add Transaction</span>
-                        <span className="border-l border-blue-500 h-4 mx-2"></span>
-                        <ChevronDown size={16} />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    {/* Gunakan onSelect agar dropdown tertutup sebelum aksi dijalankan */}
-                    <DropdownMenuItem onSelect={triggerSingleTransactionModal} className="cursor-pointer">
-                        <Plus className="mr-2 h-4 w-4" />
-                        <span>Single Transaction</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={triggerBulkInputPage} className="cursor-pointer">
-                        <PlusSquare className="mr-2 h-4 w-4" />
-                        <span>Bulk Input</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={triggerImportModal} className="cursor-pointer">
-                        <Upload className="mr-2 h-4 w-4" />
-                        <span>Import from CSV</span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center">
+                {/* Main Action Button */}
+                <Button 
+                    onClick={triggerSingleTransactionModal} 
+                    className="pl-4 pr-3 rounded-r-none"
+                >
+                    <Plus size={18} className="mr-2"/>
+                    <span>Add Transaction</span>
+                </Button>
+                
+                {/* Dropdown for Secondary Actions */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button size="icon" className="px-2 rounded-l-none border-l bg-primary text-muted hover:bg-primary/90">
+                            <ChevronDown size={16} />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={triggerBulkInputPage} className="cursor-pointer">
+                            <PlusSquare className="mr-2 h-4 w-4" />
+                            <span>Bulk Input</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={triggerImportModal} className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" />
+                            <span>Import from CSV</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         </div>
       </div>
     </header>

@@ -27,9 +27,10 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  isDesktop: boolean;
 }
 
-export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
+export default function Sidebar({ sidebarOpen, setSidebarOpen, isDesktop }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -75,7 +76,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
                     isActive ? 'bg-blue-100 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-100'
                   }`}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={() => !isDesktop && setSidebarOpen(false)}
                 >
                   <item.icon className="w-5 h-5" />
                   <span>{item.label}</span>
@@ -89,7 +90,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
                 pathname.startsWith('/settings') ? 'bg-blue-100 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-100'
               }`}
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => !isDesktop && setSidebarOpen(false)}
             >
               <Settings className="w-5 h-5" />
               <span>Settings</span>

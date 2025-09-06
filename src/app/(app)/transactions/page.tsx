@@ -191,9 +191,10 @@ export default function TransactionsPage() {
       <>
         <div className="p-4 sm:p-6 w-full h-full">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 order-2 lg:order-1 space-y-4">
+            {/* Toolbar: Mobile Order 2, Desktop Order 1 & Full Span */}
+            <div className="order-2 lg:order-1 lg:col-span-3">
               <TransactionToolbar
-                dateRange={date} 
+                dateRange={date}
                 onDateChange={setDate}
                 filterType={filterType} setFilterType={setFilterType}
                 filterCategory={filterCategory} setFilterCategory={setFilterCategory}
@@ -203,16 +204,18 @@ export default function TransactionsPage() {
                 onResetFilters={onResetFilters}
                 onOpenImportModal={handleOpenImportModal}
               />
+            </div>
 
-              {/* Toolbar Aksi Massal */}
+            {/* Transaction List: Mobile Order 3, Desktop Order 2 */}
+            <div className="order-3 lg:order-2 lg:col-span-2 space-y-4">
               {selectedIds.size > 0 && (
-                <BulkActionToolbar 
+                <BulkActionToolbar
                   selectedCount={selectedIds.size}
                   onClear={() => setSelectedIds(new Set())}
                   onReassignCategory={() => setIsReassignModalOpen(true)}
                 />
               )}
-              
+
               {isListLoading && <TransactionListSkeleton />}
               <div style={{ display: isListLoading ? 'none' : 'block' }}>
                 <TransactionList
@@ -226,11 +229,12 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            <div className="order-1 lg:order-2">
-                <TransactionSummary
-                    startDate={filterStartDate}
-                    endDate={filterEndDate}
-                />
+            {/* Transaction Summary: Mobile Order 1, Desktop Order 3 */}
+            <div className="order-1 lg:order-3 lg:col-span-1">
+              <TransactionSummary
+                startDate={filterStartDate}
+                endDate={filterEndDate}
+              />
             </div>
           </div>
         </div>
