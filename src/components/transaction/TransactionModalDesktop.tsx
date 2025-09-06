@@ -31,6 +31,7 @@ export function TransactionModalDesktop(props: TransactionModalDesktopProps) {
                         isSaving={isSaving} 
                         onClose={handleClose} 
                         onSave={props.handleSave} 
+                        onDelete={props.handleDelete}
                     />
                 </div>
             </DialogContent>

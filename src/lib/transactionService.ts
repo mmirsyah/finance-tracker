@@ -81,6 +81,15 @@ export async function saveTransaction(payload: Partial<Transaction>): Promise<Tr
   }
 }
 
+export async function deleteTransaction(transactionId: string): Promise<void> {
+  // For now, we assume online for deletion
+  const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+  if (error) {
+    toast.error(`Failed to delete transaction: ${error.message}`);
+    throw error;
+  }
+}
+
 // Fungsi lain tidak berubah untuk saat ini...
 export const getExpensesByPeriod = async (
   supabase: SupabaseClient,

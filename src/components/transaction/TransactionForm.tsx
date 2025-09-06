@@ -7,8 +7,8 @@ import { AssetFields } from "./AssetFields";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Trash2 } from 'lucide-react';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssetTransactionByFinancialTxId } from '@/lib/assetService';
 
@@ -250,7 +250,7 @@ export function TransactionForm({
           </div>
         </div>
       </div>
-      <DialogFooter className="!justify-between mt-auto pt-4 border-t">
+      <DialogFooter className="!justify-between mt-auto pt-4 border-t hidden md:flex">
         <div className="flex gap-2">
           {editId && onDelete && (
             <Button type="button" variant="destructive" onClick={onDelete} disabled={isSaving}>Delete</Button>
@@ -264,6 +264,23 @@ export function TransactionForm({
           <Button type="submit" disabled={isSaving}>
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (editId ? 'Save Changes' : 'Save Transaction')}
           </Button>
+        </div>
+      </DialogFooter>
+
+      {/* Mobile Footer */}
+      <DialogFooter className="!justify-between mt-auto pt-4 border-t flex md:hidden">
+        <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+            <Button type="submit" disabled={isSaving}>
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (editId ? 'Save Changes' : 'Save')}
+            </Button>
+        </div>
+        <div className="flex gap-2">
+            {editId && onDelete && (
+                <Button type="button" variant="destructive" size="icon" onClick={onDelete} disabled={isSaving}>
+                    <Trash2 className="h-5 w-5" />
+                </Button>
+            )}
         </div>
       </DialogFooter>
     </form>

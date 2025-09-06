@@ -110,6 +110,7 @@ export function TransactionModalMobile(props: TransactionModalMobileProps) {
                             isSaving={isSaving} 
                             onClose={handleClose} 
                             onSave={handleSave} 
+                            onDelete={props.handleDelete}
                         />
                     </div>
                 </DrawerContent>

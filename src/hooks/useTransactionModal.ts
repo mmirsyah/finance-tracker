@@ -107,6 +107,23 @@ export const useTransactionModal = ({ onSaveSuccess }: UseTransactionModalProps 
     }
   };
 
+  const handleDelete = async () => {
+    if (!editId) return;
+    setIsSaving(true);
+    try {
+      await transactionService.deleteTransaction(editId);
+      toast.success('Transaction deleted!');
+      setIsOpen(false);
+      refetchData();
+      onSaveSuccess?.();
+    } catch (err) {
+      console.error("Error deleting transaction:", err);
+      toast.error('Failed to delete transaction.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return {
     // Modal state and handlers
     isOpen,
@@ -116,6 +133,7 @@ export const useTransactionModal = ({ onSaveSuccess }: UseTransactionModalProps 
     handleOpenForEdit,
     handleClose,
     handleSave,
+    handleDelete,
 
     // Form state and setters for the modal to consume
     formState: {
