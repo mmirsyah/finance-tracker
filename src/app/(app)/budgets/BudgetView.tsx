@@ -1,235 +1,168 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAppData } from '@/contexts/AppDataContext';
-import { toast } from 'sonner';
-import { getBudgetDataForPeriod, getReadyToAssign, saveBudgetAssignment } from '@/lib/budgetService';
-import { BudgetPageData, BudgetParentCategoryData, BudgetCategoryData } from '@/types';
-import { format } from 'date-fns';
-import { Loader2, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { BudgetHeader } from '@/components/budget/BudgetHeader';
-import { BudgetTable } from '@/components/budget/BudgetTable';
+import { getBudgetDataForPeriod, saveBudgetAssignment } from '@/lib/budgetService';
+import { useAppData } from '@/contexts/AppDataContext';
 import { getCustomPeriod } from '@/lib/periodUtils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/utils';
+import { BudgetPageData } from '@/types';
+import { toast } from 'sonner';
+import { useDebouncedCallback } from 'use-debounce';
+import { format } from 'date-fns';
+import { BudgetList } from '@/components/budget/BudgetList';
+import { BudgetSkeleton } from '@/components/budget/BudgetSkeleton';
+import { cn } from '@/lib/utils';
 
-const ReadyToAssignCard = ({ isLoading, amount }: { isLoading: boolean, amount: number | null }) => {
-    if (isLoading || amount === null) {
-        return (
-            <Card className="w-full md:w-auto">
-                <CardHeader className="p-3">
-                    <CardTitle className="text-sm font-semibold text-center text-muted-foreground">Ready to Assign</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                    <div className="h-9 w-40 bg-muted rounded-md animate-pulse mt-1 mx-auto"></div>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    if (amount > 0) {
-        return (
-            <Card className="w-full md:w-auto bg-primary/10 border-primary/20 shadow-md">
-                 <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                    <Wallet className="w-5 h-5 text-primary"/>
-                    <CardTitle className="text-sm font-semibold text-primary">Dana Perlu Dialokasikan</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0 text-center">
-                    <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
-                    <p className="text-xs text-primary/80 mt-1">Ayo beri setiap rupiah tugas!</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    if (amount < 0) {
-        return (
-            <Card className="w-full md:w-auto bg-destructive/10 border-destructive/20 shadow-md">
-                <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                    <AlertTriangle className="w-5 h-5 text-destructive"/>
-                    <CardTitle className="text-sm font-semibold text-destructive">Anggaran Melebihi Dana</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0 text-center">
-                    <p className="text-3xl font-bold text-destructive">{formatCurrency(amount)}</p>
-                    <p className="text-xs text-destructive/80 mt-1">Kurangi alokasi di salah satu kategori.</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    return (
-        <Card className="w-full md:w-auto bg-secondary/10 border-secondary/20 shadow-md">
-            <CardHeader className="p-3 flex-row items-center gap-2 space-y-0">
-                <CheckCircle2 className="w-5 h-5 text-secondary-text"/>
-                <CardTitle className="text-sm font-semibold text-secondary-text">Kerja Bagus!</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0 text-center">
-                <p className="text-3xl font-bold text-secondary-text">{formatCurrency(0)}</p>
-                <p className="text-xs text-muted-secondary-text mt-1">Semua dana telah dialokasikan.</p>
-            </CardContent>
-        </Card>
-    );
+// Utility untuk format mata uang
+const formatCurrency = (value: number | null | undefined) => {
+  if (value === null || value === undefined) {
+    value = 0;
+  }
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 };
 
-
 const BudgetView = () => {
-  const { householdId, dataVersion, profile, isLoading: isAppDataLoading } = useAppData();
-  const router = useRouter();
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const [budgetData, setBudgetData] = useState<BudgetPageData | null>(null);
-  const [readyToAssign, setReadyToAssign] = useState<number | null>(null);
+  const { householdId, profile } = useAppData();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [data, setData] = useState<BudgetPageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [key, setKey] = useState(Date.now()); // Untuk me-refresh data
 
-  useEffect(() => {
-    if (profile && !currentDate) {
-      setCurrentDate(new Date()); 
-    }
-  }, [profile, currentDate]);
-
-  const { periodStartDate, periodEndDate } = useMemo(() => {
-    if (!profile || !currentDate) {
-      return { 
-        periodStartDate: new Date(), 
-        periodEndDate: new Date(), 
-      };
-    }
+  const { period } = useMemo(() => {
+    if (!profile) return { period: null };
     const startDay = profile.period_start_day || 1;
-    const period = getCustomPeriod(startDay, currentDate);
-    return { periodStartDate: period.from, periodEndDate: period.to };
-  }, [profile, currentDate]);
-
-  const fetchAllBudgetData = useCallback(async () => {
-    if (!householdId || !currentDate) return;
-    setIsLoading(true);
-    try {
-      const [budgetDataRes, readyToAssignRes] = await Promise.all([
-        getBudgetDataForPeriod(householdId, periodStartDate, periodEndDate),
-        getReadyToAssign(householdId)
-      ]);
-      setBudgetData(budgetDataRes);
-      setReadyToAssign(readyToAssignRes);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Gagal memuat data anggaran.";
-      toast.error(errorMessage);
-      setBudgetData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [householdId, periodStartDate, periodEndDate, currentDate]);
+    const p = getCustomPeriod(startDay, currentMonth);
+    return {
+      period: p,
+    };
+  }, [profile, currentMonth]);
 
   useEffect(() => {
-    if (currentDate) {
-        fetchAllBudgetData();
-    }
-  }, [fetchAllBudgetData, dataVersion, currentDate]);
+    if (!householdId || !period) return;
 
-  const handlePeriodChange = (newDate: Date) => {
-    setCurrentDate(newDate);
-  };
-  
-  const handleSyncComplete = () => {
-    router.refresh();
-  };
-
-  const handleAssignmentChange = async (categoryId: number, newAmount: number) => {
-    if (!householdId || !budgetData || readyToAssign === null) return;
-    
-    const oldBudgetData = JSON.parse(JSON.stringify(budgetData));
-    const oldReadyToAssign = readyToAssign;
-
-    let totalAssignedChange = 0;
-    let oldAmount = 0;
-
-    const isParentCategory = (cat: BudgetCategoryData | BudgetParentCategoryData): cat is BudgetParentCategoryData => {
-        return 'children' in cat && Array.isArray(cat.children);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const budgetData = await getBudgetDataForPeriod(householdId, period.from, period.to);
+        setData(budgetData);
+      } catch (error) {
+        console.error('Failed to fetch budget data:', error);
+        toast.error('Gagal memuat data anggaran.');
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    budgetData.categories.forEach(cat => {
-        if(cat.id === categoryId) {
-            oldAmount = cat.assigned;
-        } else if (isParentCategory(cat) && cat.children.length > 0) {
-            const child = cat.children.find(c => c.id === categoryId);
-            if (child) oldAmount = child.assigned;
-        }
-    });
-    totalAssignedChange = newAmount - oldAmount;
-    
-    setBudgetData(prev => {
-        if (!prev) return null;
-        const newCategories = JSON.parse(JSON.stringify(prev.categories));
-        for (const cat of newCategories) {
-            if (cat.id === categoryId) {
-                cat.assigned = newAmount;
-                break;
-            }
-            if (isParentCategory(cat) && cat.children && cat.children.length > 0) {
-                const child = cat.children.find((c: BudgetCategoryData) => c.id === categoryId);
-                if (child) {
-                    child.assigned = newAmount;
-                    break;
-                }
-            }
-        }
+    fetchData();
+  }, [householdId, period, key]);
 
-        return {
-            ...prev,
-            categories: newCategories,
-            total_budgeted: (prev.total_budgeted || 0) + totalAssignedChange,
-        }
-    });
-    setReadyToAssign(prev => prev !== null ? prev - totalAssignedChange : null);
+  const handleAssignmentChange = useDebouncedCallback(
+    async (categoryId: number, assignedAmount: number) => {
+      if (!householdId || !period) return;
 
-    try {
-      await saveBudgetAssignment({
-        household_id: householdId,
-        category_id: categoryId,
-        month: format(periodStartDate, 'yyyy-MM-dd'),
-        assigned_amount: newAmount,
-      });
-      await fetchAllBudgetData();
-    } catch (error) { 
-      toast.error(`Gagal menyimpan: ${(error as Error).message}`);
-      setBudgetData(oldBudgetData);
-      setReadyToAssign(oldReadyToAssign);
-    }
+      try {
+        await saveBudgetAssignment({
+          household_id: householdId,
+          category_id: categoryId,
+          month: format(period.from, 'yyyy-MM-dd'),
+          assigned_amount: assignedAmount,
+        });
+        toast.success('Alokasi anggaran berhasil disimpan.');
+        // Refresh data untuk menampilkan perubahan
+        setKey(Date.now());
+      } catch (error) {
+        console.error('Failed to save assignment:', error);
+        toast.error('Gagal menyimpan alokasi.');
+      }
+    },
+    1000
+  );
+
+  const handleRefresh = () => {
+    setKey(Date.now());
   };
 
-  if (isAppDataLoading || !profile || !currentDate) {
-    return (<div className="flex flex-col items-center justify-center h-full p-10"><Loader2 className="w-10 h-10 text-primary animate-spin mb-4" /><p className="text-muted-foreground">Memuat data aplikasi...</p></div>);
-  }
+  const toBeBudgeted = (data?.total_income || 0) - (data?.total_budgeted || 0);
+
+  // LOGIKA BARU: Menyimpan status warna DAN pesan yang dipersonalisasi
+  const budgetStatus = useMemo(() => {
+    if (toBeBudgeted < 0) {
+      return {
+        color: 'text-destructive', // Merah
+        message: 'Oops! Alokasi Anda minus. Perlu penyesuaian.'
+      };
+    }
+    if (toBeBudgeted > 0) {
+      return {
+        color: 'text-warning', // Hijau
+        message: 'Masih ada dana yang perlu diberi tugas.'
+      };
+    }
+    // Default (jika === 0)
+    return {
+      color: 'text-gray-500', // Abu-abu netral
+      message: 'Kerja bagus! Setiap rupiah sudah punya tugas.'
+    };
+  }, [toBeBudgeted]);
+
 
   return (
-    <>
-      <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
-            <div className="flex-grow">
-                {/* We can keep the title here or move it inside BudgetHeader if preferred */}
-            </div>
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-              <ReadyToAssignCard isLoading={isLoading} amount={readyToAssign} />
-            </div>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto overflow-x-hidden">
+      <BudgetHeader
+        currentMonth={currentMonth}
+        setCurrentMonth={setCurrentMonth}
+        householdId={householdId || ''}
+        onSyncComplete={handleRefresh}
+      />
+
+      {/* --- KARTU "READY TO ASSIGN" YANG DIPERBARUI --- */}
+      <div className="sticky top-0 z-10 py-3 bg-background/90 backdrop-blur-sm mb-4">
+        {/* Tetap menggunakan w-fit agar rata kiri dan pas dengan konten */}
+        <div className="bg-white p-3 rounded-lg shadow-md border w-fit">
+          {/* PERUBAHAN LAYOUT: 
+            Menggunakan flex-col (kolom vertikal) dan menghapus justify-between.
+            Items-start membuat semua teks rata kiri dalam kolom.
+          */}
+          <div className="flex flex-col items-start">
+            <h3 className="text-sm font-medium text-gray-500 tracking-wider uppercase">
+              Siap Dialokasikan
+            </h3>
+            
+            <p className={cn("text-2xl font-bold", budgetStatus.color)}>
+              {formatCurrency(toBeBudgeted)}
+            </p>
+
+            {/* PESAN BARU YANG DIPERSONALISASI: 
+              Ditampilkan di bawah nominal dengan warna yang sesuai.
+            */}
+            <p className={cn("text-xs font-medium mt-1", budgetStatus.color)}>
+              {budgetStatus.message}
+            </p>
+          </div>
         </div>
-
-        <BudgetHeader 
-            currentMonth={currentDate}
-            setCurrentMonth={handlePeriodChange}
-            householdId={householdId || ''}
-            onSyncComplete={handleSyncComplete}
-        />
-
-        {isLoading ? (
-             <div className="flex justify-center items-center h-64 bg-card rounded-lg shadow-sm border"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
-        ) : (
-            <BudgetTable
-                data={budgetData?.categories || []}
-                onAssignmentChange={handleAssignmentChange}
-                onRefresh={fetchAllBudgetData}
-                currentPeriodStart={periodStartDate}
-            />
-        )}
       </div>
-    </>
+
+      {isLoading ? (
+        <BudgetSkeleton />
+      ) : data && data.categories.length > 0 ? (
+        <BudgetList 
+          data={data.categories} 
+          onAssignmentChange={handleAssignmentChange}
+          onRefresh={handleRefresh}
+          currentPeriodStart={period!.from}
+        />
+      ) : (
+        <div className="text-center py-12 bg-white rounded-lg border shadow-sm">
+          <h3 className="text-lg font-medium">Tidak Ada Data Anggaran</h3>
+          <p className="text-sm text-gray-500 mt-2">Belum ada kategori atau data untuk periode ini.</p>
+        </div>
+      )}
+    </div>
   );
 };
 

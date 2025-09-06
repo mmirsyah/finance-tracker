@@ -1,3 +1,4 @@
+// src/components/budget/BudgetHeader.tsx
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { BudgetPeriodNavigator } from './BudgetPeriodNavigator';
 import { createClient } from '@/utils/supabase/client';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { format, addMonths, subMonths } from 'date-fns';
 import { id as indonesiaLocale } from 'date-fns/locale';
 import { getCustomPeriod } from '@/lib/periodUtils';
@@ -28,6 +29,7 @@ export function BudgetHeader({
   const { profile } = useAppData();
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // ... (semua logika useMemo dan handler Anda tetap sama, tidak perlu diubah) ...
   const { periodDisplayText } = useMemo(() => {
     if (!profile || !currentMonth) {
       return { periodDisplayText: 'Memuat...' };
@@ -75,8 +77,15 @@ export function BudgetHeader({
   };
 
   return (
+    // Div utama ini sudah benar (tumpuk di seluler, baris di desktop)
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 p-4 bg-white rounded-lg shadow-sm border">
-      <h1 className="text-2xl font-semibold">Anggaran Bulanan</h1>
+      <h1 className="text-2xl font-semibold text-gray-900">Anggaran Bulanan</h1>
+      
+      {/* FIX: Kita kembalikan ke "flex items-center gap-2" yang sederhana.
+        Ini hanya mengelompokkan 2 item (Tombol & Nav) bersama-sama.
+        Div induk (di atas) akan menangani pemosisian (tengah di seluler, kanan di desktop).
+        Ini akan bekerja sekarang KARENA navigator sudah fleksibel.
+      */}
       <div className="flex items-center gap-2">
         <Button 
           variant="outline" 
@@ -84,9 +93,14 @@ export function BudgetHeader({
           disabled={isSyncing}
         >
           {isSyncing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : null}
-          Sinkronkan Rollover
+            <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
+          ) : (
+            <RefreshCw className="h-4 w-4 sm:mr-2" />
+          )}
+          
+          <span className="hidden sm:inline">
+            Sinkronkan Rollover
+          </span>
         </Button>
         <BudgetPeriodNavigator
           periodText={periodDisplayText}
