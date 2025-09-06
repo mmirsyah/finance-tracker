@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useAppData } from '@/contexts/AppDataContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import PullToRefreshWrapper from '@/components/PullToRefreshWrapper';
 
 const PAGE_SIZE = 20;
 
@@ -25,6 +26,7 @@ interface TransactionListProps {
     selectedIds: Set<string>;
     onSelectionChange: (newSelectedIds: Set<string>) => void;
     editingId: string | null;
+    onRefresh?: () => void;
 }
 
 const formatCurrency = (value: number) => { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value); };
@@ -46,7 +48,7 @@ const groupTransactionsByDate = (transactions: Transaction[]): TransactionGroup[
   return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange, editingId }: TransactionListProps) {
+export default function TransactionList({ startEdit, filters, onDataLoaded, selectedIds, onSelectionChange, editingId, onRefresh }: TransactionListProps) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,8 +57,9 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   const [isLoading, setIsLoading] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loaderRef = useRef<HTMLDivElement | null>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
-  const { householdId } = useAppData();
+  const { householdId, refetchData } = useAppData();
 
   const fetchTransactions = useCallback(async (pageNum: number, isNewFilter: boolean) => {
     if (!householdId) {
@@ -147,6 +150,21 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     onSelectionChange(newSelectedIds);
   };
 
+  const handleRefresh = async () => {
+    // If a custom refresh handler is provided, use it
+    if (onRefresh) {
+      await onRefresh();
+    } else {
+      // Otherwise, use the default refetchData from context
+      await refetchData();
+    }
+    // Reset pagination and refetch transactions
+    setPage(0);
+    setAllTransactions([]);
+    setHasMore(true);
+    setTimeout(() => fetchTransactions(0, true), 0);
+  };
+
   const renderTransactionDetails = (t: Transaction) => {
     const isFromRecurring = t.note?.includes('(from:)');
     const categoryName = t.categories?.name || 'Uncategorized';
@@ -220,61 +238,63 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   if (groupedTransactions.length === 0 && !isLoading) return <div className="text-center p-6 bg-card rounded-lg shadow border text-muted-foreground">No transactions found.</div>;
 
   return (
-    <div className="space-y-4">
-      {groupedTransactions.map(group => {
-        const groupTransactionIds = group.transactions.map(t => t.id);
-        const areAllInGroupSelected = groupTransactionIds.every(id => selectedIds.has(id));
+    <PullToRefreshWrapper onRefresh={handleRefresh}>
+      <div ref={listContainerRef} className="space-y-4">
+        {groupedTransactions.map(group => {
+          const groupTransactionIds = group.transactions.map(t => t.id);
+          const areAllInGroupSelected = groupTransactionIds.every(id => selectedIds.has(id));
 
-        return (
-          <div key={group.date} className="bg-card rounded-lg shadow border">
-            <header className="flex justify-between items-center p-3 bg-muted/50 border-b border-border">
-              <div className="flex items-center gap-3">
-                <Checkbox 
-                  checked={areAllInGroupSelected}
-                  onCheckedChange={(checked) => handleGroupSelect(groupTransactionIds, !!checked)}
-                  aria-label={`Select all transactions for ${group.date}`}
-                />
-                <h3 className="font-semibold text-foreground">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-              </div>
-              <span className={cn('font-bold text-sm', group.subtotal >= 0 ? 'text-secondary-text' : 'text-destructive-text')}>{formatCurrency(group.subtotal)}</span>
-            </header>
-            <ul className="divide-y divide-border">
-              {group.transactions.map(t => (
-                <li 
-                  key={t.id} 
-                  className={cn(
-                    "flex items-center p-3 hover:bg-muted/50 cursor-pointer transition-colors",
-                    editingId === t.id && "bg-accent"
-                  )} 
-                  onClick={() => startEdit(t)}
-                >
-                  <Checkbox
-                    checked={selectedIds.has(t.id)}
-                    onCheckedChange={() => handleRowSelect(t.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`Select transaction ${t.id}`}
-                    className="mr-4"
+          return (
+            <div key={group.date} className="bg-card rounded-lg shadow border">
+              <header className="flex justify-between items-center p-3 bg-muted/50 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <Checkbox 
+                    checked={areAllInGroupSelected}
+                    onCheckedChange={(checked) => handleGroupSelect(groupTransactionIds, !!checked)}
+                    aria-label={`Select all transactions for ${group.date}`}
                   />
-                  {renderTransactionDetails(t)}
-                  <div className="flex items-center gap-2 md:gap-4">
-                    <p className={cn(
-                        "font-semibold text-right w-28 md:w-32 text-sm", 
-                        getAmountColor(t.type)
-                    )}>
-                      {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {formatCurrency(t.amount)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      })}
+                  <h3 className="font-semibold text-foreground">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                </div>
+                <span className={cn('font-bold text-sm', group.subtotal >= 0 ? 'text-secondary-text' : 'text-destructive-text')}>{formatCurrency(group.subtotal)}</span>
+              </header>
+              <ul className="divide-y divide-border">
+                {group.transactions.map(t => (
+                  <li 
+                    key={t.id} 
+                    className={cn(
+                      "flex items-center p-3 hover:bg-muted/50 cursor-pointer transition-colors",
+                      editingId === t.id && "bg-accent"
+                    )} 
+                    onClick={() => startEdit(t)}
+                  >
+                    <Checkbox
+                      checked={selectedIds.has(t.id)}
+                      onCheckedChange={() => handleRowSelect(t.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Select transaction ${t.id}`}
+                      className="mr-4"
+                    />
+                    {renderTransactionDetails(t)}
+                    <div className="flex items-center gap-2 md:gap-4">
+                      <p className={cn(
+                          "font-semibold text-right w-28 md:w-32 text-sm", 
+                          getAmountColor(t.type)
+                      )}>
+                        {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {formatCurrency(t.amount)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
 
-      <div ref={loaderRef} className="flex justify-center items-center p-4 h-10">
-        {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />}
-        {!hasMore && allTransactions.length > 0 && <p className="text-sm text-muted-foreground">You&apos;ve reached the end.</p>}
+        <div ref={loaderRef} className="flex justify-center items-center p-4 h-10">
+          {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />}
+          {!hasMore && allTransactions.length > 0 && <p className="text-sm text-muted-foreground">You&apos;ve reached the end.</p>}
+        </div>
       </div>
-    </div>
+    </PullToRefreshWrapper>
   );
 }

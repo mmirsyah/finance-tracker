@@ -225,6 +225,7 @@ export default function TransactionsPage() {
                   selectedIds={selectedIds}
                   onSelectionChange={setSelectedIds}
                   editingId={editingTransactionId}
+                  onRefresh={refetchData}
                 />
               </div>
             </div>

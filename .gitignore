@@ -20,6 +20,7 @@
 *.log
 project-structure.txt
 GEMINI.md
+CLAUDE.md
 
 # Local Environment Variables
 # Ignore all .env files

@@ -14,6 +14,7 @@ import RecurringConfirmModal from '@/components/modals/RecurringConfirmModal';
 import { RecurringInstance } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { getCustomPeriod } from '@/lib/periodUtils';
+import PullToRefreshWrapper from '@/components/PullToRefreshWrapper';
 
 function Dashboard() {
   const { isLoading, accounts, categories, refetchData, user } = useAppData();
@@ -54,7 +55,7 @@ function Dashboard() {
   }
 
   return (
-    <>
+    <PullToRefreshWrapper onRefresh={refetchData}>
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-0">
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -97,7 +98,7 @@ function Dashboard() {
         accounts={accounts}
         categories={categories}
       />
-    </>
+    </PullToRefreshWrapper>
   );
 }
 
