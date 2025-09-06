@@ -19,6 +19,13 @@ self.addEventListener('push', (event) => {
     renotify: true,  // Tampilkan kembali notifikasi dengan tag yang sama
     vibrate: [200, 100, 200],  // Pola getaran: 200ms on, 100ms off, 200ms on
     silent: false,  // Izinkan suara notifikasi (jika diatur di device)
+    // Parameter tambahan untuk meningkatkan visibilitas di mobile
+    priority: 1, // Prioritas tinggi (bisa juga 0: default, -1: rendah, -2: minimum)
+    visibility: 'public', // Bisa juga 'private' atau 'secret'
+    // Untuk menangani device dengan optimasi baterai ketat (Xiaomi, Samsung, dll)
+    timestamp: Date.now(),
+    // Tambahkan sound untuk menarik perhatian (jika tidak silent)
+    sound: 'default'
   };
 
   event.waitUntil(
