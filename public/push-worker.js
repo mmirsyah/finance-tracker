@@ -9,10 +9,16 @@ self.addEventListener('push', (event) => {
   const options = {
     body: body,
     icon: icon || '/favicon.ico',
-    badge: '/badge-72x72.png', // Opsional: ikon kecil untuk status bar
+    badge: '/badge-72x72.png',
     data: {
-      url: notificationData?.url || '/' // URL untuk dibuka saat notifikasi diklik
-    }
+      url: notificationData?.url || '/'
+    },
+    // Parameter tambahan untuk memastikan notifikasi muncul sebagai pop-up
+    requireInteraction: true,  // Notifikasi tetap muncul sampai ditindaklanjuti
+    tag: 'finance-tracker-notification',  // Tag untuk mengelompokkan notifikasi
+    renotify: true,  // Tampilkan kembali notifikasi dengan tag yang sama
+    vibrate: [200, 100, 200],  // Pola getaran: 200ms on, 100ms off, 200ms on
+    silent: false,  // Izinkan suara notifikasi (jika diatur di device)
   };
 
   event.waitUntil(
