@@ -106,7 +106,10 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     setAllTransactions([]);
     setHasMore(true);
     onSelectionChange(new Set()); 
-    setTimeout(() => fetchTransactions(0, true), 0);
+    // Gunakan function callback daripada string
+    setTimeout(() => {
+        fetchTransactions(0, true);
+    }, 0);
   }, [filters, fetchTransactions, onSelectionChange]);
 
   useEffect(() => {
@@ -162,7 +165,10 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
-    setTimeout(() => fetchTransactions(0, true), 0);
+    // Gunakan function callback daripada string
+    setTimeout(() => {
+        fetchTransactions(0, true);
+    }, 0);
   };
 
   const renderTransactionDetails = (t: Transaction) => {

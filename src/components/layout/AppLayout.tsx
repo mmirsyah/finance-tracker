@@ -131,7 +131,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
           {isDesktop && <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} isDesktop={isDesktop} />}
           
           <div className={cn("flex-1 flex flex-col", { "lg:ml-64": sidebarOpen })}>
-            <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+            <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
             <main className={cn(
               "flex-1 overflow-y-auto",
               !isDesktop && "pb-24" // Add bottom padding for mobile navigation

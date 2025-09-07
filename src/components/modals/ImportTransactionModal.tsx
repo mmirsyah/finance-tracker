@@ -60,6 +60,7 @@ export default function ImportTransactionModal({ isOpen, onClose }: ImportModalP
 
   useEffect(() => {
     if (!isOpen) {
+        // Gunakan function callback daripada string
         const timer = setTimeout(() => {
             resetState();
         }, 150);

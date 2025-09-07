@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import TransactionSummary from '@/components/transaction/TransactionSummary';
 import TransactionList from '@/components/TransactionList';
 import TransactionToolbar from '@/components/TransactionToolbar';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import { useAppData } from '@/contexts/AppDataContext';
@@ -24,8 +24,9 @@ import { toast } from 'sonner';
 
 export default function TransactionsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { 
-    accounts, categories, isLoading: isAppDataLoading, user, dataVersion, 
+    accounts, categories, transactions, isLoading: isAppDataLoading, user, dataVersion, 
     refetchData, handleOpenModalForEdit, handleOpenImportModal, handleCloseModal 
   } = useAppData();
   const [isListLoading, setIsListLoading] = useState(true);
@@ -45,6 +46,83 @@ export default function TransactionsPage() {
 
   // State untuk melacak ID transaksi yang sedang diedit
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+
+  // Wrap closeEditing in useCallback
+  const closeEditing = useCallback(() => {
+    setEditingTransactionId(null);
+    handleCloseModal();
+  }, [handleCloseModal]);
+
+  // Wrap handleDelete in useCallback
+  const handleDelete = useCallback(async (transactionId: string, linkedAssetTx?: AssetTransaction) => {
+    console.log("handleDelete called for tx:", transactionId);
+    console.log("Linked asset transaction received:", linkedAssetTx);
+
+    if (linkedAssetTx && linkedAssetTx.id) {
+        console.log("Asset path taken. Deleting asset tx:", linkedAssetTx.id);
+        // This is an asset-related transaction, use the dedicated delete service
+        if (confirm('This will delete both the financial transfer and the related asset transaction. Are you sure?')) {
+            const promise = async () => {
+                await deleteAssetTransaction(linkedAssetTx.id, linkedAssetTx.related_transaction_id);
+                refetchData();
+                closeEditing();
+            };
+            toast.promise(promise(), {
+                loading: 'Deleting asset transaction...', 
+                success: 'Asset transaction deleted successfully!',
+                error: (err) => `Error: ${err.message}`,
+            });
+        }
+        return;
+    }
+
+    console.log("Standard delete path taken.");
+    // Original delete logic for non-asset transactions
+    const { data: transaction } = await supabase.from('transactions').select('note').eq('id', transactionId).single();
+    const isFromRecurring = transaction?.note?.includes('(from:');
+    
+    const confirmMessage = isFromRecurring 
+      ? 'This transaction was created from a recurring template.\n\nDeleting it will reset the recurring instance to "upcoming" status, allowing you to confirm it again.\n\nAre you sure you want to delete this transaction?' 
+      : 'Are you sure you want to delete this transaction?';
+    
+    if (confirm(confirmMessage)) {
+      const promise = async () => {
+        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+        if (error) { throw error; }
+        refetchData();
+        closeEditing(); // Tutup modal transaksi setelah hapus
+      };
+
+      toast.promise(promise(), {
+        loading: 'Deleting transaction...', 
+        success: isFromRecurring 
+          ? 'Transaction deleted! Recurring instance reset to pending.' 
+          : 'Transaction deleted!',
+        error: (err) => `Error: ${err.message}`,
+      });
+    }
+  }, [refetchData, closeEditing]);
+
+  // Check for transaction ID in URL parameters
+  useEffect(() => {
+    const transactionId = searchParams.get('txId');
+    if (transactionId && !editingTransactionId) {
+      // Find the transaction in our data
+      const transaction = transactions.find(t => t.id === transactionId);
+      if (transaction) {
+        setEditingTransactionId(transactionId);
+        handleOpenModalForEdit(transaction, {
+          onDelete: () => handleDelete(transactionId),
+          onMakeRecurring: () => handleMakeRecurring(transaction),
+        });
+        
+        // Remove the txId parameter from URL
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('txId');
+        router.replace(`/transactions?${newParams.toString()}`, { scroll: false });
+      }
+    }
+  }, [searchParams, handleOpenModalForEdit, transactions, editingTransactionId, handleDelete, router]);
 
   useEffect(() => {
     if (user && !date) {
@@ -101,11 +179,7 @@ export default function TransactionsPage() {
     });
   };
   
-  // Wrapper untuk handleCloseModal untuk membersihkan ID yang diedit
-  const closeEditing = () => {
-    setEditingTransactionId(null);
-    handleCloseModal();
-  };
+  // closeEditing and handleDelete have been moved to useCallback above to fix dependency issues
 
 
   const handleBulkReassign = async (newCategoryId: number) => {
@@ -135,54 +209,7 @@ export default function TransactionsPage() {
     closeEditing(); // Tutup juga modal transaksi utama
   };
 
-  const handleDelete = async (transactionId: string, linkedAssetTx?: AssetTransaction) => {
-    console.log("handleDelete called for tx:", transactionId);
-    console.log("Linked asset transaction received:", linkedAssetTx);
-
-    if (linkedAssetTx && linkedAssetTx.id) {
-        console.log("Asset path taken. Deleting asset tx:", linkedAssetTx.id);
-        // This is an asset-related transaction, use the dedicated delete service
-        if (confirm('This will delete both the financial transfer and the related asset transaction. Are you sure?')) {
-            const promise = async () => {
-                await deleteAssetTransaction(linkedAssetTx.id, linkedAssetTx.related_transaction_id);
-                refetchData();
-                closeEditing();
-            };
-            toast.promise(promise(), {
-                loading: 'Deleting asset transaction...', 
-                success: 'Asset transaction deleted successfully!',
-                error: (err) => `Error: ${err.message}`,
-            });
-        }
-        return;
-    }
-
-    console.log("Standard delete path taken.");
-    // Original delete logic for non-asset transactions
-    const { data: transaction } = await supabase.from('transactions').select('note').eq('id', transactionId).single();
-    const isFromRecurring = transaction?.note?.includes('(from:');
-    
-    const confirmMessage = isFromRecurring 
-      ? 'This transaction was created from a recurring template.\n\nDeleting it will reset the recurring instance to "upcoming" status, allowing you to confirm it again.\n\nAre you sure you want to delete this transaction?' 
-      : 'Are you sure you want to delete this transaction?';
-    
-    if (confirm(confirmMessage)) {
-      const promise = async () => {
-        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
-        if (error) { throw error; }
-        refetchData();
-        closeEditing(); // Tutup modal transaksi setelah hapus
-      };
-
-      toast.promise(promise(), {
-        loading: 'Deleting transaction...', 
-        success: isFromRecurring 
-          ? 'Transaction deleted! Recurring instance reset to pending.' 
-          : 'Transaction deleted!',
-        error: (err) => `Error: ${err.message}`,
-      });
-    }
-  };
+  // handleDelete function has been moved to useCallback above to fix dependency issues
 
   if (isAppDataLoading || !date) { return <div className="p-6"><TransactionListSkeleton /></div>; }
   if (!user) { return null; }

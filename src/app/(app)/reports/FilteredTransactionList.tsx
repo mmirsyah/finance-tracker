@@ -66,7 +66,10 @@ export default function FilteredTransactionList({ startDate, endDate }: Props) {
         setPage(0);
         setTransactions([]);
         setHasMore(true);
-        setTimeout(() => fetchTransactions(0), 0);
+        // Gunakan function callback daripada string
+        setTimeout(() => {
+            fetchTransactions(0);
+        }, 0);
     }, [startDate, endDate, sortKey, sortDirection, fetchTransactions]);
 
     useEffect(() => {
