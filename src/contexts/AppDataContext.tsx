@@ -51,13 +51,19 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const syncData = useCallback(async (currentUser: User, currentProfile: Profile) => {
     if (isSyncing.current || !currentProfile.household_id) return;
     if (!navigator.onLine) {
-      toast.info("You are offline. Data shown may not be up to date.");
+      toast.info("You are offline. Data shown may not be up to date.", {
+        duration: 2000, // Durasi lebih singkat
+        id: 'offline-info' // ID unik
+      });
       setIsLoading(false);
       return;
     }
 
     isSyncing.current = true;
-    toast.info("Syncing data...", { duration: 1500 });
+    toast.info("Syncing data...", { 
+      duration: 10, // Durasi sangat singkat
+      id: 'syncing-data' // ID unik
+    });
 
     try {
       const [accountsRes, categoriesRes, assetsData, transactionsRes] = await Promise.all([
@@ -83,11 +89,17 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
       });
 
       setDataVersion(v => v + 1);
-      toast.success("Data synced successfully!");
+      toast.info("Data synced", { // Menggunakan info alih-alih success
+        duration: 10, // Durasi singkat
+        id: 'sync-success', // ID unik
+      });
 
     } catch (error) {
       console.error("Error syncing app data:", error);
-      toast.error("Failed to sync app data.");
+      toast.error("Failed to sync app data.", {
+        duration: 3000,
+        id: 'sync-error'
+      });
     } finally {
       isSyncing.current = false;
       setIsLoading(false);
@@ -120,9 +132,11 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
 
   // Efek untuk menangani sinkronisasi otomatis saat kembali online
   useEffect(() => {
-    // Fungsi untuk menangani saat status online
     const handleOnline = () => {
-      toast.success("You are back online!");
+      toast.info("You are back online!", {
+        duration: 1000, // Durasi lebih singkat
+        id: 'back-online' // ID unik
+      });
       processSyncQueue();
     };
 

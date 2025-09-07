@@ -13,6 +13,7 @@ import { Plus } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast, Toaster } from 'sonner'; // Import Toaster dari sonner
 
 // Import the new wrapper modal
 import TransactionModal from '@/components/transaction/TransactionModal';
@@ -23,13 +24,12 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const isDesktop = useIsDesktop();
+  const initialContext = useAppData();
+  const { isLoading, user, profile } = initialContext;
 
   useEffect(() => {
     setSidebarOpen(isDesktop);
   }, [isDesktop]);
-  
-  const initialContext = useAppData();
-  const { isLoading, user } = initialContext;
   
   // All modal logic is now encapsulated in the hook
   const transactionModal = useTransactionModal();
@@ -53,6 +53,60 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
     }
   }, [isLoading, user, router]);
 
+  // Efek untuk menampilkan pesan sambutan hanya sekali per sesi
+  useEffect(() => {
+    if (user && !isLoading && profile) {
+      const hasSeenGreeting = localStorage.getItem('hasSeenGreeting');
+      if (!hasSeenGreeting) {
+        const getGreetingAndMessage = () => {
+          const hour = new Date().getHours();
+          const userName = profile?.full_name || 'Pengguna';
+          
+          let greeting = '';
+          let message = '';
+          
+          if (hour >= 5 && hour < 12) {
+            // Pagi
+            greeting = `Selamat Pagi, ${userName}! 😊`;
+            const morningMessages = [
+              "Siap taklukkan tujuan finansial hari ini?",
+              "Mari mulai hari dengan keputusan keuangan yang cerdas."
+            ];
+            message = morningMessages[Math.floor(Math.random() * morningMessages.length)];
+          } else if (hour >= 12 && hour < 18) {
+            // Siang
+            greeting = `Selamat Siang, ${userName}! 😊`;
+            const afternoonMessages = [
+              "Waktunya cek cepat progress budget Anda hari ini.",
+              "Sudah setengah hari. Ingat tujuan hemat kita ya!"
+            ];
+            message = afternoonMessages[Math.floor(Math.random() * afternoonMessages.length)];
+          } else {
+            // Malam
+            greeting = `Selamat Malam, ${userName}! 😊`;
+            const eveningMessages = [
+              "Mari review pengeluaran hari ini. Ada yang bisa kita catat?",
+              "Waktunya istirahat. Keuangan Anda hari ini aman terkendali."
+            ];
+            message = eveningMessages[Math.floor(Math.random() * eveningMessages.length)];
+          }
+          
+          // Tampilkan pesan sambutan menggunakan Sonner
+          toast(greeting, {
+            description: message,
+            duration: 3500, // Toast akan otomatis hilang setelah 7 detik
+            id: 'greeting-toast', // ID unik untuk toast ini
+            // priority dihapus karena tidak dikenali
+          });
+          
+          localStorage.setItem('hasSeenGreeting', 'true');
+        };
+
+        getGreetingAndMessage();
+      }
+    }
+  }, [user, isLoading, profile]);
+
   if (isLoading) {
     return <LoadingSpinner text="Authenticating..." />;
   }
@@ -70,6 +124,8 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
     return (
       <AppDataContext.Provider value={contextValue}>
+        {/* Toaster kedua untuk pesan sambutan dengan posisi top-right */}
+        <Toaster position="top-right" />
         <div className="relative h-screen flex overflow-hidden bg-background">
           {/* Desktop Sidebar */}
           {isDesktop && <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} isDesktop={isDesktop} />}
