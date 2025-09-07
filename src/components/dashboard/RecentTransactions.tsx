@@ -31,40 +31,40 @@ export default function RecentTransactions() {
   return (
     <PullToRefreshWrapper onRefresh={refetchData}>
       <Card>
-        <CardHeader>
+        <CardHeader className="section-gap-small">
           <div className="flex justify-between items-center">
               <div>
-                  <CardTitle className="text-base md:text-lg">Recent Transactions</CardTitle>
-                  <CardDescription>Your last 7 transactions.</CardDescription>
+                  <CardTitle className="text-lg">Recent Transactions</CardTitle>
+                  <CardDescription className="muted">Your last 7 transactions.</CardDescription>
               </div>
               <Link href="/transactions">
-                  <Button variant="link" size="sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Button>
+                  <Button variant="link" size="sm" className="text-primary">View All <ArrowRight className="w-4 h-4 ml-1"/></Button>
               </Link>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="content-gap-small">
           {recentTransactions.length > 0 ? (
-            <ul className="space-y-2">
+            <ul className="space-y-consistent">
               {recentTransactions.map((t: Transaction) => (
                 <li 
                     key={t.id} 
-                    className="flex items-center gap-4 p-2 rounded-lg hover:bg-accent cursor-pointer"
+                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors"
                     onClick={() => handleOpenModalForEdit(t)}
                 >
                   {getTransactionIcon(t.type)}
                   <div className="flex-grow">
-                    <p className="font-semibold text-foreground">{t.note || t.categories?.name || 'Transfer'}</p>
+                    <p className="font-medium text-foreground truncate">{t.note || t.categories?.name || 'Transfer'}</p>
                     <p className="text-sm text-muted-foreground">{new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}</p>
                   </div>
-                  <p className={cn("font-bold", getAmountColor(t.type))}>
-                    {/*t.type === 'income' ? '+' : '-'*/} {formatCurrency(t.amount)}
+                  <p className={cn("font-semibold", getAmountColor(t.type))}>
+                    {formatCurrency(t.amount)}
                   </p>
                 </li>
               ))}
             </ul>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              No recent transactions found.
+              <p className="muted">No recent transactions found.</p>
             </div>
           )}
         </CardContent>

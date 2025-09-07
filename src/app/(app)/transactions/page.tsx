@@ -193,6 +193,10 @@ export default function TransactionsPage() {
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Toolbar: Mobile Order 2, Desktop Order 1 & Full Span */}
             <div className="order-2 lg:order-1 lg:col-span-3">
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold">Transactions</h1>
+                <p className="text-sm text-muted-foreground mt-1">Kelola semua transaksi keuangan Anda</p>
+              </div>
               <TransactionToolbar
                 dateRange={date}
                 onDateChange={setDate}

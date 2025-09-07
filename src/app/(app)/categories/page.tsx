@@ -182,9 +182,12 @@ export default function CategoriesPage() {
 
     return (
         <>
-            <div className="p-6">
-                 <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-6 -mx-6 -mt-6 mb-6 border-b border-gray-200 flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">Manage Categories</h1>
+            <div className="p-4 md:p-6">
+                 <div className="sticky top-0 z-10 bg-gray-50/75 backdrop-blur-sm p-4 md:p-6 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 border-b border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <h1 className="text-2xl font-bold">Manage Categories</h1>
+                      <p className="text-sm text-muted-foreground mt-1">Atur kategori pengeluaran dan pemasukan Anda</p>
+                    </div>
                     <Button onClick={() => { setEditingCategory(null); setIsModalOpen(true); }} className="flex items-center gap-2">
                         <Plus size={20} /> Add New
                     </Button>

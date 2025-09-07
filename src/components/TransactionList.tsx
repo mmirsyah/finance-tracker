@@ -246,23 +246,30 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
 
           return (
             <div key={group.date} className="bg-card rounded-lg shadow border">
-              <header className="flex justify-between items-center p-3 bg-muted/50 border-b border-border">
+              <header className="flex justify-between items-center p-4 bg-muted/50 border-b border-border">
                 <div className="flex items-center gap-3">
                   <Checkbox 
                     checked={areAllInGroupSelected}
                     onCheckedChange={(checked) => handleGroupSelect(groupTransactionIds, !!checked)}
                     aria-label={`Select all transactions for ${group.date}`}
                   />
-                  <h3 className="font-semibold text-foreground">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{new Date(group.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {group.transactions.length} {group.transactions.length === 1 ? 'transaction' : 'transactions'}
+                    </p>
+                  </div>
                 </div>
-                <span className={cn('font-bold text-sm', group.subtotal >= 0 ? 'text-secondary-text' : 'text-destructive-text')}>{formatCurrency(group.subtotal)}</span>
+                <span className={cn('font-bold text-sm', group.subtotal >= 0 ? 'text-secondary-text' : 'text-destructive-text')}>
+                  {formatCurrency(group.subtotal)}
+                </span>
               </header>
               <ul className="divide-y divide-border">
                 {group.transactions.map(t => (
                   <li 
                     key={t.id} 
                     className={cn(
-                      "flex items-center p-3 hover:bg-muted/50 cursor-pointer transition-colors",
+                      "flex items-center p-4 hover:bg-muted/50 cursor-pointer transition-colors",
                       editingId === t.id && "bg-accent"
                     )} 
                     onClick={() => startEdit(t)}
@@ -275,7 +282,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                       className="mr-4"
                     />
                     {renderTransactionDetails(t)}
-                    <div className="flex items-center gap-2 md:gap-4">
+                    <div className="flex items-center gap-3">
                       <p className={cn(
                           "font-semibold text-right w-28 md:w-32 text-sm", 
                           getAmountColor(t.type)
@@ -290,7 +297,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
           )
         })}
 
-        <div ref={loaderRef} className="flex justify-center items-center p-4 h-10">
+        <div ref={loaderRef} className="flex justify-center items-center p-6 h-12">
           {isLoading && page > 0 && <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />}
           {!hasMore && allTransactions.length > 0 && <p className="text-sm text-muted-foreground">You&apos;ve reached the end.</p>}
         </div>

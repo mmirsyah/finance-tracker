@@ -1,0 +1,71 @@
+/* Typography Scale */
+h1 {
+  @apply text-3xl font-bold leading-tight tracking-tight;
+}
+
+h2 {
+  @apply text-2xl font-bold leading-tight tracking-tight;
+}
+
+h3 {
+  @apply text-xl font-semibold leading-snug tracking-tight;
+}
+
+h4 {
+  @apply text-lg font-semibold leading-snug;
+}
+
+p {
+  @apply text-base leading-relaxed;
+}
+
+.lead {
+  @apply text-lg text-muted-foreground;
+}
+
+.large {
+  @apply text-lg font-semibold;
+}
+
+.small {
+  @apply text-sm font-medium leading-none;
+}
+
+.muted {
+  @apply text-sm text-muted-foreground;
+}
+
+/* Consistent Spacing Utilities */
+.space-y-consistent > :not([hidden]) ~ :not([hidden]) {
+  @apply mt-4;
+}
+
+.space-x-consistent > :not([hidden]) ~ :not([hidden]) {
+  @apply ml-4;
+}
+
+/* Section Spacing */
+.section-gap {
+  @apply py-6;
+}
+
+.section-gap-small {
+  @apply py-4;
+}
+
+.section-gap-large {
+  @apply py-8;
+}
+
+/* Content Spacing */
+.content-gap {
+  @apply space-y-4;
+}
+
+.content-gap-small {
+  @apply space-y-2;
+}
+
+.content-gap-large {
+  @apply space-y-6;
+}

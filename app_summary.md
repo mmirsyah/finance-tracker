@@ -82,6 +82,7 @@ Finance Tracker is a comprehensive personal and family finance management applic
 - Offline functionality
 - Background sync capabilities
 - Mobile-responsive design
+- Pull-to-refresh for dashboard and transaction lists
 
 ## Data Models
 
@@ -118,6 +119,7 @@ Finance Tracker is a comprehensive personal and family finance management applic
 - Data tables with sorting and filtering
 - Modal and drawer-based UI patterns
 - Responsive design for mobile and desktop
+- Pull-to-refresh wrapper for mobile interactions
 
 ## Key Services
 
@@ -163,9 +165,23 @@ Finance Tracker is a comprehensive personal and family finance management applic
 - Custom OKLCH color system for consistent theming
 - Responsive design with mobile-first approach
 - Dark mode support
-- Consistent spacing and typography
+- Consistent spacing and typography hierarchy for better readability
 - Accessible UI components
 - Haptic feedback for interactive elements (buttons, switches, checkboxes)
+- Pull-to-refresh functionality for mobile users
+
+## Mobile Features
+The application includes several mobile-specific features to enhance the user experience on mobile devices:
+
+### Touch Interactions
+- **Pull-to-refresh**: Users can refresh dashboard and transaction lists by pulling down on the content
+- **Haptic feedback**: Provides tactile feedback for interactive elements
+- **Responsive design**: Optimized layout for various screen sizes
+
+### Navigation
+- **Bottom navigation**: Easy access to key sections of the app
+- **Floating action button**: Quick access to create new transactions
+- **Gesture-based navigation**: Back gesture support for Android users
 
 ## Haptic Feedback Implementation
 The application implements haptic feedback for user interactions on supported devices:

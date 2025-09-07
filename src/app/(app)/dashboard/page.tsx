@@ -57,8 +57,11 @@ function Dashboard() {
   return (
     <PullToRefreshWrapper onRefresh={refetchData}>
       <div className="p-4 md:p-6 space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-0">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-1">Your financial overview</p>
+          </div>
           <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
         </div>
         <div className="grid grid-cols-12 gap-6">

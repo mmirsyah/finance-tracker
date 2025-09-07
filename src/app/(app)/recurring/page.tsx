@@ -177,11 +177,11 @@ export default function RecurringPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Recurring Transactions</h1>
-          <p className="text-gray-600">Manage your recurring income, expenses, and transfers</p>
+          <h1 className="text-2xl font-bold">Recurring Transactions</h1>
+          <p className="text-sm text-muted-foreground mt-1">Kelola transaksi berulang Anda</p>
         </div>
         <div className="flex items-center gap-3">
           <Button 

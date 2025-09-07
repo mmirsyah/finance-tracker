@@ -203,14 +203,17 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-8">
-      <h1 className="text-3xl font-bold text-gray-800">Settings</h1>
+    <div className="p-4 sm:p-6 w-full max-w-4xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">Kelola pengaturan akun dan rumah tangga Anda</p>
+      </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Profile & Household</h2>
         <form onSubmit={handleUpdateProfile} className="space-y-4">
-          <div><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label><input id="email" type="email" value={user?.email || ''} disabled className="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed" /></div>
-          <div><label htmlFor="fullName" className="block text-sm font-medium text-gray-700">Full Name</label><input id="fullName" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Your name" /></div>
+          <div><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label><input id="email" type="email" value={user?.email || ''} disabled className="mt-1 block w-full p-2 sm:p-3 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed" /></div>
+          <div><label htmlFor="fullName" className="block text-sm font-medium text-gray-700">Full Name</label><input id="fullName" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 block w-full p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm" placeholder="Your name" /></div>
           
           <div>
             <label htmlFor="periodStartDay" className="block text-sm font-medium text-gray-700">Household Financial Period Start Day</label>
@@ -222,7 +225,7 @@ export default function SettingsPage() {
               value={periodInput}
               onChange={(e) => setPeriodInput(e.target.value.replace(/[^0-9]/g, ''))}
               onBlur={handlePeriodInputBlur}
-              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm"
               placeholder="e.g. 25"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -231,7 +234,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex items-center justify-start">
-            <button type="submit" disabled={isPending} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-48 disabled:bg-blue-400 disabled:cursor-not-allowed">
+            <button type="submit" disabled={isPending} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-full sm:w-48 disabled:bg-blue-400 disabled:cursor-not-allowed">
               {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Profile & Household'}
             </button>
           </div>
@@ -239,7 +242,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Kartu Notifikasi Push */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Notifications</h2>
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
@@ -249,7 +252,7 @@ export default function SettingsPage() {
             <button 
               onClick={handleSubscribe}
               disabled={isSubscribed || isSubscriptionLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-48 disabled:bg-blue-400 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-full sm:w-48 disabled:bg-blue-400 disabled:cursor-not-allowed"
             >
               {isSubscriptionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isSubscribed ? 'Notifications Enabled' : 'Enable Notifications')}
             </button>
@@ -257,22 +260,22 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Household Management</h2>
-        <div className="mb-6"><h3 className="text-lg font-medium mb-2">Current Members</h3><ul className="space-y-2">{householdMembers.map(member => (<li key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md"><span className="text-gray-700">{member.full_name || 'Unnamed User'}</span></li>))}</ul></div>
+        <div className="mb-6"><h3 className="text-lg font-medium mb-2">Current Members</h3><ul className="space-y-2">{householdMembers.map(member => (<li key={member.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-md"><span className="text-gray-700">{member.full_name || 'Unnamed User'}</span></li>))}</ul></div>
         <form onSubmit={handleSendInvite} className="space-y-4">
           <div>
             <label htmlFor="inviteEmail" className="block text-sm font-medium text-gray-700">Invite New Member</label>
-            <div className="mt-1 flex gap-2"><input id="inviteEmail" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm" placeholder="member@example.com" required /><button type="submit" disabled={isPending} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-32 disabled:bg-blue-400 disabled:cursor-not-allowed">{isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Invite'}</button></div>
+            <div className="mt-1 flex flex-col sm:flex-row gap-2"><input id="inviteEmail" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="flex-grow p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm" placeholder="member@example.com" required /><button type="submit" disabled={isPending} className="px-4 py-2 sm:py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-full sm:w-32 disabled:bg-blue-400 disabled:cursor-not-allowed">{isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Invite'}</button></div>
           </div>
         </form>
       </div>
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Change Password</h2>
         <form onSubmit={handleUpdatePassword} className="space-y-4">
-          <div><label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">New Password</label><input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="New password (min. 6 characters)" /></div>
-          <div><label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm New Password</label><input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Confirm new password" /></div>
-          <div className="flex items-center justify-start"><button type="submit" disabled={isPending} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-40 disabled:bg-blue-400 disabled:cursor-not-allowed">{isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Update Password'}</button></div>
+          <div><label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">New Password</label><input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1 block w-full p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm" placeholder="New password (min. 6 characters)" /></div>
+          <div><label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm New Password</label><input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1 block w-full p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm" placeholder="Confirm new password" /></div>
+          <div className="flex items-center justify-start"><button type="submit" disabled={isPending} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center w-full sm:w-40 disabled:bg-blue-400 disabled:cursor-not-allowed">{isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Update Password'}</button></div>
         </form>
       </div>
     </div>
