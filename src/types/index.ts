@@ -191,6 +191,7 @@ export interface BudgetHistoryData {
   last_month_spending: number;
   three_month_avg: number;
   six_month_avg: number;
+  last_month_budget: number;
   monthly_history: { month: string; Pengeluaran: number }[];
 }
 

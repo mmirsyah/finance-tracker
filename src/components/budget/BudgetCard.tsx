@@ -127,7 +127,7 @@ export const BudgetCard = ({ category, onAssignmentChange, onRefresh, isPriority
                       Bantuan Anggaran
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="start">
+                <PopoverContent className="w-96 p-0" align="start">
                     <BudgetingAssistant 
                         categoryId={category.id}
                         onApply={handleApplyFromAssistant}

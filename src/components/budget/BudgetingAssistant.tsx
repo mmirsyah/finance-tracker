@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { BudgetHistoryData } from '@/types';
 import { formatCurrency } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BarChart } from '@tremor/react';
 import { toast } from 'sonner';
@@ -44,8 +44,22 @@ export const BudgetingAssistant = ({ categoryId, onApply, currentPeriodStart, on
         onOpenChange(false);
     };
 
+    // Fungsi untuk menghitung persentase perbedaan antara pengeluaran dan anggaran
+    const calculateDifference = (spent: number, budget: number) => {
+        if (budget === 0) return 0;
+        return ((spent - budget) / budget) * 100;
+    };
+
+    // Fungsi untuk mendapatkan indikator tren
+    const getTrendIndicator = (spent: number, budget: number) => {
+        const difference = calculateDifference(spent, budget);
+        if (difference > 10) return <TrendingUp className="w-4 h-4 text-red-500" />;
+        if (difference < -10) return <TrendingDown className="w-4 h-4 text-green-500" />;
+        return <Minus className="w-4 h-4 text-gray-500" />;
+    };
+
     return (
-        <div className="space-y-4 p-4">
+        <div className="space-y-4 p-4 w-full max-w-md">
             <p className="text-sm font-semibold text-center border-b pb-2">Bantuan Anggaran</p>
             {isLoading ? (
                 <div className="flex justify-center items-center h-48">
@@ -72,14 +86,41 @@ export const BudgetingAssistant = ({ categoryId, onApply, currentPeriodStart, on
                             <span className="text-gray-500">Pengeluaran Bulan Lalu</span>
                             <span className="font-semibold">{formatCurrency(history.last_month_spending)}</span>
                         </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Anggaran Bulan Lalu</span>
+                            <span className="font-semibold">{formatCurrency(history.last_month_budget)}</span>
+                        </div>
+                        {history.last_month_budget > 0 && (
+                            <div className="flex justify-between items-center pt-2 border-t">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Perbandingan Bulan Lalu</span>
+                                    {getTrendIndicator(history.last_month_spending, history.last_month_budget)}
+                                </div>
+                                <span className={`font-semibold ${
+                                    calculateDifference(history.last_month_spending, history.last_month_budget) > 10 
+                                        ? 'text-red-500' 
+                                        : calculateDifference(history.last_month_spending, history.last_month_budget) < -10 
+                                            ? 'text-green-500' 
+                                            : 'text-gray-500'
+                                }`}>
+                                    {calculateDifference(history.last_month_spending, history.last_month_budget) > 0 ? '+' : ''}
+                                    {calculateDifference(history.last_month_spending, history.last_month_budget).toFixed(1)}%
+                                </span>
+                            </div>
+                        )}
                     </div>
-                    <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleApply(history.last_month_spending)}>
+                    <div className="grid grid-cols-3 gap-2 pt-2">
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => handleApply(history.last_month_spending)}>
                             Pakai Bln Lalu
                         </Button>
-                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleApply(history.three_month_avg)}>
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => handleApply(history.three_month_avg)}>
                             Pakai Rata-rata
                         </Button>
+                        {history.last_month_budget > 0 && (
+                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleApply(history.last_month_budget)}>
+                                Pakai Anggaran
+                            </Button>
+                        )}
                     </div>
                 </div>
             ) : (

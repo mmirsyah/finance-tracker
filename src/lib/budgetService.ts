@@ -108,17 +108,46 @@ export const getCategorySpendingHistory = async (
   categoryId: number,
   currentPeriodStart: Date
 ): Promise<BudgetHistoryData | null> => {
-  const { data, error } = await supabase.rpc('get_category_spending_history', {
-    p_household_id: householdId,
-    p_category_id: categoryId,
-    p_current_period_start: format(currentPeriodStart, 'yyyy-MM-dd'),
-  });
+  try {
+    const formattedDate = format(currentPeriodStart, 'yyyy-MM-dd');
+    console.log('Calling get_category_spending_history with:', { 
+      p_household_id: householdId, 
+      p_category_id: categoryId, 
+      p_current_period_start: formattedDate 
+    });
+    
+    const { data, error } = await supabase.rpc('get_category_spending_history', {
+      p_household_id: householdId,
+      p_category_id: categoryId,
+      p_current_period_start: formattedDate,
+    });
 
-  if (error) {
-    console.error('Error fetching category spending history:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching category spending history:', error);
+      console.error('Parameters:', { householdId, categoryId, currentPeriodStart: formattedDate });
+      throw new Error(`Failed to fetch category spending history: ${error.message || error.code || 'Unknown error'}`);
+    }
+    
+    // Memastikan semua field dikonversi ke tipe number yang benar
+    if (data && data.length > 0) {
+      const result = data[0];
+      return {
+        last_month_spending: Number(result.last_month_spending),
+        three_month_avg: Number(result.three_month_avg),
+        six_month_avg: Number(result.six_month_avg),
+        last_month_budget: Number(result.last_month_budget),
+        monthly_history: result.monthly_history.map((item: { month: string; Pengeluaran: number }) => ({
+          ...item,
+          Pengeluaran: Number(item.Pengeluaran)
+        }))
+      } as BudgetHistoryData;
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('Unexpected error in getCategorySpendingHistory:', err);
+    throw new Error(`Unexpected error fetching category spending history: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
-  return (data && data.length > 0 ? data[0] : null) as BudgetHistoryData | null;
 };
 
 export const getBudgetSummary = async (

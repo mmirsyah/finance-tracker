@@ -1,0 +1,84 @@
+-- Menambahkan kolom last_month_budget pada fungsi get_category_spending_history
+-- untuk membandingkan pengeluaran dengan anggaran bulan sebelumnya
+
+-- Drop fungsi yang ada sebelum membuat versi baru
+DROP FUNCTION IF EXISTS public.get_category_spending_history(uuid, integer, date);
+
+-- Membuat fungsi baru dengan tipe return yang diperbarui
+CREATE OR REPLACE FUNCTION "public"."get_category_spending_history"("p_household_id" "uuid", "p_category_id" integer, "p_current_period_start" "date") 
+RETURNS TABLE("last_month_spending" numeric, "three_month_avg" numeric, "six_month_avg" numeric, "last_month_budget" numeric, "monthly_history" "jsonb")
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+    v_category_ids INT[];
+    v_last_period_start DATE;
+    v_last_period_end DATE;
+    v_3_month_start DATE;
+    v_6_month_start DATE;
+    v_last_month_budget_date DATE;
+BEGIN
+    -- Menentukan semua ID kategori yang relevan (termasuk anak-anaknya)
+    WITH RECURSIVE category_tree AS (
+        SELECT id
+        FROM categories
+        WHERE id = p_category_id
+        UNION ALL
+        SELECT c.id
+        FROM categories c
+        JOIN category_tree ct ON c.parent_id = ct.id
+    )
+    SELECT array_agg(id) INTO v_category_ids FROM category_tree;
+
+    -- Menghitung rentang tanggal
+    v_last_period_start := p_current_period_start - INTERVAL '1 month';
+    v_last_period_end   := p_current_period_start - INTERVAL '1 day';
+    v_3_month_start := p_current_period_start - INTERVAL '3 months';
+    v_6_month_start := p_current_period_start - INTERVAL '6 months';
+    v_last_month_budget_date := date_trunc('month', v_last_period_start);
+
+    RETURN QUERY
+    WITH monthly_series AS (
+        -- Membuat deret 6 bulan terakhir sebelum periode saat ini
+        SELECT date_trunc('month', generate_series(v_6_month_start, v_last_period_end, '1 month'))::date as month_start
+    ),
+    monthly_spending AS (
+        -- Menghitung total pengeluaran per bulan
+        SELECT
+            date_trunc('month', date)::date as month_start,
+            SUM(amount) as total
+        FROM transactions
+        WHERE household_id = p_household_id
+          AND category = ANY(v_category_ids)
+          AND type = 'expense'
+          AND date >= v_6_month_start AND date < p_current_period_start
+        GROUP BY 1
+    ),
+    last_month_budget AS (
+        -- Mengambil anggaran bulan lalu
+        SELECT COALESCE(SUM(assigned_amount), 0) as budget_amount
+        FROM budget_assignments
+        WHERE household_id = p_household_id
+          AND category_id = ANY(v_category_ids)
+          AND month = v_last_month_budget_date
+    )
+    SELECT
+        -- 1. Pengeluaran bulan lalu
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE household_id = p_household_id AND category = ANY(v_category_ids) AND type = 'expense' AND date >= v_last_period_start AND date <= v_last_period_end) AS last_month_spending,
+        -- 2. Rata-rata 3 bulan terakhir
+        (SELECT COALESCE(SUM(amount) / 3.0, 0) FROM transactions WHERE household_id = p_household_id AND category = ANY(v_category_ids) AND type = 'expense' AND date >= v_3_month_start AND date < p_current_period_start) AS three_month_avg,
+        -- 3. Rata-rata 6 bulan terakhir
+        (SELECT COALESCE(SUM(amount) / 6.0, 0) FROM transactions WHERE household_id = p_household_id AND category = ANY(v_category_ids) AND type = 'expense' AND date >= v_6_month_start AND date < p_current_period_start) AS six_month_avg,
+        -- 4. Anggaran bulan lalu
+        (SELECT COALESCE(budget_amount, 0) FROM last_month_budget) AS last_month_budget,
+        -- 5. Histori bulanan dalam format JSON
+        (SELECT jsonb_agg(
+            jsonb_build_object(
+                'month', to_char(ms.month_start, 'Mon YY'),
+                'Pengeluaran', COALESCE(sp.total, 0)
+            ) ORDER BY ms.month_start ASC
+        )
+        FROM monthly_series ms
+        LEFT JOIN monthly_spending sp ON ms.month_start = sp.month_start
+        ) AS monthly_history;
+END;
+$$;
