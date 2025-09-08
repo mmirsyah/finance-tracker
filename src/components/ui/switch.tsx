@@ -11,7 +11,7 @@ const Switch = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
 >(({ className, onClick, ...props }, ref) => {
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    triggerHapticFeedback()
+    triggerHapticFeedback('medium')
     if (onClick) {
       onClick(event)
     }

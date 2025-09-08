@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useHapticFeedback } from '@/lib/haptics';
 
 interface TransactionToolbarProps {
   dateRange: DateRange | undefined;
@@ -31,6 +32,12 @@ export default function TransactionToolbar({
   categories, accounts, onResetFilters, onOpenImportModal
 }: TransactionToolbarProps) {
   const isDesktop = useIsDesktop();
+  const { triggerHaptic } = useHapticFeedback();
+
+  // Fungsi untuk menangani haptic feedback saat tombol diklik
+  const handleButtonClick = (pattern: 'transaction' | 'selection' | 'light' = 'light') => {
+    triggerHaptic(pattern);
+  };
 
   return (
     <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm p-4 sm:p-6 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6 border-b">
@@ -41,24 +48,45 @@ export default function TransactionToolbar({
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link href="/transactions/bulk-add" passHref>
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              haptic="transaction"
+              onClick={() => handleButtonClick('transaction')}
+            >
                 <PlusSquare className="mr-2 h-4 w-4" /> Input Massal
             </Button>
           </Link>
           
-          <Button variant="outline" size="sm" onClick={onOpenImportModal}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            haptic="light"
+            onClick={() => {
+              handleButtonClick('light');
+              onOpenImportModal();
+            }}
+          >
             <Upload className="mr-2 h-4 w-4" /> Impor
           </Button>
 
           {isDesktop ? (
             <DateRangePicker 
               initialDate={dateRange} 
-              onUpdate={({ range }) => onDateChange(range)} 
+              onUpdate={({ range }) => {
+                handleButtonClick('selection');
+                onDateChange(range);
+              }} 
             />
           ) : (
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant={"outline"} size="sm" className={cn("w-[240px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                <Button 
+                  variant={"outline"} 
+                  size="sm" 
+                  className={cn("w-[240px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}
+                  onClick={() => handleButtonClick('selection')}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {dateRange?.from ? (
                     dateRange.to ? (
@@ -80,7 +108,10 @@ export default function TransactionToolbar({
                   mode="range"
                   defaultMonth={dateRange?.from}
                   selected={dateRange}
-                  onSelect={onDateChange}
+                  onSelect={(range) => {
+                    handleButtonClick('selection');
+                    onDateChange(range);
+                  }}
                   numberOfMonths={1}
                 />
               </PopoverContent>
@@ -91,12 +122,21 @@ export default function TransactionToolbar({
             filterType={filterType} 
             setFilterType={setFilterType} 
             filterCategory={filterCategory} 
-            setFilterCategory={setFilterCategory} 
+            setFilterCategory={(value) => {
+              handleButtonClick('selection');
+              setFilterCategory(value);
+            }} 
             filterAccount={filterAccount} 
-            setFilterAccount={setFilterAccount} 
+            setFilterAccount={(value) => {
+              handleButtonClick('selection');
+              setFilterAccount(value);
+            }} 
             categories={categories} 
             accounts={accounts} 
-            onResetFilters={onResetFilters} 
+            onResetFilters={() => {
+              handleButtonClick('selection');
+              onResetFilters();
+            }} 
           />
         </div>
       </div>

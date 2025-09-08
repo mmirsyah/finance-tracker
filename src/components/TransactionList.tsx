@@ -9,6 +9,7 @@ import { useAppData } from '@/contexts/AppDataContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import PullToRefreshWrapper from '@/components/PullToRefreshWrapper';
+import { useHapticFeedback } from '@/lib/haptics';
 
 const PAGE_SIZE = 20;
 
@@ -60,6 +61,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   const { householdId, refetchData } = useAppData();
+  const { triggerHaptic } = useHapticFeedback();
 
   const fetchTransactions = useCallback(async (pageNum: number, isNewFilter: boolean) => {
     if (!householdId) {
@@ -141,6 +143,8 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       newSelectedIds.add(transactionId);
     }
     onSelectionChange(newSelectedIds);
+    // Trigger haptic feedback for selection
+    triggerHaptic('selection');
   };
 
   const handleGroupSelect = (transactionIds: string[], select: boolean) => {
@@ -151,6 +155,8 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       transactionIds.forEach(id => newSelectedIds.delete(id));
     }
     onSelectionChange(newSelectedIds);
+    // Trigger haptic feedback for group selection
+    triggerHaptic('selection');
   };
 
   const handleRefresh = async () => {
@@ -169,6 +175,14 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     setTimeout(() => {
         fetchTransactions(0, true);
     }, 0);
+    // Trigger haptic feedback for refresh
+    triggerHaptic('success');
+  };
+
+  const handleTransactionClick = (transaction: Transaction) => {
+    startEdit(transaction);
+    // Trigger haptic feedback for transaction selection
+    triggerHaptic('transaction');
   };
 
   const renderTransactionDetails = (t: Transaction) => {
@@ -278,7 +292,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
                       "flex items-center p-4 hover:bg-muted/50 cursor-pointer transition-colors",
                       editingId === t.id && "bg-accent"
                     )} 
-                    onClick={() => startEdit(t)}
+                    onClick={() => handleTransactionClick(t)}
                   >
                     <Checkbox
                       checked={selectedIds.has(t.id)}

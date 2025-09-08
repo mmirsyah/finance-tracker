@@ -8,6 +8,8 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast'; // <-- GANTI IMPORT KE react-hot-toast
+import { useHapticPreference } from '@/hooks/use-haptic-preference';
+import { triggerHapticFeedback } from '@/lib/haptics';
 
 type Profile = { id: string; full_name: string | null; household_id: string; period_start_day: number; }
 
@@ -21,6 +23,9 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [householdMembers, setHouseholdMembers] = useState<Profile[]>([]);
 
+  // Haptic preference
+  const { prefersHaptics, hapticIntensity, enableHaptics, disableHaptics, setIntensity } = useHapticPreference();
+
   // State untuk form
   const [fullName, setFullName] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -30,6 +35,10 @@ export default function SettingsPage() {
   const [periodInput, setPeriodInput] = useState<string>('1');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+
+  // State untuk haptic settings
+  const [hapticEnabled, setHapticEnabled] = useState(prefersHaptics);
+  const [selectedIntensity, setSelectedIntensity] = useState<'light' | 'medium' | 'strong'>(hapticIntensity);
 
   // Fungsi untuk mengubah VAPID key dari URL-safe base64 ke Uint8Array
   function urlBase64ToUint8Array(base64String: string) {
@@ -198,6 +207,28 @@ export default function SettingsPage() {
     });
   };
 
+  const handleHapticToggle = () => {
+    if (hapticEnabled) {
+      disableHaptics();
+      setHapticEnabled(false);
+      toast.success('Haptic feedback disabled');
+    } else {
+      enableHaptics();
+      setHapticEnabled(true);
+      toast.success('Haptic feedback enabled');
+      // Trigger haptic feedback to demonstrate the change
+      triggerHapticFeedback('success');
+    }
+  };
+
+  const handleIntensityChange = (intensity: 'light' | 'medium' | 'strong') => {
+    setIntensity(intensity);
+    setSelectedIntensity(intensity);
+    toast.success(`Haptic intensity set to ${intensity}`);
+    // Trigger haptic feedback to demonstrate the change
+    triggerHapticFeedback('selection');
+  };
+
   if (loading) {
     return <div className="p-6">Loading settings...</div>;
   }
@@ -239,6 +270,66 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Kartu Haptic Feedback */}
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Haptic Feedback</h2>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Enable haptic feedback for tactile responses to your interactions.
+          </p>
+          
+          {/* Toggle untuk mengaktifkan/menonaktifkan haptic feedback */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Enable Haptic Feedback</h3>
+              <p className="text-xs text-gray-500">Receive tactile feedback for interactions</p>
+            </div>
+            <button
+              onClick={handleHapticToggle}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                hapticEnabled ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  hapticEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {/* Pilihan intensitas haptic */}
+          <div>
+            <h3 className="font-medium mb-2">Haptic Intensity</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {(['light', 'medium', 'strong'] as const).map((intensity) => (
+                <button
+                  key={intensity}
+                  onClick={() => handleIntensityChange(intensity)}
+                  className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    selectedIntensity === intensity
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {intensity.charAt(0).toUpperCase() + intensity.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Demo haptic feedback */}
+          <div className="pt-2">
+            <button
+              onClick={() => triggerHapticFeedback('success')}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
+            >
+              Test Haptic Feedback
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Kartu Notifikasi Push */}

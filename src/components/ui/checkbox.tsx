@@ -13,7 +13,7 @@ const Checkbox = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
 >(({ className, onClick, ...props }, ref) => {
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    triggerHapticFeedback()
+    triggerHapticFeedback('selection')
     if (onClick) {
       onClick(event)
     }

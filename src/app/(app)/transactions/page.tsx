@@ -21,6 +21,7 @@ import * as transactionService from '@/lib/transactionService';
 import { deleteAssetTransaction } from '@/lib/assetService';
 import { Transaction, AssetTransaction } from '@/types';
 import { toast } from 'sonner';
+import { useHapticFeedback } from '@/lib/haptics';
 
 export default function TransactionsPage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function TransactionsPage() {
     refetchData, handleOpenModalForEdit, handleOpenImportModal, handleCloseModal 
   } = useAppData();
   const [isListLoading, setIsListLoading] = useState(true);
+  const { triggerHaptic } = useHapticFeedback();
 
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [filterType, setFilterType] = useState<string>('');
@@ -47,16 +49,29 @@ export default function TransactionsPage() {
   // State untuk melacak ID transaksi yang sedang diedit
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
+  // Fungsi untuk membuat template recurring
+  const handleMakeRecurring = useCallback((transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setIsRecurringModalOpen(true);
+    // Trigger haptic feedback for recurring action
+    triggerHaptic('transaction');
+  }, [triggerHaptic]);
+
   // Wrap closeEditing in useCallback
   const closeEditing = useCallback(() => {
     setEditingTransactionId(null);
     handleCloseModal();
-  }, [handleCloseModal]);
+    // Trigger haptic feedback for closing
+    triggerHaptic('selection');
+  }, [handleCloseModal, triggerHaptic]);
 
   // Wrap handleDelete in useCallback
   const handleDelete = useCallback(async (transactionId: string, linkedAssetTx?: AssetTransaction) => {
     console.log("handleDelete called for tx:", transactionId);
     console.log("Linked asset transaction received:", linkedAssetTx);
+
+    // Trigger haptic feedback for delete action
+    triggerHaptic('delete');
 
     if (linkedAssetTx && linkedAssetTx.id) {
         console.log("Asset path taken. Deleting asset tx:", linkedAssetTx.id);
@@ -101,7 +116,7 @@ export default function TransactionsPage() {
         error: (err) => `Error: ${err.message}`,
       });
     }
-  }, [refetchData, closeEditing]);
+  }, [refetchData, closeEditing, triggerHaptic]);
 
   // Check for transaction ID in URL parameters
   useEffect(() => {
@@ -122,7 +137,7 @@ export default function TransactionsPage() {
         router.replace(`/transactions?${newParams.toString()}`, { scroll: false });
       }
     }
-  }, [searchParams, handleOpenModalForEdit, transactions, editingTransactionId, handleDelete, router]);
+  }, [searchParams, handleOpenModalForEdit, transactions, editingTransactionId, handleDelete, handleMakeRecurring, router]);
 
   useEffect(() => {
     if (user && !date) {
@@ -161,6 +176,8 @@ export default function TransactionsPage() {
         }
     };
     fetchProfileAndSetDate();
+    // Trigger haptic feedback for reset
+    triggerHaptic('selection');
   };
 
   const filters = useMemo(() => ({ filterType, filterCategory, filterAccount, filterStartDate, filterEndDate, transactionVersion: dataVersion }),
@@ -177,6 +194,8 @@ export default function TransactionsPage() {
       onDelete: () => handleDelete(transaction.id),
       onMakeRecurring: () => handleMakeRecurring(transaction),
     });
+    // Trigger haptic feedback for editing
+    triggerHaptic('transaction');
   };
   
   // closeEditing and handleDelete have been moved to useCallback above to fix dependency issues
@@ -195,11 +214,8 @@ export default function TransactionsPage() {
       loading: 'Memperbarui transaksi...',
       error: (err: Error) => `Gagal memperbarui: ${err.message}`,
     });
-  };
-
-  const handleMakeRecurring = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setIsRecurringModalOpen(true);
+    // Trigger haptic feedback for bulk reassign
+    triggerHaptic('transaction');
   };
 
   const handleRecurringSaved = () => {
@@ -207,6 +223,8 @@ export default function TransactionsPage() {
     setSelectedTransaction(null);
     toast.success('Recurring template created successfully!');
     closeEditing(); // Tutup juga modal transaksi utama
+    // Trigger haptic feedback for saving
+    triggerHaptic('success');
   };
 
   // handleDelete function has been moved to useCallback above to fix dependency issues
@@ -242,8 +260,16 @@ export default function TransactionsPage() {
               {selectedIds.size > 0 && (
                 <BulkActionToolbar
                   selectedCount={selectedIds.size}
-                  onClear={() => setSelectedIds(new Set())}
-                  onReassignCategory={() => setIsReassignModalOpen(true)}
+                  onClear={() => {
+                    setSelectedIds(new Set());
+                    // Trigger haptic feedback for clear selection
+                    triggerHaptic('selection');
+                  }}
+                  onReassignCategory={() => {
+                    setIsReassignModalOpen(true);
+                    // Trigger haptic feedback for reassign
+                    triggerHaptic('selection');
+                  }}
                 />
               )}
 
@@ -274,7 +300,11 @@ export default function TransactionsPage() {
         {/* Modal untuk Aksi Massal */}
         <BulkReassignCategoryModal
             isOpen={isReassignModalOpen}
-            onClose={() => setIsReassignModalOpen(false)}
+            onClose={() => {
+              setIsReassignModalOpen(false);
+              // Trigger haptic feedback for closing modal
+              triggerHaptic('selection');
+            }}
             onSave={handleBulkReassign}
             transactionCount={selectedIds.size}
             categories={categories}
@@ -286,6 +316,8 @@ export default function TransactionsPage() {
             onClose={() => {
               setIsRecurringModalOpen(false);
               setSelectedTransaction(null);
+              // Trigger haptic feedback for closing modal
+              triggerHaptic('selection');
             }}
             onSave={handleRecurringSaved}
             transaction={selectedTransaction}

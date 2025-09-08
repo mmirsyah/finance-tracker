@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 export const useHapticPreference = () => {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [prefersHaptics, setPrefersHaptics] = useState(true);
+  const [hapticIntensity, setHapticIntensity] = useState<'light' | 'medium' | 'strong'>('medium');
 
   useEffect(() => {
     // Cek preferensi reduced motion dari sistem
@@ -15,20 +16,53 @@ export const useHapticPreference = () => {
     
     mediaQuery.addEventListener('change', handleChange);
     
-    // Untuk haptic preference, kita asumsikan default aktif kecuali ada indikasi lain
-    // Di masa depan, bisa ditambahkan pengaturan eksplisit di halaman settings
+    // Muat preferensi haptic dari localStorage jika tersedia
+    if (typeof window !== 'undefined') {
+      const savedHapticPreference = localStorage.getItem('hapticPreference');
+      if (savedHapticPreference !== null) {
+        setPrefersHaptics(savedHapticPreference === 'true');
+      }
+      
+      const savedHapticIntensity = localStorage.getItem('hapticIntensity');
+      if (savedHapticIntensity && ['light', 'medium', 'strong'].includes(savedHapticIntensity)) {
+        setHapticIntensity(savedHapticIntensity as 'light' | 'medium' | 'strong');
+      }
+    }
     
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
     };
   }, []);
 
+  const enableHaptics = () => {
+    setPrefersHaptics(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hapticPreference', 'true');
+    }
+  };
+
+  const disableHaptics = () => {
+    setPrefersHaptics(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hapticPreference', 'false');
+    }
+  };
+
+  const setIntensity = (intensity: 'light' | 'medium' | 'strong') => {
+    setHapticIntensity(intensity);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hapticIntensity', intensity);
+    }
+  };
+
   // Haptic diaktifkan jika tidak ada preferensi reduced motion
   // dan pengguna belum menonaktifkannya secara eksplisit
   return {
     prefersReducedMotion,
     prefersHaptics,
-    enableHaptics: () => setPrefersHaptics(true),
-    disableHaptics: () => setPrefersHaptics(false)
+    hapticIntensity,
+    enableHaptics,
+    disableHaptics,
+    setIntensity
   };
 };
