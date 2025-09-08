@@ -75,7 +75,21 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     const from = pageNum * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    let query = supabase
+    // Buat query untuk menghitung jumlah total transaksi dengan filter yang diterapkan
+    let countQuery = supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('household_id', householdId);
+
+    // Terapkan filter yang sama untuk count query
+    if (filters.filterType) countQuery = countQuery.eq('type', filters.filterType);
+    if (filters.filterCategory) countQuery = countQuery.eq('category', Number(filters.filterCategory));
+    if (filters.filterAccount) countQuery = countQuery.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
+    if (filters.filterStartDate) countQuery = countQuery.gte('date', filters.filterStartDate);
+    if (filters.filterEndDate) countQuery = countQuery.lte('date', filters.filterEndDate);
+
+    // Buat query untuk mengambil data halaman saat ini
+    let dataQuery = supabase
       .from('transactions')
       .select(`*, categories ( id, name ), accounts:account_id ( name ), to_account:to_account_id ( name )`)
       .eq('household_id', householdId)
@@ -83,20 +97,31 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
       .order('created_at', { ascending: false })
       .range(from, to);
 
-    if (filters.filterType) query = query.eq('type', filters.filterType);
-    if (filters.filterCategory) query = query.eq('category', Number(filters.filterCategory));
-    if (filters.filterAccount) query = query.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
-    if (filters.filterStartDate) query = query.gte('date', filters.filterStartDate);
-    if (filters.filterEndDate) query = query.lte('date', filters.filterEndDate);
+    // Terapkan filter yang sama untuk data query
+    if (filters.filterType) dataQuery = dataQuery.eq('type', filters.filterType);
+    if (filters.filterCategory) dataQuery = dataQuery.eq('category', Number(filters.filterCategory));
+    if (filters.filterAccount) dataQuery = dataQuery.or(`account_id.eq.${filters.filterAccount},to_account_id.eq.${filters.filterAccount}`);
+    if (filters.filterStartDate) dataQuery = dataQuery.gte('date', filters.filterStartDate);
+    if (filters.filterEndDate) dataQuery = dataQuery.lte('date', filters.filterEndDate);
 
-    const { data, error: fetchError, count } = await query.returns<Transaction[]>();
+    // Jalankan kedua query secara paralel untuk efisiensi
+    const [dataResult, countResult] = await Promise.all([
+      dataQuery.returns<Transaction[]>(),
+      countQuery
+    ]);
 
-    if (fetchError) {
-      setError(`Failed to load data: ${fetchError.message}`);
+    const { data, error: fetchError } = dataResult;
+    const { count, error: countError } = countResult;
+
+    if (fetchError || countError) {
+      const errorMessage = `Failed to load data: ${fetchError?.message || countError?.message}`;
+      setError(errorMessage);
     } else {
       const newTransactions = data || [];
       setAllTransactions(prev => isNewFilter ? newTransactions : [...prev, ...newTransactions]);
-      setHasMore((count || 0) > (pageNum + 1) * PAGE_SIZE);
+      // Gunakan count yang benar dari count query, bukan dari data query
+      const hasMoreTransactions = (count || 0) > (pageNum + 1) * PAGE_SIZE;
+      setHasMore(hasMoreTransactions);
     }
 
     if (pageNum === 0) onDataLoaded();
@@ -171,6 +196,7 @@ export default function TransactionList({ startEdit, filters, onDataLoaded, sele
     setPage(0);
     setAllTransactions([]);
     setHasMore(true);
+    onSelectionChange(new Set()); 
     // Gunakan function callback daripada string
     setTimeout(() => {
         fetchTransactions(0, true);
