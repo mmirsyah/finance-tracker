@@ -234,7 +234,7 @@ export default function TransactionsPage() {
 
   return (
       <>
-        <div className="p-4 sm:p-6 w-full h-full">
+        <div className="p-4 sm:p-6 w-full ">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Toolbar: Mobile Order 2, Desktop Order 1 & Full Span */}
             <div className="order-2 lg:order-1 lg:col-span-3">

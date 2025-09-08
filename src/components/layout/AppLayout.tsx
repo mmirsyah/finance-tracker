@@ -134,7 +134,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
             <main className={cn(
               "flex-1 overflow-y-auto",
-              !isDesktop && "pb-24" // Add bottom padding for mobile navigation
+              !isDesktop && "pb-32" // Add bottom padding for mobile navigation
             )}>
               {children}
             </main>
