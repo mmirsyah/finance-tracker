@@ -56,7 +56,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
   // Efek untuk menampilkan pesan sambutan hanya sekali per sesi
   useEffect(() => {
     if (user && !isLoading && profile) {
-      const hasSeenGreeting = localStorage.getItem('hasSeenGreeting');
+      const hasSeenGreeting = sessionStorage.getItem('hasSeenGreeting');
       if (!hasSeenGreeting) {
         const getGreetingAndMessage = () => {
           const hour = new Date().getHours();
@@ -99,7 +99,7 @@ const AppLayoutContent = ({ children }: { children: React.ReactNode }) => {
             // priority dihapus karena tidak dikenali
           });
           
-          localStorage.setItem('hasSeenGreeting', 'true');
+          sessionStorage.setItem('hasSeenGreeting', 'true');
         };
 
         getGreetingAndMessage();

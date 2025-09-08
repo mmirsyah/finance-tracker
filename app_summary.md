@@ -120,6 +120,7 @@ Finance Tracker is a comprehensive personal and family finance management applic
 - Modal and drawer-based UI patterns
 - Responsive design for mobile and desktop
 - Pull-to-refresh wrapper for mobile interactions
+- Search bar
 
 ## Key Services
 

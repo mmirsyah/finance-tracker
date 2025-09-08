@@ -28,7 +28,7 @@ Mobile UI/UX Improvements and Addiction Strategies for
 
   - Quick actions menu accessible from the FAB with common        
   transaction types
-  - Search bar in header for quick
+  - ✅ Search bar in header for quick
   transaction/category/account search
   - Tab bar for switching between different views in sections     
   - Back gesture navigation optimization for Android users        
