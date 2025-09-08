@@ -42,10 +42,6 @@ export default function TransactionToolbar({
   return (
     <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm p-4 sm:p-6 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6 border-b">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">Transactions</h1>
-          <p className="text-sm text-muted-foreground mt-1">Kelola semua transaksi keuangan Anda</p>
-        </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link href="/transactions/bulk-add" passHref>
             <Button 
