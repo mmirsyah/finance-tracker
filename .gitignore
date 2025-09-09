@@ -21,6 +21,7 @@
 project-structure.txt
 GEMINI.md
 CLAUDE.md
+QWEN.md
 
 # Local Environment Variables
 # Ignore all .env files

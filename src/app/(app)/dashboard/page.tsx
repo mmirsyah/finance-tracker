@@ -9,6 +9,7 @@ import SpendingByCategory from '@/components/dashboard/SpendingByCategory';
 import RecentTransactions from '@/components/dashboard/RecentTransactions';
 import BudgetQuickView from '@/components/dashboard/BudgetQuickView';
 import PendingRecurringWidget from '@/components/dashboard/PendingRecurringWidget';
+import AccountSummaryWidget from '@/components/dashboard/AccountSummaryWidget';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import RecurringConfirmModal from '@/components/modals/RecurringConfirmModal';
 import { RecurringInstance } from '@/types';
@@ -64,6 +65,10 @@ function Dashboard() {
           </div>
           <DateRangePicker onUpdate={({ range }) => setDate(range)} initialDate={date} />
         </div>
+        
+        {/* Account Summary Widget */}
+        <AccountSummaryWidget />
+        
         <div className="grid grid-cols-12 gap-6">
           {/* PRIORITAS 1 & 2 (Mobile): Ringkasan Anggaran & Aksi Mendesak.
               Di desktop, kita letakkan keduanya berdampingan di baris pertama.
